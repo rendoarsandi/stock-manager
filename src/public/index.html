@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stock Manager - Inventory & Order Review</title>
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- CSS Stylesheet -->
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div id="app-container" class="app-layout hidden">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <span class="logo-icon">📦</span>
+        <span class="logo-text">StockManager</span>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="/" class="nav-item active" data-link>
+          <span class="nav-icon">📊</span> Dashboard
+        </a>
+        <a href="/products" class="nav-item" data-link>
+          <span class="nav-icon">🔥</span> Products
+        </a>
+        <a href="/import" class="nav-item" data-link>
+          <span class="nav-icon">📥</span> Import Excel
+        </a>
+        <a href="/review" class="nav-item" data-link>
+          <span class="nav-icon">⚠️</span> Pending Review
+          <span id="badge-pending" class="badge hidden">0</span>
+        </a>
+        <a href="/stock-history" class="nav-item" data-link>
+          <span class="nav-icon">📜</span> Stock History
+        </a>
+        <a href="/opname" class="nav-item" data-link>
+          <span class="nav-icon">📋</span> Stock Opname
+        </a>
+        <a href="/settings" class="nav-item" data-link>
+          <span class="nav-icon">⚙️</span> Settings
+        </a>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="user-profile">
+          <span class="user-avatar">👤</span>
+          <div class="user-info">
+            <div id="user-display-name" class="user-name">Admin</div>
+            <div id="user-display-role" class="user-role">Administrator</div>
+          </div>
+        </div>
+        <button id="btn-logout" class="btn-logout">
+          <span class="nav-icon">🚪</span> Logout
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <header class="content-header">
+        <div class="header-title-container">
+          <button id="sidebar-toggle" class="sidebar-toggle-btn" aria-label="Toggle Navigation">
+            <span class="bar"></span>
+            <span class="bar"></span>
+            <span class="bar"></span>
+          </button>
+          <h1 id="page-title">Dashboard</h1>
+        </div>
+        <div class="header-actions">
+          <span id="connection-status" class="status-indicator online">Online</span>
+        </div>
+      </header>
+      
+      <!-- Dynamic Content Render Target -->
+      <div id="content-body" class="content-body">
+        <!-- Views will be dynamically loaded here -->
+      </div>
+    </main>
+  </div>
+
+  <!-- Login Container -->
+  <div id="login-container" class="login-layout">
+    <div class="login-card">
+      <div class="login-header">
+        <span class="login-logo">📦</span>
+        <h2>Stock Manager</h2>
+        <p>Please log in to manage your stock</p>
+      </div>
+      <form id="login-form" class="login-form">
+        <div class="form-group">
+          <label for="username">Username</label>
+          <input type="text" id="username" name="username" required placeholder="Enter username">
+        </div>
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password" required placeholder="Enter password">
+        </div>
+        <div id="login-error" class="login-error-message hidden"></div>
+        <button type="submit" class="btn-submit">Log In</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Notification Toast Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- JS Scripts -->
+  <script src="/js/app.js" type="module"></script>
+</body>
+</html>

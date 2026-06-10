@@ -1,0 +1,20 @@
+{
+  "name": "stock-manager",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "node src/index.js",
+    "test": "node tests/run.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@hono/node-server": "^1.13.8",
+    "hono": "^4.7.2",
+    "sql.js": "^1.14.1",
+    "xlsx": "^0.18.5"
+  }
+}
