@@ -250,6 +250,11 @@ function connectWebSocket() {
   console.log('Connecting to WebSocket:', wsUrl);
   socket = new WebSocket(wsUrl);
 
+  socket.onopen = () => {
+    console.log('WebSocket connection established. Syncing active page data...');
+    window.dispatchEvent(new CustomEvent('resync-data'));
+  };
+
   socket.onmessage = (event) => {
     try {
       const data = JSON.parse(event.data);
@@ -281,6 +286,15 @@ function connectWebSocket() {
 window.addEventListener('DOMContentLoaded', () => {
   checkAuth();
   connectWebSocket();
+
+  // Handle window focus to automatically reconnect WS and resync page data
+  window.addEventListener('focus', () => {
+    console.log('Window focused. Resyncing active page data...');
+    window.dispatchEvent(new CustomEvent('resync-data'));
+    if (!socket || socket.readyState === WebSocket.CLOSED) {
+      connectWebSocket();
+    }
+  });
   
   // Mobile sidebar toggle delegation
   document.body.addEventListener('click', (e) => {
@@ -300,6 +314,7 @@ window.addEventListener('DOMContentLoaded', () => {
     status.textContent = 'Online';
     status.className = 'status-indicator online';
     showToast('Connected', 'You are back online', 'success');
+    window.dispatchEvent(new CustomEvent('resync-data'));
     connectWebSocket();
   });
   

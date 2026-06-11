@@ -11,6 +11,8 @@ import opnameRouter from './routes/opname.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import os from 'os';
+
 
 import { storageContext } from './db/context.js';
 import { getLocalStore } from './db/local_kv.js';
@@ -111,11 +113,29 @@ async function startServer() {
     await initDatabase();
     console.log("Database initialized successfully.");
 
+    // Find local IP address
+    const interfaces = os.networkInterfaces();
+    let localIp = 'localhost';
+    for (const name of Object.keys(interfaces)) {
+      for (const net of interfaces[name]) {
+        if (net.family === 'IPv4' && !net.internal) {
+          localIp = net.address;
+          break;
+        }
+      }
+      if (localIp !== 'localhost') break;
+    }
+
     const server = serve({
       fetch: app.fetch,
-      port: PORT
+      port: PORT,
+      hostname: '0.0.0.0'
     }, (info) => {
-      console.log(`Server is running at http://localhost:${info.port}`);
+      console.log(`Server is running:`);
+      console.log(`  - Local:   http://localhost:${info.port}`);
+      if (localIp !== 'localhost') {
+        console.log(`  - Network: http://${localIp}:${info.port}`);
+      }
     });
 
     setupLocalWebSocket(server);

@@ -174,7 +174,7 @@ function openTemplateModal(template = null) {
   const isEdit = !!template;
   const title = isEdit ? 'Edit Import Template' : 'Create Import Template';
   
-  const mapping = template ? template.column_mapping : {
+  const mapping = template ? {
     order_id: '',
     resi_number: '',
     product_name_raw: '',
@@ -183,7 +183,20 @@ function openTemplateModal(template = null) {
     customer_name: '',
     expedition: '',
     order_date: '',
-    price: ''
+    price: '',
+    sku_ref: '',
+    ...template.column_mapping
+  } : {
+    order_id: '',
+    resi_number: '',
+    product_name_raw: '',
+    quantity: '',
+    order_status: '',
+    customer_name: '',
+    expedition: '',
+    order_date: '',
+    price: '',
+    sku_ref: ''
   };
 
   const content = `
@@ -246,6 +259,11 @@ function openTemplateModal(template = null) {
         <label for="m-price">Price / Payment Column</label>
         <input type="text" id="m-price" value="${escapeHtml(mapping.price)}" placeholder="e.g. Total Pembayaran or Nilai Transaksi">
       </div>
+
+      <div class="form-group">
+        <label for="m-sku-ref">SKU Reference Column (Nomor Referensi SKU)</label>
+        <input type="text" id="m-sku-ref" value="${escapeHtml(mapping.sku_ref || '')}" placeholder="e.g. Nomor Referensi SKU or SKU">
+      </div>
     </form>
   `;
 
@@ -278,7 +296,8 @@ function openTemplateModal(template = null) {
         customer_name: document.getElementById('m-customer-name').value.trim(),
         expedition: document.getElementById('m-expedition').value.trim(),
         order_date: document.getElementById('m-order-date').value.trim(),
-        price: document.getElementById('m-price').value.trim()
+        price: document.getElementById('m-price').value.trim(),
+        sku_ref: document.getElementById('m-sku-ref').value.trim()
       }
     };
 

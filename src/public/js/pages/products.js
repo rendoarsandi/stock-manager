@@ -16,13 +16,34 @@ export function render() {
         <h2>Product List</h2>
         <button id="btn-add-product" class="btn btn-primary">➕ Add Product</button>
       </div>
+      
+      <!-- Search and Sort Controls -->
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; gap: 1rem; flex-wrap: wrap;">
+        <div style="display: flex; gap: 0.5rem; align-items: center; width: 100%; max-width: 400px;">
+          <input type="text" id="search-product" placeholder="🔍 Search name or SKU..." style="flex: 1; padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); background-color: var(--bg-secondary); color: var(--text-primary); font-size: 0.9rem;">
+        </div>
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+          <span style="font-size: 0.9rem; color: var(--text-secondary); font-weight: 500;">Sort by:</span>
+          <select id="sort-product" style="padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); background-color: var(--bg-secondary); color: var(--text-primary); font-size: 0.9rem; cursor: pointer; font-weight: 500;">
+            <option value="name-asc" selected>Name (A-Z)</option>
+            <option value="name-desc">Name (Z-A)</option>
+            <option value="sku-asc">SKU (A-Z)</option>
+            <option value="sku-desc">SKU (Z-A)</option>
+            <option value="id-asc">ID (Low to High)</option>
+            <option value="id-desc">ID (High to Low)</option>
+            <option value="stock-asc">Stock (Low to High)</option>
+            <option value="stock-desc">Stock (High to Low)</option>
+          </select>
+        </div>
+      </div>
+
       <div class="table-wrapper">
         <table>
           <thead>
             <tr>
               <th>ID</th>
               <th>Name</th>
-              <th>Model</th>
+              <th>SKU</th>
               <th>Stock</th>
               <th>Threshold</th>
               <th>Status</th>
@@ -50,7 +71,7 @@ async function fetchProducts() {
     if (!res.ok) throw new Error('Failed to fetch products');
     
     productsList = await res.json();
-    renderProductsTable(productsList);
+    applyFilterAndSort();
   } catch (err) {
     console.error("Error loading products:", err);
     tbody.innerHTML = `
@@ -118,6 +139,16 @@ function setupEventListeners() {
     btnAdd.onclick = openAddProductModal;
   }
 
+  const searchInput = document.getElementById('search-product');
+  if (searchInput) {
+    searchInput.oninput = () => applyFilterAndSort();
+  }
+
+  const sortSelect = document.getElementById('sort-product');
+  if (sortSelect) {
+    sortSelect.onchange = () => applyFilterAndSort();
+  }
+
   const tbody = document.getElementById('products-table-body');
   if (tbody) {
     tbody.onclick = (e) => {
@@ -145,8 +176,8 @@ function openAddProductModal() {
         <input type="text" id="p-name" required placeholder="e.g. Korek Api Model A">
       </div>
       <div class="form-group">
-        <label for="p-model">Model/Variant Name</label>
-        <input type="text" id="p-model" required placeholder="e.g. Model A">
+        <label for="p-model">SKU</label>
+        <input type="text" id="p-model" required placeholder="e.g. CROBAR_1S">
       </div>
       <div class="form-group">
         <label for="p-desc">Description (Optional)</label>
@@ -216,7 +247,7 @@ function openEditProductModal(id) {
         <input type="text" id="p-edit-name" required value="${escapeHtml(product.name)}">
       </div>
       <div class="form-group">
-        <label for="p-edit-model">Model/Variant Name</label>
+        <label for="p-edit-model">SKU</label>
         <input type="text" id="p-edit-model" required value="${escapeHtml(product.model)}">
       </div>
       <div class="form-group">
@@ -355,6 +386,42 @@ function escapeHtml(str) {
     .replace(/'/g, '&#039;');
 }
 
+// Apply dynamic filtering and sorting to the products list
+function applyFilterAndSort() {
+  const searchInput = document.getElementById('search-product');
+  const sortSelect = document.getElementById('sort-product');
+  
+  let filtered = [...productsList];
+  
+  if (searchInput) {
+    const query = searchInput.value.toLowerCase().trim();
+    if (query) {
+      filtered = filtered.filter(p => 
+        p.name.toLowerCase().includes(query) || 
+        p.model.toLowerCase().includes(query) ||
+        p.id.toString().includes(query)
+      );
+    }
+  }
+  
+  if (sortSelect) {
+    const sortVal = sortSelect.value;
+    filtered.sort((a, b) => {
+      if (sortVal === 'name-asc') return a.name.localeCompare(b.name);
+      if (sortVal === 'name-desc') return b.name.localeCompare(a.name);
+      if (sortVal === 'sku-asc') return a.model.localeCompare(b.model);
+      if (sortVal === 'sku-desc') return b.model.localeCompare(a.model);
+      if (sortVal === 'id-asc') return a.id - b.id;
+      if (sortVal === 'id-desc') return b.id - a.id;
+      if (sortVal === 'stock-asc') return a.current_stock - b.current_stock;
+      if (sortVal === 'stock-desc') return b.current_stock - a.current_stock;
+      return 0;
+    });
+  }
+  
+  renderProductsTable(filtered);
+}
+
 // Register WebSocket Listener to update product table in real-time
 addWsListener((message) => {
   const { type, payload } = message;
@@ -375,7 +442,14 @@ addWsListener((message) => {
   }
   
   if (document.getElementById('products-table-body')) {
-    renderProductsTable(productsList);
+    applyFilterAndSort();
+  }
+});
+
+// Register event listener for automatic connection resync
+window.addEventListener('resync-data', () => {
+  if (document.getElementById('products-table-body')) {
+    fetchProducts();
   }
 });
 

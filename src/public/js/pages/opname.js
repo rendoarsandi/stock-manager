@@ -144,7 +144,7 @@ async function openViewDetailsModal(id) {
             <thead>
               <tr>
                 <th>Product Name</th>
-                <th>Model</th>
+                <th>SKU</th>
                 <th style="text-align: right;">System Stock</th>
                 <th style="text-align: right;">Physical Stock</th>
                 <th style="text-align: right;">Variance</th>
@@ -220,7 +220,7 @@ async function openNewOpnameModal() {
           <table>
             <thead>
               <tr>
-                <th>Product Name (Model)</th>
+                <th>Product Name (SKU)</th>
                 <th style="text-align: right; width: 100px;">System</th>
                 <th style="text-align: right; width: 120px;">Physical Count</th>
               </tr>
@@ -333,6 +333,13 @@ function formatDate(dateStr) {
 addWsListener((message) => {
   const { type } = message;
   if (type === 'OPNAME_CREATED') {
+    fetchOpnames();
+  }
+});
+
+// Register event listener for automatic connection resync
+window.addEventListener('resync-data', () => {
+  if (document.getElementById('opname-table-body')) {
     fetchOpnames();
   }
 });

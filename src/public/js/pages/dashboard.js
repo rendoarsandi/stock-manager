@@ -251,3 +251,10 @@ addWsListener((message) => {
   }
 });
 
+// Register event listener for automatic connection resync
+window.addEventListener('resync-data', () => {
+  if (document.getElementById('dash-total-products')) {
+    fetchDashboardStats();
+  }
+});
+

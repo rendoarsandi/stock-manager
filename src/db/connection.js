@@ -1,6 +1,14 @@
 import { getActiveStorage } from './context.js';
 import { hashPassword } from '../utils/crypto.js';
 import { broadcast } from '../ws/broker.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import XLSX from 'xlsx';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 
 
 // Helper to get auto-incrementing ID
@@ -26,12 +34,129 @@ export async function seedIfNeeded(storage) {
   await storage.put("user:2", { id: 2, username: 'staff', password_hash: staffHash, role: 'staff', created_at: now });
   await storage.put("counter:users", 2);
 
-  const products = [
-    { name: 'Korek Api Model A', model: 'Model A', current_stock: 100, low_stock_threshold: 20 },
-    { name: 'Korek Api Model B', model: 'Model B', current_stock: 80, low_stock_threshold: 15 },
-    { name: 'Korek Api Model C', model: 'Model C', current_stock: 50, low_stock_threshold: 10 },
-    { name: 'Korek Api Model D', model: 'Model D', current_stock: 3, low_stock_threshold: 10 }
-  ];
+  // Helper function to clean up and structure product names
+  function getProductName(groupName, variationSku, skuInduk) {
+    if (!variationSku) return groupName;
+    if (variationSku === skuInduk) return groupName;
+
+    let prefix = '';
+    if (skuInduk && skuInduk.includes('_')) {
+      prefix = skuInduk.split('_')[0] + '_';
+    } else if (skuInduk) {
+      let i = 0;
+      while (i < skuInduk.length && i < variationSku.length && skuInduk[i] === variationSku[i]) {
+        i++;
+      }
+      if (i > 0) {
+        prefix = skuInduk.substring(0, i);
+      }
+    }
+
+    if (prefix && variationSku.startsWith(prefix)) {
+      const suffix = variationSku.substring(prefix.length).replace(/_/g, ' ').trim();
+      if (suffix) {
+        const capitalized = suffix.charAt(0).toUpperCase() + suffix.slice(1).toLowerCase();
+        return `${groupName} - ${capitalized}`;
+      }
+    }
+
+    return `${groupName} - ${variationSku}`;
+  }
+
+  let products = [];
+
+  if (process.env.NODE_ENV === 'test') {
+    products = [
+      { name: 'Korek Api Model A', model: 'Model A', current_stock: 100, low_stock_threshold: 20 },
+      { name: 'Korek Api Model B', model: 'Model B', current_stock: 80, low_stock_threshold: 15 },
+      { name: 'Korek Api Model C', model: 'Model C', current_stock: 50, low_stock_threshold: 10 },
+      { name: 'Korek Api Model D', model: 'Model D', current_stock: 3, low_stock_threshold: 10 }
+    ];
+  } else {
+    try {
+      const xlsxPath = path.resolve(__dirname, '../../Ecomm HPP.xlsx');
+      if (fs.existsSync(xlsxPath)) {
+        const wb = XLSX.readFile(xlsxPath);
+        const ws = wb.Sheets['SKUCODE'];
+        const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
+
+        const nameSet = new Set();
+        for (let i = 3; i < data.length; i++) {
+          const row = data[i];
+          if (!row || row.length === 0) continue;
+
+          const groupName = row[0] ? String(row[0]).trim() : '';
+          const skuInduk = row[1] ? String(row[1]).trim() : '';
+          
+          const variations = [];
+          for (let col = 2; col <= 6; col++) {
+            if (row[col] && String(row[col]).trim() !== '') {
+              variations.push(String(row[col]).trim());
+            }
+          }
+
+          const fullSetName = row[7] ? String(row[7]).trim() : '';
+          const fullSetSku = row[8] ? String(row[8]).trim() : '';
+
+          if (!groupName && !skuInduk) continue;
+
+          const items = [];
+          if (variations.length > 0) {
+            variations.forEach(v => {
+              items.push({
+                name: getProductName(groupName, v, skuInduk),
+                model: v
+              });
+            });
+          } else if (skuInduk) {
+            items.push({
+              name: groupName,
+              model: skuInduk
+            });
+          }
+
+          if (fullSetSku) {
+            items.push({
+              name: fullSetName || `${groupName} Pack/Set`,
+              model: fullSetSku
+            });
+          }
+
+          items.forEach(item => {
+            let finalName = item.name;
+            if (nameSet.has(finalName)) {
+              finalName = `${finalName} (${item.model})`;
+            }
+            nameSet.add(finalName);
+
+            products.push({
+              name: finalName,
+              model: item.model,
+              current_stock: 100, // Seed initial stock as 100
+              low_stock_threshold: 10
+            });
+          });
+        }
+        console.log(`Successfully parsed ${products.length} products from SKUCODE sheet.`);
+      } else {
+        console.warn(`Excel file not found at ${xlsxPath}. Seeding fallback mock products.`);
+        products = [
+          { name: 'Korek Api Model A', model: 'Model A', current_stock: 100, low_stock_threshold: 20 },
+          { name: 'Korek Api Model B', model: 'Model B', current_stock: 80, low_stock_threshold: 15 },
+          { name: 'Korek Api Model C', model: 'Model C', current_stock: 50, low_stock_threshold: 10 },
+          { name: 'Korek Api Model D', model: 'Model D', current_stock: 3, low_stock_threshold: 10 }
+        ];
+      }
+    } catch (err) {
+      console.error("Error reading Ecomm HPP.xlsx during seeding:", err);
+      products = [
+        { name: 'Korek Api Model A', model: 'Model A', current_stock: 100, low_stock_threshold: 20 },
+        { name: 'Korek Api Model B', model: 'Model B', current_stock: 80, low_stock_threshold: 15 },
+        { name: 'Korek Api Model C', model: 'Model C', current_stock: 50, low_stock_threshold: 10 },
+        { name: 'Korek Api Model D', model: 'Model D', current_stock: 3, low_stock_threshold: 10 }
+      ];
+    }
+  }
 
   let prodId = 1;
   let movementId = 1;
@@ -72,7 +197,8 @@ export async function seedIfNeeded(storage) {
     customer_name: "Username Pembeli",
     expedition: "Opsi Pengiriman",
     order_date: "Waktu Pembayaran",
-    price: "Total Pembayaran"
+    price: "Total Pembayaran",
+    sku_ref: "Nomor Referensi SKU"
   };
 
   const tokopediaMapping = {
@@ -84,7 +210,8 @@ export async function seedIfNeeded(storage) {
     customer_name: "Nama Pembeli",
     expedition: "Kurir",
     order_date: "Tanggal Transaksi",
-    price: "Nilai Transaksi"
+    price: "Nilai Transaksi",
+    sku_ref: "Nomor Referensi SKU"
   };
 
   await storage.put("template:1", {

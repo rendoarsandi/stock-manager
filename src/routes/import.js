@@ -130,8 +130,30 @@ imports.post('/upload', async (c) => {
         flaggedRowsCount++;
       }
 
-      // Generate suggested splits using ambiguous parser
-      const suggestedSplits = parseAmbiguousDescription(row.product_name_raw, row.quantity, catalog);
+      // Check if we can resolve the product directly by SKU Reference (model)
+      let suggestedSplits = [];
+      let resolvedBySkuRef = false;
+      if (row.sku_ref && String(row.sku_ref).trim() !== '') {
+        const refSku = String(row.sku_ref).trim().toLowerCase();
+        // Lookup in catalog by model (case-insensitive)
+        const matchedProduct = catalog.find(p => p.model.toLowerCase() === refSku);
+        if (matchedProduct) {
+          suggestedSplits.push({
+            product_id: matchedProduct.id,
+            product_name: matchedProduct.name,
+            model: matchedProduct.model,
+            quantity: row.quantity,
+            parse_source: 'direct',
+            original_text: row.product_name_raw
+          });
+          resolvedBySkuRef = true;
+        }
+      }
+
+      if (!resolvedBySkuRef) {
+        // Generate suggested splits using ambiguous parser
+        suggestedSplits = parseAmbiguousDescription(row.product_name_raw, row.quantity, catalog);
+      }
 
       // Flag as ambiguous if any split has no product matched
       const hasAmbiguous = suggestedSplits.some(s => s.product_id === null) || suggestedSplits.length > 1;
@@ -140,6 +162,7 @@ imports.post('/upload', async (c) => {
         order_id: row.order_id,
         resi_number: row.resi_number || '',
         product_name_raw: row.product_name_raw,
+        sku_ref: row.sku_ref || '',
         quantity: row.quantity,
         order_status: row.order_status,
         customer_name: row.customer_name || '',
