@@ -1,4 +1,4 @@
-import { showToast, showModal } from '../app.js';
+import { showToast, showModal, addWsListener } from '../app.js';
 
 let productsList = [];
 let reviewOrdersList = [];
@@ -333,3 +333,27 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
 }
+
+// Register WebSocket Listener to update pending reviews in real-time
+addWsListener((message) => {
+  const { type } = message;
+  const isTargetMsg = [
+    'SESSION_UPDATED',
+    'ORDER_CREATED',
+    'ORDER_UPDATED',
+    'ORDER_ITEM_UPDATED',
+    'PRODUCT_UPDATED',
+    'PRODUCT_CREATED'
+  ].includes(type);
+
+  if (isTargetMsg && document.getElementById('cancelled-orders-table-body')) {
+    loadReviewData();
+  }
+});
+
+// Register event listener for automatic connection resync
+window.addEventListener('resync-data', () => {
+  if (document.getElementById('cancelled-orders-table-body')) {
+    loadReviewData();
+  }
+});

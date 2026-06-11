@@ -452,3 +452,10 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
 }
+
+// Register event listener for automatic connection resync
+window.addEventListener('resync-data', () => {
+  if (document.getElementById('import-template-select')) {
+    loadTemplatesAndProducts();
+  }
+});

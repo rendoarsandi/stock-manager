@@ -67,18 +67,28 @@ body {
   top: 0;
   z-index: 100;
   padding: 1.5rem 1rem;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), padding 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .sidebar-header {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.5rem;
+  position: relative;
+  height: 40px;
   margin-bottom: 2rem;
+}
+
+.logo-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .logo-icon {
   font-size: 1.75rem;
+  flex-shrink: 0;
 }
 
 .logo-text {
@@ -86,6 +96,40 @@ body {
   font-weight: 700;
   color: var(--text-primary);
   letter-spacing: -0.025em;
+  transition: opacity 0.2s ease;
+}
+
+/* Collapsible toggle button floating on the right border */
+.desktop-toggle-btn {
+  position: absolute;
+  right: -22px;
+  top: 50%;
+  transform: translateY(-50%);
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: var(--transition);
+  z-index: 110;
+}
+
+.desktop-toggle-btn:hover {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-md);
+}
+
+.toggle-icon {
+  display: inline-block;
+  font-size: 0.75rem;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .sidebar-nav {
@@ -107,6 +151,8 @@ body {
   font-size: 0.95rem;
   transition: var(--transition);
   position: relative;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .nav-item:hover {
@@ -121,6 +167,11 @@ body {
 
 .nav-icon {
   font-size: 1.15rem;
+  flex-shrink: 0;
+}
+
+.nav-text {
+  transition: opacity 0.2s ease;
 }
 
 .badge {
@@ -140,6 +191,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  overflow: hidden;
 }
 
 .user-profile {
@@ -147,6 +199,8 @@ body {
   align-items: center;
   gap: 0.75rem;
   padding: 0.25rem 0.5rem;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .user-avatar {
@@ -158,11 +212,13 @@ body {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .user-info {
   display: flex;
   flex-direction: column;
+  transition: opacity 0.2s ease;
 }
 
 .user-name {
@@ -192,6 +248,8 @@ body {
   transition: var(--transition);
   text-align: left;
   width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .btn-logout:hover {
@@ -200,12 +258,64 @@ body {
   border-color: var(--danger);
 }
 
+.logout-text {
+  transition: opacity 0.2s ease;
+}
+
+/* Collapsed Sidebar State styling */
+.sidebar.collapsed {
+  width: 70px;
+  padding: 1.5rem 0.5rem;
+}
+
+.sidebar.collapsed .logo-text,
+.sidebar.collapsed .nav-text,
+.sidebar.collapsed .user-info,
+.sidebar.collapsed .logout-text {
+  opacity: 0;
+  pointer-events: none;
+  display: none !important;
+}
+
+.sidebar.collapsed .desktop-toggle-btn .toggle-icon {
+  transform: rotate(180deg);
+}
+
+.sidebar.collapsed .nav-item {
+  justify-content: center;
+  padding: 0.75rem;
+}
+
+.sidebar.collapsed .nav-item .badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  font-size: 0.65rem;
+  padding: 0.1rem 0.35rem;
+}
+
+.sidebar.collapsed .btn-logout {
+  justify-content: center;
+  padding: 0.75rem;
+}
+
+.sidebar.collapsed ~ .main-content {
+  margin-left: 70px;
+}
+
+@media (max-width: 767px) {
+  .desktop-toggle-btn {
+    display: none !important;
+  }
+}
+
 /* Main Content */
 .main-content {
   margin-left: var(--sidebar-width);
   flex: 1;
   padding: 2rem;
   min-height: 100vh;
+  transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .content-header {

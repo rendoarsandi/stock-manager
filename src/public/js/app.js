@@ -284,6 +284,11 @@ function connectWebSocket() {
 
 // App initialization
 window.addEventListener('DOMContentLoaded', () => {
+  const sidebar = document.querySelector('.sidebar');
+  if (sidebar && localStorage.getItem('sidebar-collapsed') === 'true') {
+    sidebar.classList.add('collapsed');
+  }
+
   checkAuth();
   connectWebSocket();
 
@@ -293,6 +298,16 @@ window.addEventListener('DOMContentLoaded', () => {
     window.dispatchEvent(new CustomEvent('resync-data'));
     if (!socket || socket.readyState === WebSocket.CLOSED) {
       connectWebSocket();
+    }
+  });
+
+  // Desktop sidebar toggle delegation
+  document.body.addEventListener('click', (e) => {
+    const desktopToggle = e.target.closest('#desktop-sidebar-toggle');
+    const sidebar = document.querySelector('.sidebar');
+    if (desktopToggle && sidebar) {
+      sidebar.classList.toggle('collapsed');
+      localStorage.setItem('sidebar-collapsed', sidebar.classList.contains('collapsed'));
     }
   });
   

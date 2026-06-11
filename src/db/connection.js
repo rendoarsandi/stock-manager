@@ -435,6 +435,7 @@ export const db = {
         ...updates
       };
       await storage.put(`session:${id}`, updated);
+      broadcast({ type: 'SESSION_UPDATED', payload: updated });
       return updated;
     }
   },
@@ -475,6 +476,7 @@ export const db = {
         created_at: new Date().toISOString()
       };
       await storage.put(`order:${id}`, newOrder);
+      broadcast({ type: 'ORDER_CREATED', payload: newOrder });
       return newOrder;
     },
     async update(id, updates) {
@@ -486,6 +488,7 @@ export const db = {
         ...updates
       };
       await storage.put(`order:${id}`, updated);
+      broadcast({ type: 'ORDER_UPDATED', payload: updated });
       return updated;
     }
   },
@@ -529,6 +532,7 @@ export const db = {
         ...updates
       };
       await storage.put(`order_item:${id}`, updated);
+      broadcast({ type: 'ORDER_ITEM_UPDATED', payload: updated });
       return updated;
     }
   },
