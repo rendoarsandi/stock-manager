@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "node src/index.js",
+    "dev:local": "npx wrangler dev",
     "dev:remote": "npx wrangler dev --remote",
     "test": "node tests/run.js"
   },
