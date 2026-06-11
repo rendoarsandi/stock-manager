@@ -230,9 +230,57 @@ document.body.addEventListener('click', (e) => {
 // Back/Forward buttons handler
 window.addEventListener('popstate', router);
 
+// WebSocket management
+const wsListeners = new Set();
+let socket = null;
+
+export function addWsListener(callback) {
+  wsListeners.add(callback);
+  return () => {
+    wsListeners.delete(callback);
+  };
+}
+
+function connectWebSocket() {
+  if (socket && (socket.readyState === WebSocket.CONNECTING || socket.readyState === WebSocket.OPEN)) {
+    return;
+  }
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsUrl = `${protocol}//${window.location.host}/ws`;
+  console.log('Connecting to WebSocket:', wsUrl);
+  socket = new WebSocket(wsUrl);
+
+  socket.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      console.log('WS received:', data);
+      for (const listener of wsListeners) {
+        try {
+          listener(data);
+        } catch (e) {
+          console.error('Error executing WS listener:', e);
+        }
+      }
+    } catch (err) {
+      console.error('Error parsing WS message payload:', err);
+    }
+  };
+
+  socket.onclose = () => {
+    console.log('WebSocket connection closed, retrying in 3 seconds...');
+    socket = null;
+    setTimeout(connectWebSocket, 3000);
+  };
+
+  socket.onerror = (err) => {
+    console.error('WebSocket connection error:', err);
+  };
+}
+
 // App initialization
 window.addEventListener('DOMContentLoaded', () => {
   checkAuth();
+  connectWebSocket();
   
   // Mobile sidebar toggle delegation
   document.body.addEventListener('click', (e) => {
@@ -252,6 +300,7 @@ window.addEventListener('DOMContentLoaded', () => {
     status.textContent = 'Online';
     status.className = 'status-indicator online';
     showToast('Connected', 'You are back online', 'success');
+    connectWebSocket();
   });
   
   window.addEventListener('offline', () => {
@@ -261,3 +310,4 @@ window.addEventListener('DOMContentLoaded', () => {
     showToast('Connection Lost', 'You are working offline', 'error');
   });
 });
+

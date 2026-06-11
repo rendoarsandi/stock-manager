@@ -12,11 +12,47 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
+import { storageContext } from './db/context.js';
+import { getLocalStore } from './db/local_kv.js';
+import { seedIfNeeded } from './db/connection.js';
+import { setupLocalWebSocket } from './ws/broker.js';
+
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Initialize Hono app
 const app = new Hono();
+
+// Global database and execution context middleware
+app.use('*', async (c, next) => {
+  let store;
+  let isCloudflare = false;
+  try {
+    if (c.executionCtx && c.executionCtx.storage) {
+      isCloudflare = true;
+    }
+  } catch (e) {}
+
+  if (isCloudflare) {
+    store = {
+      type: 'cloudflare',
+      storage: c.executionCtx.storage,
+      env: c.env
+    };
+  } else {
+    store = {
+      type: 'local',
+      storage: getLocalStore(),
+      env: c.env
+    };
+  }
+
+  return storageContext.run(store, async () => {
+    await seedIfNeeded(store.storage);
+    return await next();
+  });
+});
 
 // Serve static assets from public/css, public/js, etc.
 app.use('/css/*', serveStatic({ root: './src/public' }));
@@ -31,10 +67,21 @@ app.route('/api/review', reviewRouter);
 app.route('/api/dashboard', dashboardRouter);
 app.route('/api/stock/opname', opnameRouter);
 
+// WebSocket route for Cloudflare DO / Production environment
+app.get('/ws', async (c) => {
+  if (c.env && c.env.STOCK_ROOM) {
+    const id = c.env.STOCK_ROOM.idFromName('global');
+    const stub = c.env.STOCK_ROOM.get(id);
+    return stub.fetch(c.req.raw);
+  }
+  return c.text('WebSocket endpoint. Use a WebSocket client to connect.', 400);
+});
+
 // Standard API response to check server health
 app.get('/api/health', (c) => {
   return c.json({ status: 'ok', time: new Date().toISOString() });
 });
+
 
 // SPA fallback: Serve index.html for all non-API GET requests
 app.get('/*', async (c, next) => {
@@ -64,12 +111,14 @@ async function startServer() {
     await initDatabase();
     console.log("Database initialized successfully.");
 
-    serve({
+    const server = serve({
       fetch: app.fetch,
       port: PORT
     }, (info) => {
       console.log(`Server is running at http://localhost:${info.port}`);
     });
+
+    setupLocalWebSocket(server);
 
   } catch (err) {
     console.error("Failed to start server:", err);

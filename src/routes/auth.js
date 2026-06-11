@@ -16,7 +16,7 @@ auth.post('/login', async (c) => {
       return c.json({ message: 'Username and password are required' }, 400);
     }
 
-    const user = await db.prepare("SELECT * FROM users WHERE username = ?").bind(username).first();
+    const user = await db.users.getByUsername(username);
     if (!user || !verifyPassword(password, user.password_hash)) {
       return c.json({ message: 'Invalid username or password' }, 401);
     }
@@ -77,8 +77,12 @@ auth.get('/me', async (c) => {
 // GET /users (requires admin role): lists all users
 auth.get('/users', requireAuth, requireRole('admin'), async (c) => {
   try {
-    const list = await db.prepare("SELECT id, username, role, created_at FROM users ORDER BY username ASC").all();
-    return c.json(list.results);
+    const list = await db.users.list();
+    // Sort by username alphabetically
+    list.sort((a, b) => a.username.localeCompare(b.username));
+    // Strip password hash for safety
+    const stripped = list.map(u => ({ id: u.id, username: u.username, role: u.role, created_at: u.created_at }));
+    return c.json(stripped);
   } catch (err) {
     console.error("List users error:", err);
     return c.json({ message: 'Failed to retrieve users' }, 500);
@@ -97,20 +101,19 @@ auth.post('/users', requireAuth, requireRole('admin'), async (c) => {
     }
 
     // Check for duplicate username
-    const existing = await db.prepare("SELECT id FROM users WHERE username = ?").bind(username).first();
+    const existing = await db.users.getByUsername(username);
     if (existing) {
       return c.json({ message: 'Username already exists' }, 400);
     }
 
     const hashedPassword = hashPassword(password);
+    const inserted = await db.users.insert({
+      username,
+      password_hash: hashedPassword,
+      role
+    });
 
-    const insertRes = await db.prepare(`
-      INSERT INTO users (username, password_hash, role)
-      VALUES (?, ?, ?)
-    `).bind(username, hashedPassword, role).run();
-
-    const newId = insertRes.meta.changes > 0 ? insertRes.meta.last_row_id : null;
-    return c.json({ success: true, id: newId }, 201);
+    return c.json({ success: true, id: inserted.id }, 201);
   } catch (err) {
     console.error("Create user error:", err);
     return c.json({ message: 'Failed to create user' }, 500);
@@ -128,12 +131,12 @@ auth.delete('/users/:id', requireAuth, requireRole('admin'), async (c) => {
     }
 
     // Verify user exists before deleting
-    const existing = await db.prepare("SELECT id FROM users WHERE id = ?").bind(id).first();
+    const existing = await db.users.get(id);
     if (!existing) {
       return c.json({ message: 'User not found' }, 404);
     }
 
-    await db.prepare("DELETE FROM users WHERE id = ?").bind(id).run();
+    await db.users.delete(id);
     return c.json({ success: true });
   } catch (err) {
     console.error("Delete user error:", err);

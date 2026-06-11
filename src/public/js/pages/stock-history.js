@@ -1,4 +1,4 @@
-import { showToast } from '../app.js';
+import { showToast, addWsListener } from '../app.js';
 
 export function render() {
   setTimeout(() => {
@@ -120,3 +120,12 @@ function renderLedgerTable(ledger) {
     `;
   }).join('');
 }
+
+// Register WebSocket Listener to update ledger in real-time
+addWsListener((message) => {
+  const { type } = message;
+  if (type === 'MOVEMENT_CREATED') {
+    fetchLedger();
+  }
+});
+

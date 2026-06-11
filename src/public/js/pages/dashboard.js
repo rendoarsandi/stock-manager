@@ -1,4 +1,4 @@
-import { showToast } from '../app.js';
+import { showToast, addWsListener } from '../app.js';
 
 export function render() {
   setTimeout(() => {
@@ -243,3 +243,11 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
 }
+
+// Register WebSocket Listener to update dashboard in real-time
+addWsListener((message) => {
+  if (document.getElementById('dash-total-products')) {
+    fetchDashboardStats();
+  }
+});
+

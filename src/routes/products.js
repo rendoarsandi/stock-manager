@@ -11,8 +11,10 @@ products.use('*', requireAuth);
 // 1. List all products
 products.get('/', async (c) => {
   try {
-    const list = await db.prepare("SELECT * FROM products ORDER BY name ASC").all();
-    return c.json(list.results);
+    const list = await db.products.list();
+    // Sort by name alphabetically
+    list.sort((a, b) => a.name.localeCompare(b.name));
+    return c.json(list);
   } catch (err) {
     console.error("List products error:", err);
     return c.json({ message: 'Failed to retrieve products' }, 500);
@@ -22,14 +24,30 @@ products.get('/', async (c) => {
 // Stock Ledger
 products.get('/ledger', async (c) => {
   try {
-    const list = await db.prepare(`
-      SELECT sm.*, p.name, p.model, u.username
-      FROM stock_movements sm
-      LEFT JOIN products p ON sm.product_id = p.id
-      LEFT JOIN users u ON sm.user_id = u.id
-      ORDER BY sm.created_at DESC
-    `).all();
-    return c.json(list.results);
+    const movements = await db.movements.list();
+    const productsList = await db.products.list();
+    const usersList = await db.users.list();
+
+    // Create lookup maps
+    const productMap = new Map(productsList.map(p => [p.id, p]));
+    const userMap = new Map(usersList.map(u => [u.id, u]));
+
+    // Join products and users in memory
+    const joined = movements.map(m => {
+      const prod = productMap.get(m.product_id);
+      const user = m.user_id ? userMap.get(m.user_id) : null;
+      return {
+        ...m,
+        name: prod ? prod.name : null,
+        model: prod ? prod.model : null,
+        username: user ? user.username : null
+      };
+    });
+
+    // Sort by created_at DESC
+    joined.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    return c.json(joined);
   } catch (err) {
     console.error("List ledger error:", err);
     return c.json({ message: 'Failed to retrieve stock ledger' }, 500);
@@ -50,28 +68,32 @@ products.post('/', requireRole('admin'), async (c) => {
     const stock = initial_stock !== undefined ? parseInt(initial_stock, 10) : 0;
 
     // Check if product with name already exists
-    const existing = await db.prepare("SELECT id FROM products WHERE name = ?").bind(name).first();
+    const existing = await db.products.getByName(name);
     if (existing) {
       return c.json({ message: 'Product name already exists' }, 400);
     }
 
     // Insert product
-    const insertRes = await db.prepare(`
-      INSERT INTO products (name, model, description, current_stock, low_stock_threshold)
-      VALUES (?, ?, ?, ?, ?)
-    `).bind(name, model, description || '', stock, threshold).run();
+    const inserted = await db.products.insert({
+      name,
+      model,
+      description: description || '',
+      current_stock: stock,
+      low_stock_threshold: threshold
+    });
 
-    const productId = insertRes.meta.changes > 0 ? insertRes.meta.last_row_id : null;
-
-    if (productId && stock !== 0) {
+    if (stock !== 0) {
       // Create initial stock movement
-      await db.prepare(`
-        INSERT INTO stock_movements (product_id, quantity_change, movement_type, reference, user_id)
-        VALUES (?, ?, 'initial', 'Initial product creation stock', ?)
-      `).bind(productId, stock, user.id).run();
+      await db.movements.insert({
+        product_id: inserted.id,
+        quantity_change: stock,
+        movement_type: 'initial',
+        reference: 'Initial product creation stock',
+        user_id: user.id
+      });
     }
 
-    return c.json({ success: true, id: productId }, 201);
+    return c.json({ success: true, id: inserted.id }, 201);
   } catch (err) {
     console.error("Add product error:", err);
     return c.json({ message: 'Failed to create product' }, 500);
@@ -89,18 +111,19 @@ products.put('/:id', requireRole('admin'), async (c) => {
     }
 
     // Check if name is taken by another product
-    const existing = await db.prepare("SELECT id FROM products WHERE name = ? AND id != ?").bind(name, id).first();
-    if (existing) {
+    const existing = await db.products.getByName(name);
+    if (existing && existing.id !== id) {
       return c.json({ message: 'Product name already exists' }, 400);
     }
 
     const threshold = low_stock_threshold !== undefined ? parseInt(low_stock_threshold, 10) : 10;
 
-    await db.prepare(`
-      UPDATE products 
-      SET name = ?, model = ?, description = ?, low_stock_threshold = ?, updated_at = datetime('now', 'localtime')
-      WHERE id = ?
-    `).bind(name, model, description || '', threshold, id).run();
+    await db.products.update(id, {
+      name,
+      model,
+      description: description || '',
+      low_stock_threshold: threshold
+    });
 
     return c.json({ success: true });
   } catch (err) {
@@ -125,24 +148,25 @@ products.post('/:id/adjust-stock', async (c) => {
     const user = c.get('user');
 
     // Verify product exists
-    const product = await db.prepare("SELECT current_stock FROM products WHERE id = ?").bind(id).first();
+    const product = await db.products.get(id);
     if (!product) {
       return c.json({ message: 'Product not found' }, 404);
     }
 
     // Record stock movement
-    await db.prepare(`
-      INSERT INTO stock_movements (product_id, quantity_change, movement_type, reference, user_id)
-      VALUES (?, ?, ?, ?, ?)
-    `).bind(id, change, type, ref, user.id).run();
+    await db.movements.insert({
+      product_id: id,
+      quantity_change: change,
+      movement_type: type,
+      reference: ref,
+      user_id: user.id
+    });
 
     // Update current stock in product table
     const newStock = product.current_stock + change;
-    await db.prepare(`
-      UPDATE products 
-      SET current_stock = ?, updated_at = datetime('now', 'localtime')
-      WHERE id = ?
-    `).bind(newStock, id).run();
+    await db.products.update(id, {
+      current_stock: newStock
+    });
 
     return c.json({ success: true, current_stock: newStock });
   } catch (err) {

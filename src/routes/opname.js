@@ -10,14 +10,31 @@ opname.use('*', requireAuth);
 // GET / - List all opname entries
 opname.get('/', async (c) => {
   try {
-    const list = await db.prepare(`
-      SELECT so.*, u.username, 
-        (SELECT COUNT(*) FROM stock_opname_items WHERE opname_id = so.id) as items_count
-      FROM stock_opnames so
-      LEFT JOIN users u ON so.user_id = u.id
-      ORDER BY so.created_at DESC
-    `).all();
-    return c.json(list.results);
+    const opnamesList = await db.opnames.list();
+    const usersList = await db.users.list();
+    const itemsList = await db.opnameItems.list();
+
+    const userMap = new Map(usersList.map(u => [u.id, u]));
+
+    // Calculate count of items per opname ID
+    const countMap = new Map();
+    for (const item of itemsList) {
+      countMap.set(item.opname_id, (countMap.get(item.opname_id) || 0) + 1);
+    }
+
+    const joined = opnamesList.map(so => {
+      const user = userMap.get(so.user_id);
+      return {
+        ...so,
+        username: user ? user.username : null,
+        items_count: countMap.get(so.id) || 0
+      };
+    });
+
+    // Sort by created_at DESC
+    joined.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    return c.json(joined);
   } catch (err) {
     console.error("List stock opnames error:", err);
     return c.json({ message: 'Failed to retrieve stock opnames' }, 500);
@@ -32,27 +49,29 @@ opname.get('/:id', async (c) => {
       return c.json({ message: 'Invalid opname ID' }, 400);
     }
 
-    const report = await db.prepare(`
-      SELECT so.*, u.username
-      FROM stock_opnames so
-      LEFT JOIN users u ON so.user_id = u.id
-      WHERE so.id = ?
-    `).bind(id).first();
-
+    const report = await db.opnames.get(id);
     if (!report) {
       return c.json({ message: 'Stock opname report not found' }, 404);
     }
 
-    const items = await db.prepare(`
-      SELECT soi.*, p.name, p.model
-      FROM stock_opname_items soi
-      LEFT JOIN products p ON soi.product_id = p.id
-      WHERE soi.opname_id = ?
-    `).bind(id).all();
+    const user = await db.users.get(report.user_id);
+    const opnameItemsList = await db.opnameItems.getByOpnameId(id);
+    const productsList = await db.products.list();
+    const productMap = new Map(productsList.map(p => [p.id, p]));
+
+    const joinedItems = opnameItemsList.map(soi => {
+      const prod = productMap.get(soi.product_id);
+      return {
+        ...soi,
+        name: prod ? prod.name : null,
+        model: prod ? prod.model : null
+      };
+    });
 
     return c.json({
       ...report,
-      items: items.results
+      username: user ? user.username : null,
+      items: joinedItems
     });
   } catch (err) {
     console.error("Get stock opname report error:", err);
@@ -71,12 +90,12 @@ opname.post('/', async (c) => {
     }
 
     // Insert stock_opnames
-    const insertOpnameRes = await db.prepare(`
-      INSERT INTO stock_opnames (user_id, notes, created_at)
-      VALUES (?, ?, datetime('now', 'localtime'))
-    `).bind(user.id, notes || '').run();
+    const newOpname = await db.opnames.insert({
+      user_id: user.id,
+      notes: notes || ''
+    });
 
-    const opnameId = insertOpnameRes.meta.last_row_id;
+    const opnameId = newOpname.id;
 
     for (const item of items) {
       const { product_id, physical_stock } = item;
@@ -88,7 +107,7 @@ opname.post('/', async (c) => {
       }
 
       // Query current_stock for the product
-      const product = await db.prepare("SELECT current_stock FROM products WHERE id = ?").bind(prodId).first();
+      const product = await db.products.get(prodId);
       if (!product) {
         throw new Error(`Product not found with ID ${prodId}`);
       }
@@ -97,23 +116,27 @@ opname.post('/', async (c) => {
       const variance = physStock - systemStock;
 
       // Insert into stock_opname_items
-      await db.prepare(`
-        INSERT INTO stock_opname_items (opname_id, product_id, system_stock, physical_stock, variance)
-        VALUES (?, ?, ?, ?, ?)
-      `).bind(opnameId, prodId, systemStock, physStock, variance).run();
+      await db.opnameItems.insert({
+        opname_id: opnameId,
+        product_id: prodId,
+        system_stock: systemStock,
+        physical_stock: physStock,
+        variance
+      });
 
       // Update product's current_stock
-      await db.prepare(`
-        UPDATE products
-        SET current_stock = ?, updated_at = datetime('now', 'localtime')
-        WHERE id = ?
-      `).bind(physStock, prodId).run();
+      await db.products.update(prodId, {
+        current_stock: physStock
+      });
 
       // Insert stock movement row
-      await db.prepare(`
-        INSERT INTO stock_movements (product_id, quantity_change, movement_type, reference, user_id)
-        VALUES (?, ?, 'manual_adjust', ?, ?)
-      `).bind(prodId, variance, `Stock Opname #${opnameId}`, user.id).run();
+      await db.movements.insert({
+        product_id: prodId,
+        quantity_change: variance,
+        movement_type: 'manual_adjust',
+        reference: `Stock Opname #${opnameId}`,
+        user_id: user.id
+      });
     }
 
     return c.json({ success: true, id: opnameId }, 201);

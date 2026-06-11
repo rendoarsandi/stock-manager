@@ -1,4 +1,4 @@
-import { showToast, showModal } from '../app.js';
+import { showToast, showModal, addWsListener } from '../app.js';
 
 let productsList = [];
 
@@ -354,3 +354,28 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
 }
+
+// Register WebSocket Listener to update product table in real-time
+addWsListener((message) => {
+  const { type, payload } = message;
+  
+  if (type === 'PRODUCT_CREATED') {
+    if (!productsList.some(p => p.id === payload.id)) {
+      productsList.push(payload);
+    }
+  } else if (type === 'PRODUCT_UPDATED') {
+    const idx = productsList.findIndex(p => p.id === payload.id);
+    if (idx !== -1) {
+      productsList[idx] = { ...productsList[idx], ...payload };
+    }
+  } else if (type === 'PRODUCT_DELETED') {
+    productsList = productsList.filter(p => p.id !== payload.id);
+  } else {
+    return;
+  }
+  
+  if (document.getElementById('products-table-body')) {
+    renderProductsTable(productsList);
+  }
+});
+

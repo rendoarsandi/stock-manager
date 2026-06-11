@@ -1,4 +1,4 @@
-import { showToast, showModal } from '../app.js';
+import { showToast, showModal, addWsListener } from '../app.js';
 
 let opnamesList = [];
 let currentUser = null;
@@ -328,3 +328,12 @@ function formatDate(dateStr) {
     return dateStr;
   }
 }
+
+// Register WebSocket Listener to update opnames in real-time
+addWsListener((message) => {
+  const { type } = message;
+  if (type === 'OPNAME_CREATED') {
+    fetchOpnames();
+  }
+});
+

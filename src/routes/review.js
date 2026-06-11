@@ -11,52 +11,41 @@ review.use('*', requireAuth);
 // 1. Get all orders needing review (flagged as cancelled or stuck)
 review.get('/orders', async (c) => {
   try {
-    const query = `
-      SELECT o.*, oi.id as item_id, oi.product_id, oi.quantity as item_qty, oi.is_confirmed, p.name as product_name, p.model as product_model
-      FROM orders o
-      LEFT JOIN order_items oi ON o.id = oi.order_id
-      LEFT JOIN products p ON oi.product_id = p.id
-      WHERE o.system_status = 'needs_review'
-      ORDER BY o.created_at DESC
-    `;
+    const ordersList = await db.orders.list();
+    const orderItemsList = await db.orderItems.list();
+    const productsList = await db.products.list();
+
+    const productMap = new Map(productsList.map(p => [p.id, p]));
     
-    const rows = (await db.prepare(query).all()).results;
-    
-    // Group rows by order ID
-    const ordersMap = new Map();
-    for (const row of rows) {
-      if (!ordersMap.has(row.id)) {
-        ordersMap.set(row.id, {
-          id: row.id,
-          import_session_id: row.import_session_id,
-          order_id: row.order_id,
-          resi_number: row.resi_number,
-          product_name_raw: row.product_name_raw,
-          quantity: row.quantity,
-          order_status: row.order_status,
-          customer_name: row.customer_name,
-          expedition: row.expedition,
-          order_date: row.order_date,
-          price: row.price,
-          system_status: row.system_status,
-          created_at: row.created_at,
-          items: []
-        });
+    // Group order items by order ID
+    const itemsByOrder = new Map();
+    for (const item of orderItemsList) {
+      if (!itemsByOrder.has(item.order_id)) {
+        itemsByOrder.set(item.order_id, []);
       }
-      
-      if (row.item_id) {
-        ordersMap.get(row.id).items.push({
-          id: row.item_id,
-          product_id: row.product_id,
-          quantity: row.item_qty,
-          is_confirmed: row.is_confirmed,
-          product_name: row.product_name || 'Unmapped Product',
-          product_model: row.product_model || ''
-        });
-      }
+      const prod = item.product_id ? productMap.get(item.product_id) : null;
+      itemsByOrder.get(item.order_id).push({
+        id: item.id,
+        product_id: item.product_id,
+        quantity: item.quantity,
+        is_confirmed: item.is_confirmed,
+        product_name: prod ? prod.name : 'Unmapped Product',
+        product_model: prod ? prod.model : ''
+      });
     }
-    
-    return c.json(Array.from(ordersMap.values()));
+
+    // Filter and map orders
+    const filtered = ordersList
+      .filter(o => o.system_status === 'needs_review')
+      .map(o => ({
+        ...o,
+        items: itemsByOrder.get(o.id) || []
+      }));
+
+    // Sort by created_at DESC
+    filtered.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    return c.json(filtered);
   } catch (err) {
     console.error("Get review orders error:", err);
     return c.json({ message: 'Failed to retrieve orders needing review' }, 500);
@@ -75,12 +64,12 @@ review.post('/resolve', async (c) => {
       return c.json({ message: 'Invalid resolution option' }, 400);
     }
 
-    // Verify order exists and needs review
-    const order = await db.prepare("SELECT * FROM orders WHERE id = ? AND system_status = 'needs_review'")
-      .bind(order_id)
-      .first();
+    const orderIdNum = parseInt(order_id, 10);
 
-    if (!order) {
+    // Verify order exists and needs review
+    const order = await db.orders.get(orderIdNum);
+
+    if (!order || order.system_status !== 'needs_review') {
       return c.json({ message: 'Order not found or already resolved' }, 404);
     }
 
@@ -88,56 +77,62 @@ review.post('/resolve', async (c) => {
 
     if (resolution === 'investigating') {
       // Just update notes, keep flagged
-      await db.prepare(`
-        UPDATE orders 
-        SET resolution_notes = ?, resolution = 'investigating', updated_at = datetime('now', 'localtime')
-        WHERE id = ?
-      `).bind(resolution_notes || '', order_id).run();
+      await db.orders.update(orderIdNum, {
+        resolution: 'investigating',
+        resolution_notes: resolution_notes || ''
+      });
       
       return c.json({ success: true, status: 'needs_review' });
     }
 
     // Retrieve items for this order to apply stock changes
-    const items = (await db.prepare("SELECT * FROM order_items WHERE order_id = ?").bind(order_id).all()).results;
+    const items = await db.orderItems.getByOrderId(orderIdNum);
 
     if (resolution === 'lost') {
       // Lost in transit -> Stock was NOT deducted on import, so we MUST deduct it now as a write-off!
       for (const item of items) {
         if (item.product_id) {
           // Log stock movement (negative change = write-off)
-          await db.prepare(`
-            INSERT INTO stock_movements (product_id, quantity_change, movement_type, reference, user_id)
-            VALUES (?, ?, 'write_off', ?, ?)
-          `).bind(item.product_id, -item.quantity, `Lost Order ID: ${order.order_id}`, user.id).run();
+          await db.movements.insert({
+            product_id: item.product_id,
+            quantity_change: -item.quantity,
+            movement_type: 'write_off',
+            reference: `Lost Order ID: ${order.order_id}`,
+            user_id: user.id
+          });
 
           // Deduct from catalog
-          const prod = await db.prepare("SELECT current_stock FROM products WHERE id = ?").bind(item.product_id).first();
+          const prod = await db.products.get(item.product_id);
           if (prod) {
-            await db.prepare("UPDATE products SET current_stock = ?, updated_at = datetime('now', 'localtime') WHERE id = ?")
-              .bind(prod.current_stock - item.quantity, item.product_id)
-              .run();
+            await db.products.update(item.product_id, {
+              current_stock: prod.current_stock - item.quantity
+            });
           }
         }
       }
     } else if (resolution === 'returned') {
       // Returned to warehouse -> Stock was NOT deducted on import, so no stock changes are needed (it returned to shelves).
-      // We log a 0-change reference log for audit trail (optional, but clean)
+      // We log a 0-change reference log for audit trail
       for (const item of items) {
         if (item.product_id) {
-          await db.prepare(`
-            INSERT INTO stock_movements (product_id, quantity_change, movement_type, reference, user_id)
-            VALUES (?, 0, 'return', ?, ?)
-          `).bind(item.product_id, `Returned Order ID: ${order.order_id} (No stock adjustment needed)`, user.id).run();
+          await db.movements.insert({
+            product_id: item.product_id,
+            quantity_change: 0,
+            movement_type: 'return',
+            reference: `Returned Order ID: ${order.order_id} (No stock adjustment needed)`,
+            user_id: user.id
+          });
         }
       }
     }
 
     // Mark order as resolved
-    await db.prepare(`
-      UPDATE orders 
-      SET system_status = 'resolved', resolution = ?, resolution_notes = ?, resolved_at = datetime('now', 'localtime')
-      WHERE id = ?
-    `).bind(resolution, resolution_notes || '', order_id).run();
+    await db.orders.update(orderIdNum, {
+      system_status: 'resolved',
+      resolution,
+      resolution_notes: resolution_notes || '',
+      resolved_at: new Date().toISOString()
+    });
 
     return c.json({ success: true, status: 'resolved' });
 
@@ -150,15 +145,30 @@ review.post('/resolve', async (c) => {
 // 3. Get all ambiguous order items awaiting mapping
 review.get('/ambiguous', async (c) => {
   try {
-    const query = `
-      SELECT oi.*, o.order_id, o.product_name_raw, o.quantity as order_qty, o.customer_name, o.order_date
-      FROM order_items oi
-      JOIN orders o ON oi.order_id = o.id
-      WHERE oi.is_confirmed = 0
-      ORDER BY o.created_at DESC
-    `;
-    const list = await db.prepare(query).all();
-    return c.json(list.results);
+    const orderItemsList = await db.orderItems.list();
+    const ordersList = await db.orders.list();
+
+    const orderMap = new Map(ordersList.map(o => [o.id, o]));
+
+    const filtered = orderItemsList
+      .filter(oi => oi.is_confirmed === 0)
+      .map(oi => {
+        const order = orderMap.get(oi.order_id);
+        return {
+          ...oi,
+          order_id: order ? order.order_id : null,
+          product_name_raw: order ? order.product_name_raw : null,
+          order_qty: order ? order.quantity : null,
+          customer_name: order ? order.customer_name : null,
+          order_date: order ? order.order_date : null,
+          created_at: order ? order.created_at : oi.created_at
+        };
+      });
+
+    // Sort by order created_at DESC
+    filtered.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    return c.json(filtered);
   } catch (err) {
     console.error("Get ambiguous items error:", err);
     return c.json({ message: 'Failed to retrieve ambiguous items' }, 500);
@@ -173,42 +183,49 @@ review.post('/confirm-split', async (c) => {
       return c.json({ message: 'Item ID, product selection, and quantity are required' }, 400);
     }
 
-    // Verify item exists and is unconfirmed
-    const item = await db.prepare(`
-      SELECT oi.*, o.order_id, o.system_status 
-      FROM order_items oi
-      JOIN orders o ON oi.order_id = o.id
-      WHERE oi.id = ? AND oi.is_confirmed = 0
-    `).bind(item_id).first();
+    const itemIdNum = parseInt(item_id, 10);
+    const productIdNum = parseInt(product_id, 10);
+    const qty = parseInt(quantity, 10);
 
-    if (!item) {
+    // Verify item exists and is unconfirmed
+    const item = await db.orderItems.get(itemIdNum);
+
+    if (!item || item.is_confirmed === 1) {
       return c.json({ message: 'Item not found or already confirmed' }, 404);
     }
 
+    // Get order
+    const order = await db.orders.get(item.order_id);
+    if (!order) {
+      return c.json({ message: 'Order not found' }, 404);
+    }
+
     const user = c.get('user');
-    const qty = parseInt(quantity, 10);
 
     // Update the item split to confirmed
-    await db.prepare(`
-      UPDATE order_items 
-      SET product_id = ?, quantity = ?, is_confirmed = 1 
-      WHERE id = ?
-    `).bind(product_id, qty, item_id).run();
+    await db.orderItems.update(itemIdNum, {
+      product_id: productIdNum,
+      quantity: qty,
+      is_confirmed: 1
+    });
 
     // If order is normal (not cancelled), deduct stock since it was not deducted previously due to null product_id
-    if (item.system_status === 'normal') {
+    if (order.system_status === 'normal') {
       // Log stock movement
-      await db.prepare(`
-        INSERT INTO stock_movements (product_id, quantity_change, movement_type, reference, user_id)
-        VALUES (?, ?, 'sale', ?, ?)
-      `).bind(product_id, -qty, `Confirmed Split Order: ${item.order_id}`, user.id).run();
+      await db.movements.insert({
+        product_id: productIdNum,
+        quantity_change: -qty,
+        movement_type: 'sale',
+        reference: `Confirmed Split Order: ${order.order_id}`,
+        user_id: user.id
+      });
 
       // Deduct stock
-      const prod = await db.prepare("SELECT current_stock FROM products WHERE id = ?").bind(product_id).first();
+      const prod = await db.products.get(productIdNum);
       if (prod) {
-        await db.prepare("UPDATE products SET current_stock = ?, updated_at = datetime('now', 'localtime') WHERE id = ?")
-          .bind(prod.current_stock - qty, product_id)
-          .run();
+        await db.products.update(productIdNum, {
+          current_stock: prod.current_stock - qty
+        });
       }
     }
 

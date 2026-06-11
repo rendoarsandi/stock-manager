@@ -7,7 +7,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Delete test database on startup
-const testDbPath = path.resolve(__dirname, '../data/stock_test.db');
+const testDbPath = path.resolve(__dirname, '../data/db_test.json');
 if (fs.existsSync(testDbPath)) {
   fs.unlinkSync(testDbPath);
   console.log("Cleared existing test database.");
@@ -22,7 +22,8 @@ const tests = [
   'test-review.js',
   'test-dashboard.js',
   'test-opname.js',
-  'test-extras.js'
+  'test-extras.js',
+  'test-websocket.js'
 ];
 
 console.log("Starting Stock Manager Test Suite...");

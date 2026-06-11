@@ -13,12 +13,14 @@ imports.use('*', requireAuth);
 // 1. List all templates
 imports.get('/templates', async (c) => {
   try {
-    const templates = await db.prepare("SELECT * FROM import_templates ORDER BY name ASC").all();
+    const templates = await db.templates.list();
     // Parse mapping string back to JSON objects for the frontend
-    const result = templates.results.map(t => ({
+    const result = templates.map(t => ({
       ...t,
       column_mapping: JSON.parse(t.column_mapping)
     }));
+    // Sort templates by name alphabetically
+    result.sort((a, b) => a.name.localeCompare(b.name));
     return c.json(result);
   } catch (err) {
     console.error("List templates error:", err);
@@ -38,26 +40,24 @@ imports.post('/templates', requireRole('admin'), async (c) => {
 
     if (id) {
       // Update
-      await db.prepare(`
-        UPDATE import_templates 
-        SET name = ?, column_mapping = ? 
-        WHERE id = ?
-      `).bind(name, mappingStr, id).run();
-      return c.json({ success: true, id });
+      await db.templates.update(parseInt(id, 10), {
+        name,
+        column_mapping: mappingStr
+      });
+      return c.json({ success: true, id: parseInt(id, 10) });
     } else {
       // Insert
-      const existing = await db.prepare("SELECT id FROM import_templates WHERE name = ?").bind(name).first();
+      const existing = await db.templates.getByName(name);
       if (existing) {
         return c.json({ message: 'Template name already exists' }, 400);
       }
 
-      const insertRes = await db.prepare(`
-        INSERT INTO import_templates (name, column_mapping) 
-        VALUES (?, ?)
-      `).bind(name, mappingStr).run();
+      const inserted = await db.templates.insert({
+        name,
+        column_mapping: mappingStr
+      });
 
-      const newId = insertRes.meta.last_row_id;
-      return c.json({ success: true, id: newId }, 201);
+      return c.json({ success: true, id: inserted.id }, 201);
     }
   } catch (err) {
     console.error("Save template error:", err);
@@ -69,12 +69,12 @@ imports.post('/templates', requireRole('admin'), async (c) => {
 imports.delete('/templates/:id', requireRole('admin'), async (c) => {
   try {
     const id = parseInt(c.req.param('id'), 10);
-    const existing = await db.prepare("SELECT id FROM import_templates WHERE id = ?").bind(id).first();
+    const existing = await db.templates.get(id);
     if (!existing) {
       return c.json({ message: 'Template not found' }, 404);
     }
 
-    await db.prepare("DELETE FROM import_templates WHERE id = ?").bind(id).run();
+    await db.templates.delete(id);
     return c.json({ success: true });
   } catch (err) {
     console.error("Delete template error:", err);
@@ -94,14 +94,14 @@ imports.post('/upload', async (c) => {
     }
 
     // Retrieve template column mapping
-    const template = await db.prepare("SELECT * FROM import_templates WHERE id = ?").bind(templateId).first();
+    const template = await db.templates.get(templateId);
     if (!template) {
       return c.json({ message: 'Template not found' }, 404);
     }
     const mapping = JSON.parse(template.column_mapping);
 
     // Retrieve product catalog for matching
-    const catalog = (await db.prepare("SELECT id, name, model FROM products").all()).results;
+    const catalog = await db.products.list();
 
     // Convert file to buffer
     const arrayBuffer = await file.arrayBuffer();
@@ -118,7 +118,7 @@ imports.post('/upload', async (c) => {
       if (!row.order_id) continue; // Skip empty rows
 
       // Check if duplicate order_id exists in the database
-      const existingOrder = await db.prepare("SELECT id FROM orders WHERE order_id = ?").bind(row.order_id).first();
+      const existingOrder = await db.orders.getByOrderId(row.order_id);
       const isDuplicate = !!existingOrder;
 
       // Check order status for cancellation / stuck expedition (batal/cancel)
@@ -156,15 +156,17 @@ imports.post('/upload', async (c) => {
     const user = c.get('user');
     
     // Create a pending import session
-    const sessionRes = await db.prepare(`
-      INSERT INTO import_sessions (template_id, user_id, filename, status, total_rows, applied_rows, flagged_rows)
-      VALUES (?, ?, ?, 'previewing', ?, 0, ?)
-    `).bind(templateId, user.id, file.name, previewOrders.length, flaggedRowsCount).run();
-
-    const sessionId = sessionRes.meta.last_row_id;
+    const insertedSession = await db.sessions.insert({
+      template_id: templateId,
+      user_id: user.id,
+      filename: file.name,
+      status: 'previewing',
+      total_rows: previewOrders.length,
+      flagged_rows: flaggedRowsCount
+    });
 
     return c.json({
-      session_id: sessionId,
+      session_id: insertedSession.id,
       filename: file.name,
       total_rows: previewOrders.length,
       flagged_rows: flaggedRowsCount,
@@ -187,11 +189,9 @@ imports.post('/confirm', async (c) => {
     }
 
     // Verify import session is in previewing state
-    const session = await db.prepare("SELECT * FROM import_sessions WHERE id = ? AND status = 'previewing'")
-      .bind(session_id)
-      .first();
+    const session = await db.sessions.get(session_id);
       
-    if (!session) {
+    if (!session || session.status !== 'previewing') {
       return c.json({ message: 'Invalid or expired import session' }, 404);
     }
 
@@ -202,17 +202,21 @@ imports.post('/confirm', async (c) => {
     // Process all orders
     for (const order of orders) {
       // 1. Insert order record
-      const orderRes = await db.prepare(`
-        INSERT INTO orders (
-          import_session_id, order_id, resi_number, product_name_raw, quantity, 
-          order_status, customer_name, expedition, order_date, price, system_status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).bind(
-        session_id, order.order_id, order.resi_number, order.product_name_raw, order.quantity,
-        order.order_status, order.customer_name, order.expedition, order.order_date, order.price, order.system_status
-      ).run();
+      const insertedOrder = await db.orders.insert({
+        import_session_id: session_id,
+        order_id: order.order_id,
+        resi_number: order.resi_number || null,
+        product_name_raw: order.product_name_raw,
+        quantity: order.quantity,
+        order_status: order.order_status,
+        customer_name: order.customer_name || null,
+        expedition: order.expedition || null,
+        order_date: order.order_date || null,
+        price: order.price,
+        system_status: order.system_status
+      });
 
-      const orderRecordId = orderRes.meta.last_row_id;
+      const orderRecordId = insertedOrder.id;
 
       if (order.system_status === 'needs_review') {
         flaggedCount++;
@@ -221,32 +225,32 @@ imports.post('/confirm', async (c) => {
       // 2. Insert splits into order_items
       if (order.splits && Array.isArray(order.splits)) {
         for (const split of order.splits) {
-          await db.prepare(`
-            INSERT INTO order_items (order_id, product_id, quantity, parse_source, original_text, is_confirmed)
-            VALUES (?, ?, ?, ?, ?, ?)
-          `).bind(
-            orderRecordId, 
-            split.product_id, // can be null if not resolved yet
-            split.quantity, 
-            split.parse_source || 'direct', 
-            split.original_text || order.product_name_raw,
-            split.product_id ? 1 : 0 // 0 if ambiguous and product_id is null
-          ).run();
+          await db.orderItems.insert({
+            order_id: orderRecordId,
+            product_id: split.product_id, // can be null if not resolved yet
+            quantity: split.quantity,
+            parse_source: split.parse_source || 'direct',
+            original_text: split.original_text || order.product_name_raw,
+            is_confirmed: split.product_id ? 1 : 0 // 0 if ambiguous and product_id is null
+          });
 
           // 3. Deduct stock ONLY if the order is NORMAL and product is resolved
           if (order.system_status === 'normal' && split.product_id) {
             // Log stock movement
-            await db.prepare(`
-              INSERT INTO stock_movements (product_id, quantity_change, movement_type, reference, user_id)
-              VALUES (?, ?, 'sale', ?, ?)
-            `).bind(split.product_id, -split.quantity, `Order ID: ${order.order_id}`, user.id).run();
+            await db.movements.insert({
+              product_id: split.product_id,
+              quantity_change: -split.quantity,
+              movement_type: 'sale',
+              reference: `Order ID: ${order.order_id}`,
+              user_id: user.id
+            });
 
             // Deduct product inventory
-            const prod = await db.prepare("SELECT current_stock FROM products WHERE id = ?").bind(split.product_id).first();
+            const prod = await db.products.get(split.product_id);
             if (prod) {
-              await db.prepare("UPDATE products SET current_stock = ?, updated_at = datetime('now', 'localtime') WHERE id = ?")
-                .bind(prod.current_stock - split.quantity, split.product_id)
-                .run();
+              await db.products.update(split.product_id, {
+                current_stock: prod.current_stock - split.quantity
+              });
             }
           }
         }
@@ -256,11 +260,11 @@ imports.post('/confirm', async (c) => {
     }
 
     // 4. Update Import Session status to applied
-    await db.prepare(`
-      UPDATE import_sessions 
-      SET status = 'applied', applied_rows = ?, flagged_rows = ?, created_at = datetime('now', 'localtime')
-      WHERE id = ?
-    `).bind(appliedCount, flaggedCount, session_id).run();
+    await db.sessions.update(session_id, {
+      status: 'applied',
+      applied_rows: appliedCount,
+      flagged_rows: flaggedCount
+    });
 
     return c.json({ success: true, applied_rows: appliedCount, flagged_rows: flaggedCount });
 
@@ -278,7 +282,9 @@ imports.post('/cancel', async (c) => {
       return c.json({ message: 'Session ID is required' }, 400);
     }
 
-    await db.prepare("UPDATE import_sessions SET status = 'cancelled' WHERE id = ?").bind(session_id).run();
+    await db.sessions.update(parseInt(session_id, 10), {
+      status: 'cancelled'
+    });
     return c.json({ success: true });
   } catch (err) {
     console.error("Cancel import error:", err);
@@ -289,15 +295,30 @@ imports.post('/cancel', async (c) => {
 // 6. Get import session history (Recent imports)
 imports.get('/sessions', async (c) => {
   try {
-    const sessions = await db.prepare(`
-      SELECT s.*, t.name as template_name, u.username
-      FROM import_sessions s
-      JOIN import_templates t ON s.template_id = t.id
-      JOIN users u ON s.user_id = u.id
-      ORDER BY s.created_at DESC
-      LIMIT 10
-    `).all();
-    return c.json(sessions.results);
+    const sessionsList = await db.sessions.list();
+    const templatesList = await db.templates.list();
+    const usersList = await db.users.list();
+
+    const templateMap = new Map(templatesList.map(t => [t.id, t]));
+    const userMap = new Map(usersList.map(u => [u.id, u]));
+
+    const joined = sessionsList.map(s => {
+      const template = templateMap.get(s.template_id);
+      const user = userMap.get(s.user_id);
+      return {
+        ...s,
+        template_name: template ? template.name : null,
+        username: user ? user.username : null
+      };
+    });
+
+    // Sort by created_at DESC
+    joined.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    // Limit to 10
+    const limited = joined.slice(0, 10);
+
+    return c.json(limited);
   } catch (err) {
     console.error("Get sessions error:", err);
     return c.json({ message: 'Failed to retrieve sessions history' }, 500);
