@@ -3,7 +3,7 @@ import { db } from '../db/connection.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requireRole } from '../middleware/roles.js';
 import { parseExcel } from '../services/excel-parser.js';
-import { parseAmbiguousDescription, extractSameProductPromo, extractPackMultiplier } from '../services/ambiguous-parser.js';
+import { parseAmbiguousDescription, extractSameProductPromo, extractPackMultiplier, resolvePromoProductToBaseItems } from '../services/ambiguous-parser.js';
 
 const imports = new Hono();
 
@@ -140,8 +140,15 @@ imports.post('/upload', async (c) => {
       let suggestedSplits = [];
       let resolvedDirectly = false;
 
-      // 2. Check if we can resolve the product directly by SKU Reference (model)
-      if (row.sku_ref && String(row.sku_ref).trim() !== '') {
+      // 2. Check if the SKU or name matches a bundle / promo mapping first
+      const promoSplits = resolvePromoProductToBaseItems(row.sku_ref, row.product_name_raw, row.quantity, catalog);
+      if (promoSplits) {
+        suggestedSplits = promoSplits;
+        resolvedDirectly = true;
+      }
+
+      // 3. Check if we can resolve the product directly by SKU Reference (model)
+      if (!resolvedDirectly && row.sku_ref && String(row.sku_ref).trim() !== '') {
         const refSku = String(row.sku_ref).trim().toLowerCase();
         // Lookup in catalog by model (case-insensitive)
         const matchedProduct = catalog.find(p => p.model.toLowerCase() === refSku);

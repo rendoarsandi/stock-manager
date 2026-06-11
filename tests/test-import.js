@@ -14,8 +14,18 @@ async function runTests() {
 
   await storageContext.run(store, async () => {
     try {
+      // Clear database to start fresh
+      await store.storage.deleteAll();
+
       await initDatabase();
       await seedIfNeeded(store.storage);
+
+      // Inject test bundle mapping
+      const { BUNDLE_MAPPINGS } = await import('../src/services/ambiguous-parser.js');
+      BUNDLE_MAPPINGS['test_bundle'] = [
+        { name: 'Korek Api Model A', qty: 2 },
+        { name: 'Korek Api Model B', qty: 3 }
+      ];
 
       console.log("\n--- Running Excel Import API Tests ---");
 
@@ -53,7 +63,8 @@ async function runTests() {
           "Username Pembeli": "buyer1",
           "Opsi Pengiriman": "J&T Express",
           "Waktu Pembayaran": "2026-06-10 10:00",
-          "Total Pembayaran": "Rp 20.000"
+          "Total Pembayaran": "Rp 20.000",
+          "Nomor Referensi SKU": ""
         },
         {
           "No. Pesanan": "ORDER-9902",
@@ -64,7 +75,8 @@ async function runTests() {
           "Username Pembeli": "buyer2",
           "Opsi Pengiriman": "SiCepat",
           "Waktu Pembayaran": "2026-06-10 10:15",
-          "Total Pembayaran": "Rp 15.000"
+          "Total Pembayaran": "Rp 15.000",
+          "Nomor Referensi SKU": ""
         },
         {
           "No. Pesanan": "ORDER-9903",
@@ -75,7 +87,20 @@ async function runTests() {
           "Username Pembeli": "buyer3",
           "Opsi Pengiriman": "JNE Reg",
           "Waktu Pembayaran": "2026-06-10 10:30",
-          "Total Pembayaran": "Rp 30.000"
+          "Total Pembayaran": "Rp 30.000",
+          "Nomor Referensi SKU": ""
+        },
+        {
+          "No. Pesanan": "ORDER-9904",
+          "No. Resi": "RESI-9904",
+          "Nama Produk": "Test Bundle Promotion Pack", // Promo bundle match by SKU
+          "Jumlah": 2,
+          "Status Pesanan": "Selesai",
+          "Username Pembeli": "buyer4",
+          "Opsi Pengiriman": "J&T Express",
+          "Waktu Pembayaran": "2026-06-10 11:00",
+          "Total Pembayaran": "Rp 50.000",
+          "Nomor Referensi SKU": "test_bundle"
         }
       ];
 
@@ -104,7 +129,7 @@ async function runTests() {
 
       const preview = await resUpload.json();
       console.log("Upload parsed rows summary:", preview.total_rows, "rows. Flagged:", preview.flagged_rows);
-      if (preview.total_rows !== 3 || preview.flagged_rows !== 1) {
+      if (preview.total_rows !== 4 || preview.flagged_rows !== 1) {
         throw new Error("Parsed row counts or flags mismatch");
       }
 
@@ -112,6 +137,7 @@ async function runTests() {
       const order1 = preview.orders.find(o => o.order_id === 'ORDER-9901');
       const order2 = preview.orders.find(o => o.order_id === 'ORDER-9902');
       const order3 = preview.orders.find(o => o.order_id === 'ORDER-9903');
+      const order4 = preview.orders.find(o => o.order_id === 'ORDER-9904');
 
       if (order1.system_status !== 'normal' || order1.splits.length !== 1 || order1.splits[0].product_id !== 1) {
         throw new Error("ORDER-9901 splits mismatch");
@@ -123,6 +149,16 @@ async function runTests() {
 
       if (order3.system_status !== 'needs_review' || order3.splits.length !== 1 || order3.splits[0].product_id !== 3 || order3.splits[0].quantity !== 2) {
         throw new Error("ORDER-9903 splits mismatch (multiplier split or cancellation check failed)");
+      }
+
+      // Verify that ORDER-9904 split correctly into Model A (qty 4) and Model B (qty 6)
+      if (order4.system_status !== 'normal' || order4.splits.length !== 2) {
+        throw new Error("ORDER-9904 splits count mismatch");
+      }
+      const splitA = order4.splits.find(s => s.product_id === 1);
+      const splitB = order4.splits.find(s => s.product_id === 2);
+      if (!splitA || splitA.quantity !== 4 || !splitB || splitB.quantity !== 6) {
+        throw new Error("ORDER-9904 split quantities mismatch");
       }
 
       // 4. Confirm Import
@@ -146,7 +182,7 @@ async function runTests() {
 
       const confirmRes = await resConfirm.json();
       console.log("Confirm response result details:", confirmRes);
-      if (confirmRes.applied_rows !== 3 || confirmRes.flagged_rows !== 1) {
+      if (confirmRes.applied_rows !== 4 || confirmRes.flagged_rows !== 1) {
         throw new Error("Confirm applied counts mismatch");
       }
 
@@ -164,19 +200,19 @@ async function runTests() {
       const prodB = await db.products.getByName('Korek Api Model B');
       const prodC = await db.products.getByName('Korek Api Model C');
 
-      console.log(`Product Stock A: ${prodA.current_stock} (Expected: 98)`);
-      console.log(`Product Stock B: ${prodB.current_stock} (Expected: 79)`);
+      console.log(`Product Stock A: ${prodA.current_stock} (Expected: 94)`);
+      console.log(`Product Stock B: ${prodB.current_stock} (Expected: 73)`);
       console.log(`Product Stock C: ${prodC.current_stock} (Expected: 49)`);
 
-      if (prodA.current_stock !== 98 || prodB.current_stock !== 79 || prodC.current_stock !== 49) {
+      if (prodA.current_stock !== 94 || prodB.current_stock !== 73 || prodC.current_stock !== 49) {
         throw new Error("Product stock deduction values are incorrect");
       }
 
       // Check stock movements logged:
       const salesMovements = (await db.movements.list()).filter(m => m.movement_type === 'sale');
       console.log("Logged sales movements count:", salesMovements.length);
-      if (salesMovements.length !== 3) { // 1 for A, 1 for B, 1 for C
-        throw new Error("Expected exactly 3 sales movements logged");
+      if (salesMovements.length !== 5) { // 1 for A, 1 for B, 1 for C, plus 2 from ORDER-9904 (A and B)
+        throw new Error("Expected exactly 5 sales movements logged");
       }
 
       // Check that ORDER-9903 (cancelled) order exists but has no stock movements
