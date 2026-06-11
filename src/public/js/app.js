@@ -230,56 +230,10 @@ document.body.addEventListener('click', (e) => {
 // Back/Forward buttons handler
 window.addEventListener('popstate', router);
 
-// WebSocket management
-const wsListeners = new Set();
-let socket = null;
-
+// WebSocket management (Disabled: using REST polling instead of WebSockets)
 export function addWsListener(callback) {
-  wsListeners.add(callback);
-  return () => {
-    wsListeners.delete(callback);
-  };
-}
-
-function connectWebSocket() {
-  if (socket && (socket.readyState === WebSocket.CONNECTING || socket.readyState === WebSocket.OPEN)) {
-    return;
-  }
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsUrl = `${protocol}//${window.location.host}/ws`;
-  console.log('Connecting to WebSocket:', wsUrl);
-  socket = new WebSocket(wsUrl);
-
-  socket.onopen = () => {
-    console.log('WebSocket connection established. Syncing active page data...');
-    window.dispatchEvent(new CustomEvent('resync-data'));
-  };
-
-  socket.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data);
-      console.log('WS received:', data);
-      for (const listener of wsListeners) {
-        try {
-          listener(data);
-        } catch (e) {
-          console.error('Error executing WS listener:', e);
-        }
-      }
-    } catch (err) {
-      console.error('Error parsing WS message payload:', err);
-    }
-  };
-
-  socket.onclose = () => {
-    console.log('WebSocket connection closed, retrying in 3 seconds...');
-    socket = null;
-    setTimeout(connectWebSocket, 3000);
-  };
-
-  socket.onerror = (err) => {
-    console.error('WebSocket connection error:', err);
-  };
+  // Return dummy unsubscribe function
+  return () => {};
 }
 
 // App initialization
@@ -290,15 +244,17 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   checkAuth();
-  connectWebSocket();
 
-  // Handle window focus to automatically reconnect WS and resync page data
+  // Poll for updates every 5 seconds using REST
+  setInterval(() => {
+    console.log('Interval poll: Resyncing active page data...');
+    window.dispatchEvent(new CustomEvent('resync-data'));
+  }, 5000);
+
+  // Handle window focus to automatically resync page data
   window.addEventListener('focus', () => {
     console.log('Window focused. Resyncing active page data...');
     window.dispatchEvent(new CustomEvent('resync-data'));
-    if (!socket || socket.readyState === WebSocket.CLOSED) {
-      connectWebSocket();
-    }
   });
 
   // Desktop sidebar toggle delegation
@@ -330,7 +286,6 @@ window.addEventListener('DOMContentLoaded', () => {
     status.className = 'status-indicator online';
     showToast('Connected', 'You are back online', 'success');
     window.dispatchEvent(new CustomEvent('resync-data'));
-    connectWebSocket();
   });
   
   window.addEventListener('offline', () => {
