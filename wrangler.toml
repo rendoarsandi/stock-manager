@@ -10,3 +10,6 @@ class_name = "StockRoom"
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["StockRoom"]
+
+[assets]
+directory = "./src/public"

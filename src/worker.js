@@ -23,7 +23,14 @@ app.get('/*', async (c, next) => {
   
   // Cloudflare Workers Assets serving fallback
   if (c.env && c.env.ASSETS) {
-    return await c.env.ASSETS.fetch(c.req.raw);
+    const hasFileExtension = /\.[a-zA-Z0-9]+$/.test(pathUrl);
+    if (hasFileExtension) {
+      return await c.env.ASSETS.fetch(c.req.raw);
+    } else {
+      const url = new URL(c.req.url);
+      url.pathname = '/index.html';
+      return await c.env.ASSETS.fetch(new Request(url.toString(), c.req.raw));
+    }
   }
   
   return next();
