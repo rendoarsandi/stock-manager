@@ -26,6 +26,14 @@ const __dirname = path.dirname(__filename);
 // Initialize Hono app
 const app = new Hono();
 
+// Prevent browser caching for static resources and SPA files
+app.use('*', async (c, next) => {
+  c.header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  c.header('Pragma', 'no-cache');
+  c.header('Expires', '0');
+  await next();
+});
+
 // Global database and execution context middleware
 app.use('*', async (c, next) => {
   let store;
