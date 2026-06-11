@@ -215,7 +215,10 @@ async function openNewOpnameModal() {
           <textarea id="opname-notes" placeholder="Enter notes for this audit (e.g. Weekly physical stock count)"></textarea>
         </div>
         
-        <div style="font-weight: 600; font-size: 0.95rem; margin-bottom: -0.5rem;">Product Physical Counts</div>
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;">
+          <div style="font-weight: 600; font-size: 0.95rem;">Product Physical Counts</div>
+          <input type="text" id="opname-search-input" class="form-input" placeholder="🔍 Search product name or SKU..." style="max-width: 300px; padding: 0.35rem 0.5rem; font-size: 0.8rem; margin-bottom: 0;">
+        </div>
         <div class="table-wrapper" style="max-height: 350px; overflow-y: auto;">
           <table>
             <thead>
@@ -225,9 +228,9 @@ async function openNewOpnameModal() {
                 <th style="text-align: right; width: 120px;">Physical Count</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody id="opname-modal-table-body">
               ${products.map(p => `
-                <tr class="opname-product-row" data-product-id="${p.id}">
+                <tr class="opname-product-row" data-product-id="${p.id}" data-search-term="${escapeHtml(p.name.toLowerCase())} ${escapeHtml(p.model.toLowerCase())}">
                   <td>
                     <div style="font-weight: 500;">${escapeHtml(p.name)}</div>
                     <div style="font-size: 0.8rem; color: var(--text-muted);">${escapeHtml(p.model)}</div>
@@ -252,6 +255,21 @@ async function openNewOpnameModal() {
     `;
 
     const modalInstance = showModal("New Stock Opname", contentHtml, footerButtonsHtml);
+
+    // Setup live search filter
+    const searchInput = document.getElementById('opname-search-input');
+    searchInput.oninput = (e) => {
+      const term = e.target.value.toLowerCase().trim();
+      const rows = modalInstance.element.querySelectorAll('.opname-product-row');
+      rows.forEach(row => {
+        const rowTerm = row.dataset.searchTerm;
+        if (rowTerm.includes(term)) {
+          row.style.display = '';
+        } else {
+          row.style.display = 'none';
+        }
+      });
+    };
 
     modalInstance.element.querySelector('.btn-cancel-modal').onclick = () => modalInstance.close();
 

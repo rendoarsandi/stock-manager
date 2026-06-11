@@ -420,12 +420,12 @@ function openUserModal() {
     <form id="modal-user-form" style="display: flex; flex-direction: column; gap: 1rem;">
       <div class="form-group">
         <label for="u-username">Username</label>
-        <input type="text" id="u-username" placeholder="e.g. staff_john" required>
+        <input type="text" id="u-username" placeholder="e.g. staff_john" required autocomplete="username">
       </div>
 
       <div class="form-group">
         <label for="u-password">Password</label>
-        <input type="password" id="u-password" placeholder="Enter password" required>
+        <input type="password" id="u-password" placeholder="Enter password" required autocomplete="new-password">
       </div>
 
       <div class="form-group">

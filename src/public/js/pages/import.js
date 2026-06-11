@@ -4,6 +4,8 @@ let templatesList = [];
 let productsList = [];
 let currentPreviewSession = null;
 let currentPreviewOrders = [];
+let currentFilter = 'all'; // 'all' or 'unmapped'
+let currentSortUnmapped = false;
 
 export function render() {
   setTimeout(() => {
@@ -63,6 +65,9 @@ export function render() {
           </div>
         </div>
 
+        <!-- Toolbar for filtering/sorting -->
+        <div id="preview-toolbar-container"></div>
+
         <!-- Preview Table -->
         <div class="table-wrapper">
           <table>
@@ -105,6 +110,20 @@ async function loadTemplatesAndProducts() {
     const pRes = await fetch('/api/products');
     if (pRes.ok) {
       productsList = await pRes.json();
+    }
+
+    // 3. Fetch Active Previewing Session (if any)
+    const activeRes = await fetch('/api/import/active-session');
+    if (activeRes.ok) {
+      const activeData = await activeRes.json();
+      if (activeData) {
+        currentPreviewSession = activeData.session_id;
+        currentPreviewOrders = activeData.orders;
+        renderPreview({
+          total_rows: activeData.total_rows,
+          flagged_rows: activeData.flagged_rows
+        });
+      }
     }
   } catch (err) {
     console.error("Load templates failed:", err);
@@ -151,7 +170,10 @@ function setupImportForm() {
 
       const data = await res.json();
       currentPreviewSession = data.session_id;
-      currentPreviewOrders = data.orders;
+      currentPreviewOrders = data.orders.map(order => ({
+        ...order,
+        is_selected: !order.is_duplicate
+      }));
 
       showToast('Parsed', 'Excel parsed. Review the preview below.', 'success');
       renderPreview(data);
@@ -166,30 +188,104 @@ function setupImportForm() {
   };
 }
 
-// Render the preview table and summary stats
-function renderPreview(data) {
-  const previewSection = document.getElementById('import-preview-section');
+function getUnmappedCount() {
+  return currentPreviewOrders.filter(order => 
+    order.splits && order.splits.some(s => s.product_id === null)
+  ).length;
+}
+
+function updateUnmappedBadge() {
+  const badge = document.getElementById('unmapped-count');
+  if (badge) {
+    badge.textContent = getUnmappedCount();
+  }
+}
+
+function renderToolbar() {
+  const container = document.getElementById('preview-toolbar-container');
+  if (!container) return;
+
+  container.innerHTML = `
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.5rem; background: var(--bg-primary); padding: 0.75rem 1rem; border-radius: var(--border-radius-md); border: 1px solid var(--border-color); flex-wrap: wrap;">
+      <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+        <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">Filter:</span>
+        <div style="display: inline-flex; background: var(--border-color); padding: 3px; border-radius: var(--border-radius-sm); gap: 2px;">
+          <button id="btn-filter-all" class="btn-segmented ${currentFilter === 'all' ? 'active' : ''}" style="border: none; background: ${currentFilter === 'all' ? 'var(--bg-secondary)' : 'transparent'}; color: ${currentFilter === 'all' ? 'var(--text-primary)' : 'var(--text-secondary)'}; padding: 0.35rem 0.75rem; border-radius: 4px; font-size: 0.8rem; font-weight: 500; cursor: pointer; transition: var(--transition); box-shadow: ${currentFilter === 'all' ? 'var(--shadow-sm)' : 'none'};">
+            All Orders
+          </button>
+          <button id="btn-filter-unmapped" class="btn-segmented ${currentFilter === 'unmapped' ? 'active' : ''}" style="border: none; background: ${currentFilter === 'unmapped' ? 'var(--bg-secondary)' : 'transparent'}; color: ${currentFilter === 'unmapped' ? 'var(--text-primary)' : 'var(--text-secondary)'}; padding: 0.35rem 0.75rem; border-radius: 4px; font-size: 0.8rem; font-weight: 500; cursor: pointer; transition: var(--transition); box-shadow: ${currentFilter === 'unmapped' ? 'var(--shadow-sm)' : 'none'};">
+            ⚠️ Needs Mapping (<span id="unmapped-count">${getUnmappedCount()}</span>)
+          </button>
+        </div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 0.75rem;">
+        <label style="display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; user-select: none;">
+          <input type="checkbox" id="chk-sort-unmapped" ${currentSortUnmapped ? 'checked' : ''} style="width: 16px; height: 16px; cursor: pointer; accent-color: var(--accent-color);">
+          Sort Unmapped to Top
+        </label>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('btn-filter-all').onclick = () => {
+    currentFilter = 'all';
+    renderToolbar();
+    renderPreviewTable();
+  };
+
+  document.getElementById('btn-filter-unmapped').onclick = () => {
+    currentFilter = 'unmapped';
+    renderToolbar();
+    renderPreviewTable();
+  };
+
+  document.getElementById('chk-sort-unmapped').onchange = (e) => {
+    currentSortUnmapped = e.target.checked;
+    renderPreviewTable();
+  };
+}
+
+function renderPreviewTable() {
   const tbody = document.getElementById('preview-table-body');
-  
-  if (!previewSection || !tbody) return;
+  if (!tbody) return;
 
-  // Set stats
-  document.getElementById('stat-total').textContent = data.total_rows;
-  document.getElementById('stat-cancelled').textContent = data.flagged_rows;
-  
-  const duplicateCount = data.orders.filter(o => o.is_duplicate).length;
-  document.getElementById('stat-duplicates').textContent = duplicateCount;
-
-  // Render rows
   tbody.innerHTML = '';
-  
-  data.orders.forEach((order, index) => {
+
+  let filteredOrders = [...currentPreviewOrders];
+  if (currentFilter === 'unmapped') {
+    filteredOrders = filteredOrders.filter(order => 
+      order.splits && order.splits.some(s => s.product_id === null)
+    );
+  }
+
+  if (currentSortUnmapped) {
+    filteredOrders.sort((a, b) => {
+      const aNeeds = a.splits && a.splits.some(s => s.product_id === null);
+      const bNeeds = b.splits && b.splits.some(s => s.product_id === null);
+      if (aNeeds && !bNeeds) return -1;
+      if (!aNeeds && bNeeds) return 1;
+      return 0;
+    });
+  }
+
+  if (filteredOrders.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+          No orders match the current filter.
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  filteredOrders.forEach((order) => {
+    const originalIndex = currentPreviewOrders.findIndex(o => o.order_id === order.order_id);
     const tr = document.createElement('tr');
     if (order.is_duplicate) {
       tr.style.backgroundColor = 'var(--danger-light)';
     }
 
-    // Set order metadata columns
     let statusTagClass = 'info';
     let statusText = order.order_status;
     if (order.system_status === 'needs_review') {
@@ -199,7 +295,7 @@ function renderPreview(data) {
 
     tr.innerHTML = `
       <td style="text-align: center; vertical-align: top;">
-        <input type="checkbox" class="order-apply-checkbox" data-index="${index}" ${order.is_duplicate ? '' : 'checked'}>
+        <input type="checkbox" class="order-apply-checkbox" ${order.is_selected ? 'checked' : ''}>
       </td>
       <td style="vertical-align: top; font-family: monospace; font-size: 0.8rem;">
         ${escapeHtml(order.order_id)}
@@ -214,12 +310,32 @@ function renderPreview(data) {
       </td>
     `;
 
-    // Render splits sub-editor in the last cell
+    const checkbox = tr.querySelector('.order-apply-checkbox');
+    checkbox.onchange = (e) => {
+      order.is_selected = e.target.checked;
+    };
+
     const splitsCell = tr.querySelector('.splits-container-cell');
-    renderSplitsEditor(splitsCell, order.splits, index);
+    renderSplitsEditor(splitsCell, order.splits, originalIndex);
 
     tbody.appendChild(tr);
   });
+}
+
+// Render the preview table and summary stats
+function renderPreview(data) {
+  const previewSection = document.getElementById('import-preview-section');
+  if (!previewSection) return;
+
+  // Set stats
+  document.getElementById('stat-total').textContent = data.total_rows;
+  document.getElementById('stat-cancelled').textContent = data.flagged_rows;
+  
+  const duplicateCount = currentPreviewOrders.filter(o => o.is_duplicate).length;
+  document.getElementById('stat-duplicates').textContent = duplicateCount;
+
+  renderToolbar();
+  renderPreviewTable();
 
   // Display the preview block and scroll down to it
   previewSection.classList.remove('hidden');
@@ -260,49 +376,24 @@ function renderSplitsEditor(container, splits, orderIndex) {
     qtyInput.style.fontSize = '0.8rem';
     qtyInput.onchange = (e) => {
       currentPreviewOrders[orderIndex].splits[splitIndex].quantity = parseInt(e.target.value, 10) || 1;
+      syncActiveSessionOrders();
     };
 
-    // 2. Product Selector Drop-down
-    const select = document.createElement('select');
-    select.style.flex = '1';
-    select.style.padding = '0.2rem';
-    select.style.fontSize = '0.8rem';
-    select.required = true;
-
-    // Create options listing all catalog products
-    let optionsHtml = `<option value="">-- Map Product --</option>`;
-    productsList.forEach(p => {
-      const isSelected = p.id === split.product_id ? 'selected' : '';
-      optionsHtml += `<option value="${p.id}" ${isSelected}>${escapeHtml(p.name)} (${escapeHtml(p.model)})</option>`;
-    });
-    select.innerHTML = optionsHtml;
-
-    // Add color border highlight if product is unmatched
-    if (!split.product_id) {
-      select.style.borderColor = 'var(--warning)';
-      select.style.backgroundColor = 'var(--warning-light)';
-    }
-
-    select.onchange = (e) => {
-      const pId = parseInt(e.target.value, 10) || null;
+    // 2. Product Selector Searchable Drop-down
+    const selectContainer = createSearchableSelect(split.product_id, (pId) => {
       const selectedProd = productsList.find(p => p.id === pId);
       
       currentPreviewOrders[orderIndex].splits[splitIndex].product_id = pId;
       currentPreviewOrders[orderIndex].splits[splitIndex].product_name = selectedProd ? selectedProd.name : '';
+      currentPreviewOrders[orderIndex].splits[splitIndex].parse_source = 'manual';
       
-      // Update styling back to normal if matched
-      if (pId) {
-        select.style.borderColor = '';
-        select.style.backgroundColor = '';
-      } else {
-        select.style.borderColor = 'var(--warning)';
-        select.style.backgroundColor = 'var(--warning-light)';
-      }
-    };
+      updateUnmappedBadge();
+      syncActiveSessionOrders();
+    });
 
     // 3. Delete Split button (if more than 1 split)
     row.appendChild(qtyInput);
-    row.appendChild(select);
+    row.appendChild(selectContainer);
     
     if (splits.length > 1) {
       const btnDel = document.createElement('button');
@@ -312,6 +403,8 @@ function renderSplitsEditor(container, splits, orderIndex) {
       btnDel.onclick = () => {
         currentPreviewOrders[orderIndex].splits.splice(splitIndex, 1);
         renderSplitsEditor(container, currentPreviewOrders[orderIndex].splits, orderIndex);
+        updateUnmappedBadge();
+        syncActiveSessionOrders();
       };
       row.appendChild(btnDel);
     }
@@ -337,10 +430,28 @@ function renderSplitsEditor(container, splits, orderIndex) {
       original_text: currentPreviewOrders[orderIndex].product_name_raw
     });
     renderSplitsEditor(container, currentPreviewOrders[orderIndex].splits, orderIndex);
+    updateUnmappedBadge();
+    syncActiveSessionOrders();
   };
   
   wrapper.appendChild(addLink);
   container.appendChild(wrapper);
+}
+
+async function syncActiveSessionOrders() {
+  if (!currentPreviewSession) return;
+  try {
+    await fetch('/api/import/active-session/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        session_id: currentPreviewSession,
+        orders: currentPreviewOrders
+      })
+    });
+  } catch (err) {
+    console.error("Sync preview orders failed:", err);
+  }
 }
 
 // Discard/Cancel Import Session
@@ -366,28 +477,20 @@ async function discardImport() {
 async function confirmImport() {
   if (!currentPreviewSession) return;
 
-  // 1. Gather all checked rows
-  const checkboxes = document.querySelectorAll('.order-apply-checkbox:checked');
-  if (checkboxes.length === 0) {
+  const selectedOrdersToSubmit = currentPreviewOrders.filter(order => order.is_selected);
+  if (selectedOrdersToSubmit.length === 0) {
     showToast('Warning', 'No orders selected to import', 'warning');
     return;
   }
 
-  const selectedOrdersToSubmit = [];
   let hasUnmappedProducts = false;
 
-  checkboxes.forEach(cb => {
-    const idx = parseInt(cb.dataset.index, 10);
-    const order = currentPreviewOrders[idx];
-
-    // Check if splits are completely mapped to products
+  selectedOrdersToSubmit.forEach(order => {
     order.splits.forEach(s => {
       if (!s.product_id) {
         hasUnmappedProducts = true;
       }
     });
-
-    selectedOrdersToSubmit.push(order);
   });
 
   if (hasUnmappedProducts) {
@@ -459,3 +562,95 @@ window.addEventListener('resync-data', () => {
     loadTemplatesAndProducts();
   }
 });
+
+function createSearchableSelect(selectedId, onChange) {
+  const container = document.createElement('div');
+  container.className = 'searchable-select-container';
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'searchable-select-input';
+  input.placeholder = '-- Map Product (Search...) --';
+  
+  // Set initial text
+  const initialProd = productsList.find(p => p.id === selectedId);
+  input.value = initialProd ? `${initialProd.name} (${initialProd.model})` : '';
+
+  // Store the active selected ID
+  let activeId = selectedId;
+
+  // Custom highlights for validation
+  if (!selectedId) {
+    input.style.borderColor = 'var(--warning)';
+    input.style.backgroundColor = 'var(--warning-light)';
+  }
+
+  const dropdown = document.createElement('div');
+  dropdown.className = 'searchable-select-dropdown hidden';
+
+  container.appendChild(input);
+  container.appendChild(dropdown);
+
+  const renderItems = (filterText = '') => {
+    dropdown.innerHTML = '';
+    const normFilter = filterText.toLowerCase();
+
+    // Filter list
+    const filtered = productsList.filter(p => 
+      p.name.toLowerCase().includes(normFilter) || 
+      p.model.toLowerCase().includes(normFilter)
+    );
+
+    if (filtered.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'searchable-select-item';
+      empty.style.color = 'var(--text-muted)';
+      empty.textContent = 'No matching products';
+      dropdown.appendChild(empty);
+      return;
+    }
+
+    filtered.forEach(p => {
+      const item = document.createElement('div');
+      item.className = 'searchable-select-item';
+      if (p.id === activeId) {
+        item.classList.add('selected');
+      }
+      item.textContent = `${p.name} (${p.model})`;
+      item.onmousedown = (e) => {
+        // use mousedown to fire before blur hides the dropdown
+        e.preventDefault();
+        activeId = p.id;
+        input.value = `${p.name} (${p.model})`;
+        input.style.borderColor = '';
+        input.style.backgroundColor = '';
+        dropdown.classList.add('hidden');
+        onChange(p.id);
+      };
+      dropdown.appendChild(item);
+    });
+  };
+
+  // Focus/Click events
+  input.onfocus = () => {
+    dropdown.classList.remove('hidden');
+    renderItems(input.value);
+  };
+
+  input.oninput = () => {
+    dropdown.classList.remove('hidden');
+    renderItems(input.value);
+  };
+
+  input.onblur = () => {
+    // Hide dropdown
+    setTimeout(() => {
+      dropdown.classList.add('hidden');
+      // Revert text if they left it half-typed or invalid
+      const current = productsList.find(p => p.id === activeId);
+      input.value = current ? `${current.name} (${current.model})` : '';
+    }, 150);
+  };
+
+  return container;
+}

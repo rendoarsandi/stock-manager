@@ -10,6 +10,69 @@ function escapeRegExp(string) {
 }
 
 /**
+ * Extracts same-product promo multipliers (e.g. BUY 1 GET 1, B1G1, Beli 1 Gratis 1)
+ * and returns the cleaned text and the promo multiplier.
+ */
+export function extractSameProductPromo(text) {
+  let tempText = text;
+  let promoMultiplier = 1;
+
+  const patterns = [
+    /\[?buy\s+(\d+)\s+get\s+(\d+)(?:\s+free)?\]?/i,
+    /\[?beli\s+(\d+)\s+gratis\s+(\d+)\]?/i,
+    /\[?buy\s+(\d+)\s+free\s+(\d+)\]?/i,
+    /\[?b(\d+)g(\d+)\]?/i
+  ];
+
+  for (const regex of patterns) {
+    const match = tempText.match(regex);
+    if (match) {
+      const buyQty = parseInt(match[1], 10);
+      const freeQty = parseInt(match[2], 10);
+      promoMultiplier = buyQty + freeQty;
+      tempText = tempText.replace(regex, '').trim();
+      break;
+    }
+  }
+
+  return { cleanText: tempText, promoMultiplier };
+}
+
+/**
+ * Extracts pack size multipliers (e.g. (10 pcs), - 5 Buah, 5's)
+ * and returns the cleaned text and the pack multiplier.
+ */
+export function extractPackMultiplier(text) {
+  let tempText = text;
+  let packMultiplier = 1;
+
+  // Only match pack-size suffixes at the END of the string.
+  // Pattern 1: trailing parenthesized like "(10 pcs)" or "(5 Buah)"
+  // Pattern 2: trailing dash like "- 5 Buah"
+  // The number must be the FIRST thing inside the parens or after the dash,
+  // so "(Joker 4Pcs)" won't match (Joker comes before the number).
+  const suffixPatterns = [
+    // (10 pcs) or (5 Buah) — number must be first inside parens
+    /\(\s*(\d+)\s*(?:pcs|buah|pc|pack|pak|item|items|btg|batang|sachet|bks|bungkus)\s*\)\s*$/i,
+    // - 5 Buah or - 10 pcs — at end of string
+    /\s+-\s*(\d+)\s*(?:pcs|buah|pc|pack|pak|item|items|btg|batang|sachet|bks|bungkus)\s*$/i,
+    // 5's at end of string (e.g. "Product Name 5's")
+    /\s+(\d+)'s\s*$/i
+  ];
+
+  for (const regex of suffixPatterns) {
+    const match = tempText.match(regex);
+    if (match) {
+      packMultiplier = parseInt(match[1], 10);
+      tempText = tempText.replace(regex, '').trim();
+      break;
+    }
+  }
+
+  return { cleanText: tempText, packMultiplier };
+}
+
+/**
  * Tries to find a product in the catalog that is a substring of the query,
  * or vice versa, focusing on the longest matching product name.
  * @param {string} text - Text to search.
@@ -55,7 +118,6 @@ export function findProductInCatalog(text, catalog) {
  */
 export function parseAmbiguousDescription(rawText, orderQty, catalog) {
   const text = rawText.trim();
-  const normalized = text.toLowerCase();
   const splits = [];
 
   // Helper to push a match
@@ -70,26 +132,33 @@ export function parseAmbiguousDescription(rawText, orderQty, catalog) {
     });
   };
 
-  // 1. Direct Catalog Match (Exact or Containment without promo keywords)
-  const isPromo = normalized.includes('gratis') || normalized.includes('paket') || normalized.includes('bundle') || normalized.includes('+') || normalized.includes('&') || normalized.includes('dan');
-  const directProduct = findProductInCatalog(text, catalog);
+  // Pre-process rawText for same-product promos and pack multipliers
+  const promoRes = extractSameProductPromo(text);
+  const packRes = extractPackMultiplier(promoRes.cleanText);
+  const cleanedText = packRes.cleanText;
+  const baseMultiplier = promoRes.promoMultiplier * packRes.packMultiplier;
+
+  const normalizedCleaned = cleanedText.toLowerCase();
+
+  // 1. Direct Catalog Match (using cleanedText)
+  const isPromo = normalizedCleaned.includes('gratis') || normalizedCleaned.includes('paket') || normalizedCleaned.includes('bundle') || normalizedCleaned.includes('+') || normalizedCleaned.includes('&') || normalizedCleaned.includes('dan') || normalizedCleaned.includes('free');
+  const directProduct = findProductInCatalog(cleanedText, catalog);
   
   if (directProduct && !isPromo) {
-    // Check if there is a quantity multiplier like "2x" or "x2" inside the direct match
-    const multiplierMatch = normalized.match(/(?:^|\s)(\d+)\s*[xX]\s*(.+)$/) || normalized.match(/(.+)\s*[xX]\s*(\d+)(?:\s|$)/);
+    // Check if there is a quantity multiplier like "2x" or "x2" inside the cleaned text
+    const multiplierMatch = normalizedCleaned.match(/(?:^|\s)(\d+)\s*[xX]\s*(.+)$/) || normalizedCleaned.match(/(.+)\s*[xX]\s*(\d+)(?:\s|$)/);
     if (multiplierMatch) {
       // It has a multiplier, let it fall through to pattern parser
     } else {
-      addSplit(directProduct, orderQty, 'direct', text);
+      addSplit(directProduct, baseMultiplier * orderQty, 'direct', text);
       return splits;
     }
   }
 
-  // 2. Promo Parser: "Beli X Gratis Y" (Buy X Free Y)
-  // Example: "Beli 2 Korek Api Model A gratis 1 Korek Api Model B"
-  // Indonesian: "beli 2 gratis 1...", "beli 2 [product] gratis 1 [product]"
+  // 2. Different-Products Promo Parser: "Beli X gratis Y" or "Buy X get Y"
+  // Indonesian: "Beli 2 Korek Api Model A gratis 1 Korek Api Model B"
   const buyFreeRegex = /beli\s+(\d+)\s+(.*?)\s+gratis\s+(\d+)\s+(.*)/i;
-  const buyFreeMatch = text.match(buyFreeRegex);
+  const buyFreeMatch = cleanedText.match(buyFreeRegex);
   if (buyFreeMatch) {
     const buyQty = parseInt(buyFreeMatch[1], 10);
     const buyItemText = buyFreeMatch[2];
@@ -99,76 +168,73 @@ export function parseAmbiguousDescription(rawText, orderQty, catalog) {
     const buyProduct = findProductInCatalog(buyItemText, catalog);
     const freeProduct = findProductInCatalog(freeItemText, catalog);
 
-    // Calculate total quantity of items based on overall orderQty
-    // orderQty represents how many bundles were ordered
-    addSplit(buyProduct, buyQty * orderQty, 'auto_split', buyItemText);
-    addSplit(freeProduct, freeQty * orderQty, 'auto_split', freeItemText);
+    addSplit(buyProduct, baseMultiplier * buyQty * orderQty, 'auto_split', buyItemText);
+    addSplit(freeProduct, baseMultiplier * freeQty * orderQty, 'auto_split', freeItemText);
     return splits;
   }
 
-  // Indonesian simpler: "Beli 1 gratis 1 Korek Api Model A" (Buy 1 get 1 free of the same product)
-  const buyFreeSameRegex = /beli\s+(\d+)\s+gratis\s+(\d+)\s+(.*)/i;
-  const buyFreeSameMatch = text.match(buyFreeSameRegex);
-  if (buyFreeSameMatch) {
-    const buyQty = parseInt(buyFreeSameMatch[1], 10);
-    const freeQty = parseInt(buyFreeSameMatch[2], 10);
-    const itemText = buyFreeSameMatch[3];
+  // English: "Buy 2 Korek Api Model A get 1 Korek Api Model B free"
+  const buyFreeEngRegex = /buy\s+(\d+)\s+(.*?)\s+get\s+(\d+)\s+(.*?)(?:\s+free)?$/i;
+  const buyFreeEngMatch = cleanedText.match(buyFreeEngRegex);
+  if (buyFreeEngMatch) {
+    const buyQty = parseInt(buyFreeEngMatch[1], 10);
+    const buyItemText = buyFreeEngMatch[2];
+    const freeQty = parseInt(buyFreeEngMatch[3], 10);
+    const freeItemText = buyFreeEngMatch[4];
 
-    const product = findProductInCatalog(itemText, catalog);
-    addSplit(product, (buyQty + freeQty) * orderQty, 'auto_split', itemText);
+    const buyProduct = findProductInCatalog(buyItemText, catalog);
+    const freeProduct = findProductInCatalog(freeItemText, catalog);
+
+    addSplit(buyProduct, baseMultiplier * buyQty * orderQty, 'auto_split', buyItemText);
+    addSplit(freeProduct, baseMultiplier * freeQty * orderQty, 'auto_split', freeItemText);
     return splits;
   }
 
   // 3. Multiplier Parser: "2x Product Name" or "Product Name x 3"
-  // e.g. "2x Korek Api Model A" or "Korek Api Model A x2"
   const leadingMultiplierRegex = /^(?:paket\s+)?(\d+)\s*[xX]\s*(.+)$/i;
   const trailingMultiplierRegex = /^(.+?)\s*[xX]\s*(\d+)$/i;
 
-  const leadMatch = text.match(leadingMultiplierRegex);
-  const trailMatch = text.match(trailingMultiplierRegex);
+  const leadMatch = cleanedText.match(leadingMultiplierRegex);
+  const trailMatch = cleanedText.match(trailingMultiplierRegex);
 
   if (leadMatch) {
     const mult = parseInt(leadMatch[1], 10);
     const itemText = leadMatch[2];
     const product = findProductInCatalog(itemText, catalog);
-    addSplit(product, mult * orderQty, 'auto_split', itemText);
+    addSplit(product, baseMultiplier * mult * orderQty, 'auto_split', itemText);
     return splits;
   } else if (trailMatch) {
     const itemText = trailMatch[1];
     const mult = parseInt(trailMatch[2], 10);
     const product = findProductInCatalog(itemText, catalog);
-    addSplit(product, mult * orderQty, 'auto_split', itemText);
+    addSplit(product, baseMultiplier * mult * orderQty, 'auto_split', itemText);
     return splits;
   }
 
   // 4. Bundle / Combo Parser: "Paket A + B" or "A & B"
-  // e.g. "Paket Korek A + Korek B" or "Korek A & Korek B"
-  if (normalized.includes('+') || normalized.includes('&') || normalized.includes(' dan ')) {
-    // Remove "paket" prefix
-    let cleanText = text.replace(/paket/i, '').trim();
-    // Split by delimiters
-    const parts = cleanText.split(/\s*(?:\+|\&|dan)\s*/i);
+  if (normalizedCleaned.includes('+') || normalizedCleaned.includes('&') || normalizedCleaned.includes(' dan ') || normalizedCleaned.includes(' and ')) {
+    let cleanText = cleanedText.replace(/paket/i, '').trim();
+    const parts = cleanText.split(/\s*(?:\+|\&|dan|and)\s*/i);
     
     if (parts.length > 1) {
       parts.forEach(part => {
-        // Check if individual part has its own quantity multiplier, e.g. "2x Korek A"
         const partMatch = part.match(/^(\d+)\s*[xX]\s*(.+)$/i);
         if (partMatch) {
           const partMult = parseInt(partMatch[1], 10);
           const partItem = partMatch[2];
           const product = findProductInCatalog(partItem, catalog);
-          addSplit(product, partMult * orderQty, 'auto_split', partItem);
+          addSplit(product, baseMultiplier * partMult * orderQty, 'auto_split', partItem);
         } else {
           const product = findProductInCatalog(part, catalog);
-          addSplit(product, 1 * orderQty, 'auto_split', part);
+          addSplit(product, baseMultiplier * 1 * orderQty, 'auto_split', part);
         }
       });
       return splits;
     }
   }
 
-  // 5. Default Fallback (Unmatched or partially matched description)
-  const product = findProductInCatalog(text, catalog);
-  addSplit(product, orderQty, 'direct', text);
+  // 5. Default Fallback
+  const product = findProductInCatalog(cleanedText, catalog);
+  addSplit(product, baseMultiplier * orderQty, 'direct', cleanedText);
   return splits;
 }

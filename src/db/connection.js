@@ -240,6 +240,16 @@ export async function initDatabase() {
 
 // Model wrappers
 export const db = {
+  aliases: {
+    async get(cleanText) {
+      const storage = getActiveStorage();
+      return await storage.get(`alias:${cleanText.toLowerCase()}`);
+    },
+    async set(cleanText, productId) {
+      const storage = getActiveStorage();
+      await storage.put(`alias:${cleanText.toLowerCase()}`, parseInt(productId, 10));
+    }
+  },
   users: {
     async list() {
       const storage = getActiveStorage();
@@ -421,6 +431,7 @@ export const db = {
         total_rows: parseInt(session.total_rows, 10) || 0,
         applied_rows: parseInt(session.applied_rows, 10) || 0,
         flagged_rows: parseInt(session.flagged_rows, 10) || 0,
+        orders_data: session.orders_data || null,
         created_at: new Date().toISOString()
       };
       await storage.put(`session:${id}`, newSession);

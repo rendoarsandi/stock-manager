@@ -25,11 +25,11 @@ export function render() {
         <div style="display: flex; gap: 0.5rem; align-items: center;">
           <span style="font-size: 0.9rem; color: var(--text-secondary); font-weight: 500;">Sort by:</span>
           <select id="sort-product" style="padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); background-color: var(--bg-secondary); color: var(--text-primary); font-size: 0.9rem; cursor: pointer; font-weight: 500;">
-            <option value="name-asc" selected>Name (A-Z)</option>
+            <option value="name-asc">Name (A-Z)</option>
             <option value="name-desc">Name (Z-A)</option>
             <option value="sku-asc">SKU (A-Z)</option>
             <option value="sku-desc">SKU (Z-A)</option>
-            <option value="id-asc">ID (Low to High)</option>
+            <option value="id-asc" selected>ID (Low to High)</option>
             <option value="id-desc">ID (High to Low)</option>
             <option value="stock-asc">Stock (Low to High)</option>
             <option value="stock-desc">Stock (High to Low)</option>

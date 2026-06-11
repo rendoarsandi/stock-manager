@@ -54,6 +54,34 @@ async function runTests() {
     throw new Error("Unmatched test failed");
   }
 
+  // Test Case F: Suffix Pack Multiplier
+  const resF = parseAmbiguousDescription("Korek Api Model A (10 pcs)", 1, catalog);
+  console.log("Suffix pack multiplier output:", resF);
+  if (resF.length !== 1 || resF[0].product_id !== 1 || resF[0].quantity !== 10) {
+    throw new Error("Suffix pack multiplier test failed");
+  }
+
+  // Test Case G: Suffix Pack Multiplier with space & different unit
+  const resG = parseAmbiguousDescription("Korek Api Model B - 5 Buah", 2, catalog);
+  console.log("Suffix pack multiplier with dash output:", resG);
+  if (resG.length !== 1 || resG[0].product_id !== 2 || resG[0].quantity !== 10) {
+    throw new Error("Suffix pack multiplier with dash test failed");
+  }
+
+  // Test Case H: Same Product Promo BUY 1 GET 1
+  const resH = parseAmbiguousDescription("[BUY 1 GET 1] Korek Api Model A", 2, catalog);
+  console.log("BUY 1 GET 1 output:", resH);
+  if (resH.length !== 1 || resH[0].product_id !== 1 || resH[0].quantity !== 4) {
+    throw new Error("BUY 1 GET 1 test failed");
+  }
+
+  // Test Case I: Combined Promo and Pack Multiplier
+  const resI = parseAmbiguousDescription("[B1G1] Korek Api Model A - 5 Buah", 1, catalog);
+  console.log("Combined Promo and Pack output:", resI);
+  if (resI.length !== 1 || resI[0].product_id !== 1 || resI[0].quantity !== 10) {
+    throw new Error("Combined Promo and Pack test failed");
+  }
+
   console.log("Ambiguous Parser tests passed!");
 
   // 3. Test Excel Parser

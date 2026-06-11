@@ -3,7 +3,7 @@ import { db } from '../db/connection.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requireRole } from '../middleware/roles.js';
 import { parseExcel } from '../services/excel-parser.js';
-import { parseAmbiguousDescription } from '../services/ambiguous-parser.js';
+import { parseAmbiguousDescription, extractSameProductPromo, extractPackMultiplier } from '../services/ambiguous-parser.js';
 
 const imports = new Hono();
 
@@ -130,9 +130,17 @@ imports.post('/upload', async (c) => {
         flaggedRowsCount++;
       }
 
-      // Check if we can resolve the product directly by SKU Reference (model)
+      // 1. Extract multipliers from product name first
+      const promoRes = extractSameProductPromo(row.product_name_raw);
+      const packRes = extractPackMultiplier(promoRes.cleanText);
+      const cleanedText = packRes.cleanText;
+      const baseMultiplier = promoRes.promoMultiplier * packRes.packMultiplier;
+      const totalQuantity = row.quantity * baseMultiplier;
+
       let suggestedSplits = [];
-      let resolvedBySkuRef = false;
+      let resolvedDirectly = false;
+
+      // 2. Check if we can resolve the product directly by SKU Reference (model)
       if (row.sku_ref && String(row.sku_ref).trim() !== '') {
         const refSku = String(row.sku_ref).trim().toLowerCase();
         // Lookup in catalog by model (case-insensitive)
@@ -142,15 +150,35 @@ imports.post('/upload', async (c) => {
             product_id: matchedProduct.id,
             product_name: matchedProduct.name,
             model: matchedProduct.model,
-            quantity: row.quantity,
+            quantity: totalQuantity, // apply the multiplier even if matched by SKU
             parse_source: 'direct',
             original_text: row.product_name_raw
           });
-          resolvedBySkuRef = true;
+          resolvedDirectly = true;
         }
       }
 
-      if (!resolvedBySkuRef) {
+      // 3. Check memory aliases if not resolved by SKU
+      if (!resolvedDirectly) {
+        const aliasProductId = await db.aliases.get(cleanedText);
+        if (aliasProductId) {
+          const matchedProduct = catalog.find(p => p.id === aliasProductId);
+          if (matchedProduct) {
+            suggestedSplits.push({
+              product_id: matchedProduct.id,
+              product_name: matchedProduct.name,
+              model: matchedProduct.model,
+              quantity: totalQuantity,
+              parse_source: 'alias',
+              original_text: row.product_name_raw
+            });
+            resolvedDirectly = true;
+          }
+        }
+      }
+
+      // 4. Fallback to ambiguous parser
+      if (!resolvedDirectly) {
         // Generate suggested splits using ambiguous parser
         suggestedSplits = parseAmbiguousDescription(row.product_name_raw, row.quantity, catalog);
       }
@@ -177,6 +205,14 @@ imports.post('/upload', async (c) => {
     }
 
     const user = c.get('user');
+
+    // Cancel all previous previewing sessions to prevent multiple active sessions
+    const oldSessions = await db.sessions.list();
+    for (const s of oldSessions) {
+      if (s.status === 'previewing') {
+        await db.sessions.update(s.id, { status: 'cancelled', orders_data: null });
+      }
+    }
     
     // Create a pending import session
     const insertedSession = await db.sessions.insert({
@@ -185,7 +221,8 @@ imports.post('/upload', async (c) => {
       filename: file.name,
       status: 'previewing',
       total_rows: previewOrders.length,
-      flagged_rows: flaggedRowsCount
+      flagged_rows: flaggedRowsCount,
+      orders_data: JSON.stringify(previewOrders)
     });
 
     return c.json({
@@ -257,6 +294,13 @@ imports.post('/confirm', async (c) => {
             is_confirmed: split.product_id ? 1 : 0 // 0 if ambiguous and product_id is null
           });
 
+          // Save alias memory if manually mapped
+          if (split.parse_source === 'manual' && split.product_id && split.original_text) {
+            const promoRes = extractSameProductPromo(split.original_text);
+            const packRes = extractPackMultiplier(promoRes.cleanText);
+            await db.aliases.set(packRes.cleanText, split.product_id);
+          }
+
           // 3. Deduct stock ONLY if the order is NORMAL and product is resolved
           if (order.system_status === 'normal' && split.product_id) {
             // Log stock movement
@@ -286,7 +330,8 @@ imports.post('/confirm', async (c) => {
     await db.sessions.update(session_id, {
       status: 'applied',
       applied_rows: appliedCount,
-      flagged_rows: flaggedCount
+      flagged_rows: flaggedCount,
+      orders_data: null
     });
 
     return c.json({ success: true, applied_rows: appliedCount, flagged_rows: flaggedCount });
@@ -306,12 +351,51 @@ imports.post('/cancel', async (c) => {
     }
 
     await db.sessions.update(parseInt(session_id, 10), {
-      status: 'cancelled'
+      status: 'cancelled',
+      orders_data: null
     });
     return c.json({ success: true });
   } catch (err) {
     console.error("Cancel import error:", err);
     return c.json({ message: 'Failed to cancel session' }, 500);
+  }
+});
+
+// 5.5 Get Active Previewing Session (if any)
+imports.get('/active-session', async (c) => {
+  try {
+    const sessionsList = await db.sessions.list();
+    const active = sessionsList.find(s => s.status === 'previewing');
+    if (active) {
+      return c.json({
+        session_id: active.id,
+        filename: active.filename,
+        total_rows: active.total_rows,
+        flagged_rows: active.flagged_rows,
+        orders: JSON.parse(active.orders_data || '[]')
+      });
+    }
+    return c.json(null);
+  } catch (err) {
+    console.error("Get active session error:", err);
+    return c.json({ message: 'Failed to retrieve active session' }, 500);
+  }
+});
+
+// 5.6 Sync active session orders
+imports.post('/active-session/sync', async (c) => {
+  try {
+    const { session_id, orders } = await c.req.json();
+    if (!session_id || !orders) {
+      return c.json({ message: 'Session ID and orders are required' }, 400);
+    }
+    await db.sessions.update(parseInt(session_id, 10), {
+      orders_data: JSON.stringify(orders)
+    });
+    return c.json({ success: true });
+  } catch (err) {
+    console.error("Sync active session error:", err);
+    return c.json({ message: 'Failed to sync session data' }, 500);
   }
 });
 

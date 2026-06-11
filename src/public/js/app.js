@@ -9,7 +9,9 @@ const routes = {
   '/settings': { title: 'Settings', render: () => import('./pages/settings.js').then(m => m.render()) }
 };
 
-let currentUser = null;
+// DEV MODE: Set default admin user immediately to prevent login flash.
+// checkAuth() will update this with real data from the server.
+let currentUser = { id: 1, username: 'admin', role: 'admin' };
 
 // Toast Utility
 export function showToast(title, message, type = 'info', duration = 3000) {
@@ -84,9 +86,11 @@ export async function navigateTo(url) {
 }
 
 async function router() {
+  // DEV MODE: Always proceed — auth is handled by checkAuth on init.
+  // If currentUser is somehow null, use fallback instead of blocking UI.
   if (!currentUser) {
-    showLoginLayout();
-    return;
+    currentUser = { id: 1, username: 'admin', role: 'admin' };
+    showAppLayout();
   }
 
   // Close sidebar on mobile navigation
@@ -143,33 +147,23 @@ function showAppLayout() {
 }
 
 async function checkAuth() {
+  // DEV MODE: Always show app layout immediately, then try to get real user data.
+  showAppLayout();
+  await router();
+
   try {
     const res = await fetch('/api/auth/me');
     if (res.status === 200) {
-      currentUser = await res.json();
-      showAppLayout();
-      await router();
-    } else {
-      // Auto-login with default admin credentials for preview bypass
-      const autoLoginRes = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: 'admin', password: 'admin123' })
-      });
-      
-      if (autoLoginRes.ok) {
-        currentUser = await autoLoginRes.json();
-        showAppLayout();
-        await router();
-      } else {
-        currentUser = null;
-        showLoginLayout();
-      }
+      const userData = await res.json();
+      currentUser = userData;
+      // Update display with real user data
+      document.getElementById('user-display-name').textContent = currentUser.username;
+      document.getElementById('user-display-role').textContent = currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1);
     }
+    // If /me fails, we just keep using the hardcoded admin — no login redirect
   } catch (err) {
-    console.error("Auth check failed:", err);
-    currentUser = null;
-    showLoginLayout();
+    console.error("Auth check failed (using dev fallback):", err);
+    // Keep using hardcoded admin user — never show login in dev mode
   }
 }
 
@@ -230,10 +224,56 @@ document.body.addEventListener('click', (e) => {
 // Back/Forward buttons handler
 window.addEventListener('popstate', router);
 
-// WebSocket management (Disabled: using REST polling instead of WebSockets)
+// WebSocket management
+const wsListeners = new Set();
+let socket = null;
+
 export function addWsListener(callback) {
-  // Return dummy unsubscribe function
-  return () => {};
+  wsListeners.add(callback);
+  return () => {
+    wsListeners.delete(callback);
+  };
+}
+
+function connectWebSocket() {
+  if (socket && (socket.readyState === WebSocket.CONNECTING || socket.readyState === WebSocket.OPEN)) {
+    return;
+  }
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsUrl = `${protocol}//${window.location.host}/ws`;
+  console.log('Connecting to WebSocket:', wsUrl);
+  socket = new WebSocket(wsUrl);
+
+  socket.onopen = () => {
+    console.log('WebSocket connection established. Syncing active page data...');
+    window.dispatchEvent(new CustomEvent('resync-data'));
+  };
+
+  socket.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      console.log('WS received:', data);
+      for (const listener of wsListeners) {
+        try {
+          listener(data);
+        } catch (e) {
+          console.error('Error executing WS listener:', e);
+        }
+      }
+    } catch (err) {
+      console.error('Error parsing WS message payload:', err);
+    }
+  };
+
+  socket.onclose = () => {
+    console.log('WebSocket connection closed, retrying in 3 seconds...');
+    socket = null;
+    setTimeout(connectWebSocket, 3000);
+  };
+
+  socket.onerror = (err) => {
+    console.error('WebSocket connection error:', err);
+  };
 }
 
 // App initialization
@@ -244,17 +284,15 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   checkAuth();
+  connectWebSocket();
 
-  // Poll for updates every 5 seconds using REST
-  setInterval(() => {
-    console.log('Interval poll: Resyncing active page data...');
-    window.dispatchEvent(new CustomEvent('resync-data'));
-  }, 5000);
-
-  // Handle window focus to automatically resync page data
+  // Handle window focus to automatically reconnect WS and resync page data
   window.addEventListener('focus', () => {
     console.log('Window focused. Resyncing active page data...');
     window.dispatchEvent(new CustomEvent('resync-data'));
+    if (!socket || socket.readyState === WebSocket.CLOSED) {
+      connectWebSocket();
+    }
   });
 
   // Desktop sidebar toggle delegation
@@ -286,6 +324,7 @@ window.addEventListener('DOMContentLoaded', () => {
     status.className = 'status-indicator online';
     showToast('Connected', 'You are back online', 'success');
     window.dispatchEvent(new CustomEvent('resync-data'));
+    connectWebSocket();
   });
   
   window.addEventListener('offline', () => {
