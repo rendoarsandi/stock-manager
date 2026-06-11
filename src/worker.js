@@ -17,20 +17,25 @@ app.get('/ws', async (c) => {
 // SPA fallback for Worker static assets or general routes
 app.get('/*', async (c, next) => {
   const pathUrl = c.req.path;
+  console.log("Worker fallback route hit:", pathUrl);
   if (pathUrl.startsWith('/api') || pathUrl.startsWith('/ws')) {
     return next();
   }
   
   // Cloudflare Workers Assets serving fallback
   if (c.env && c.env.ASSETS) {
+    console.log("c.env.ASSETS is defined. Fetching...");
     const hasFileExtension = /\.[a-zA-Z0-9]+$/.test(pathUrl);
     if (hasFileExtension) {
       return await c.env.ASSETS.fetch(c.req.raw);
     } else {
       const url = new URL(c.req.url);
       url.pathname = '/index.html';
+      console.log("Rewriting to index.html:", url.toString());
       return await c.env.ASSETS.fetch(new Request(url.toString(), c.req.raw));
     }
+  } else {
+    console.log("c.env.ASSETS is UNDEFINED!");
   }
   
   return next();

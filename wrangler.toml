@@ -12,4 +12,5 @@ tag = "v1"
 new_sqlite_classes = ["StockRoom"]
 
 [assets]
+binding = "ASSETS"
 directory = "./src/public"
