@@ -298,10 +298,12 @@ export const db = {
     },
     async delete(id) {
       const storage = getActiveStorage();
-      const success = await storage.execute("DELETE FROM products WHERE id = ?", [id]);
-      if (success) {
-        broadcast({ type: 'PRODUCT_DELETED', payload: { id } });
-      }
+      // Clean up child tables to prevent foreign key violations or data inconsistency
+      await storage.execute("DELETE FROM order_items WHERE product_id = ?", [id]);
+      await storage.execute("DELETE FROM stock_movements WHERE product_id = ?", [id]);
+      await storage.execute("DELETE FROM product_aliases WHERE product_id = ?", [id]);
+      await storage.execute("DELETE FROM products WHERE id = ?", [id]);
+      broadcast({ type: 'PRODUCT_DELETED', payload: { id } });
       return true;
     }
   },

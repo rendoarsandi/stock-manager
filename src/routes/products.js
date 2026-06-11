@@ -175,4 +175,25 @@ products.post('/:id/adjust-stock', async (c) => {
   }
 });
 
+// 5. Delete product (Admin only)
+products.delete('/:id', requireRole('admin'), async (c) => {
+  try {
+    const id = parseInt(c.req.param('id'), 10);
+    
+    // Verify product exists
+    const product = await db.products.get(id);
+    if (!product) {
+      return c.json({ message: 'Product not found' }, 404);
+    }
+
+    // Delete product from database
+    await db.products.delete(id);
+    
+    return c.json({ success: true });
+  } catch (err) {
+    console.error("Delete product error:", err);
+    return c.json({ message: 'Failed to delete product' }, 500);
+  }
+});
+
 export default products;

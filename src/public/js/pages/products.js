@@ -125,6 +125,7 @@ function renderProductsTable(products) {
           <div class="actions-cell">
             <button class="btn btn-secondary btn-sm btn-adjust" data-id="${p.id}" data-name="${p.name}">🔢 Adjust</button>
             <button class="btn btn-secondary btn-sm btn-edit" data-id="${p.id}">✏️ Edit</button>
+            <button class="btn btn-danger btn-sm btn-delete" data-id="${p.id}" data-name="${escapeHtml(p.name)}">🗑️ Delete</button>
           </div>
         </td>
       </tr>
@@ -154,6 +155,7 @@ function setupEventListeners() {
     tbody.onclick = (e) => {
       const adjustBtn = e.target.closest('.btn-adjust');
       const editBtn = e.target.closest('.btn-edit');
+      const deleteBtn = e.target.closest('.btn-delete');
 
       if (adjustBtn) {
         const id = adjustBtn.dataset.id;
@@ -162,6 +164,10 @@ function setupEventListeners() {
       } else if (editBtn) {
         const id = editBtn.dataset.id;
         openEditProductModal(id);
+      } else if (deleteBtn) {
+        const id = deleteBtn.dataset.id;
+        const name = deleteBtn.dataset.name;
+        confirmDeleteProduct(id, name);
       }
     };
   }
@@ -367,6 +373,43 @@ function openAdjustStockModal(id, name) {
       } else {
         const err = await res.json();
         showToast('Error', err.message || 'Failed to adjust stock', 'error');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Error', 'Connection error', 'error');
+    }
+  };
+}
+
+// Open confirmation modal to delete product
+function confirmDeleteProduct(id, name) {
+  const content = `
+    <p style="margin-bottom: 1rem; color: var(--text-primary);">Are you sure you want to delete product <strong>${escapeHtml(name)}</strong>?</p>
+    <p style="color: var(--danger); font-size: 0.85rem; font-weight: 500; margin-bottom: 0.5rem;">⚠️ This action is permanent and will delete all associated order item histories and stock movements!</p>
+  `;
+
+  const footer = `
+    <button class="btn btn-secondary btn-cancel-modal">Cancel</button>
+    <button id="btn-confirm-delete" class="btn btn-danger">🗑️ Delete Product</button>
+  `;
+
+  const modalInstance = showModal('Confirm Delete Product', content, footer);
+
+  modalInstance.element.querySelector('.btn-cancel-modal').onclick = () => modalInstance.close();
+
+  modalInstance.element.querySelector('#btn-confirm-delete').onclick = async () => {
+    try {
+      const res = await fetch(`/api/products/${id}`, {
+        method: 'DELETE'
+      });
+
+      if (res.ok) {
+        showToast('Deleted', 'Product deleted successfully', 'success');
+        modalInstance.close();
+        fetchProducts();
+      } else {
+        const err = await res.json();
+        showToast('Error', err.message || 'Failed to delete product', 'error');
       }
     } catch (err) {
       console.error(err);

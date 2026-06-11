@@ -187,6 +187,44 @@ async function runTests() {
         throw new Error("Movement ledger record mismatch");
       }
 
+      // 7. Delete product (Forbidden for Staff, Success for Admin)
+      console.log("\nTesting DELETE /api/products/:id (Forbidden for Staff)...");
+      const resDeleteStaff = await app.request(`/api/products/${createResult.id}`, {
+        method: 'DELETE',
+        headers: { 'Cookie': staffCookie }
+      });
+      console.log("Staff delete product status:", resDeleteStaff.status);
+      if (resDeleteStaff.status !== 403) {
+        throw new Error("Expected 403 Forbidden for Staff on DELETE");
+      }
+
+      console.log("\nTesting DELETE /api/products/:id (Success for Admin)...");
+      const resDeleteAdmin = await app.request(`/api/products/${createResult.id}`, {
+        method: 'DELETE',
+        headers: { 'Cookie': adminCookie }
+      });
+      if (resDeleteAdmin.status !== 200) {
+        throw new Error(`Expected 200 for admin product delete, got ${resDeleteAdmin.status}`);
+      }
+      const deleteResult = await resDeleteAdmin.json();
+      console.log("Delete result:", deleteResult);
+      if (!deleteResult.success) {
+        throw new Error("Expected success: true from delete API response");
+      }
+
+      // Verify product is gone from DB
+      const deletedProduct = await db.products.get(createResult.id);
+      if (deletedProduct) {
+        throw new Error("Product still exists in database after deletion");
+      }
+
+      // Verify child records (movements) are cascade-deleted
+      const remainingMovements = (await db.movements.list()).filter(m => m.product_id === createResult.id);
+      console.log("Remaining movements count for deleted product:", remainingMovements.length);
+      if (remainingMovements.length !== 0) {
+        throw new Error("Expected movements associated with the product to be deleted");
+      }
+
       console.log("\nAll products API tests passed successfully!");
       process.exit(0);
     } catch (err) {
