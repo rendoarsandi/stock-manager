@@ -14,7 +14,10 @@ export function render() {
     <div class="section-card">
       <div class="section-header">
         <h2>Stock Opname (Physical Inventory Audit)</h2>
-        <button id="btn-new-opname" class="btn btn-primary">➕ New Stock Opname</button>
+        <button id="btn-new-opname" class="btn btn-primary">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 12h14M12 5v14"/></svg>
+          New Stock Opname
+        </button>
       </div>
       <div class="table-wrapper">
         <table>
@@ -96,7 +99,10 @@ function renderOpnamesTable(list) {
       <td><span style="font-size: 0.9rem; color: var(--text-secondary);">${escapeHtml(item.notes || '-')}</span></td>
       <td><span class="status-tag success">${item.items_count} products</span></td>
       <td>
-        <button class="btn btn-secondary btn-sm btn-view-details" data-id="${item.id}">👁️ View Details</button>
+        <button class="btn btn-secondary btn-sm btn-view-details" data-id="${item.id}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+          View Details
+        </button>
       </td>
     </tr>
   `).join('');
@@ -180,7 +186,10 @@ async function openViewDetailsModal(id) {
 
     const footerButtonsHtml = `
       <button class="btn btn-secondary btn-close-modal">Close</button>
-      <button class="btn btn-primary btn-print-report">🖨️ Print Report</button>
+      <button class="btn btn-primary btn-print-report">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v8H6z"/></svg>
+        Print Report
+      </button>
     `;
 
     const modalInstance = showModal(`Stock Opname Report #${report.id}`, contentHtml, footerButtonsHtml);

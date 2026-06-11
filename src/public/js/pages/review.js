@@ -16,7 +16,10 @@ export function render() {
       <div class="section-card">
         <div class="section-header">
           <h2>Cancelled & Stuck Orders (Needs Review)</h2>
-          <button id="btn-refresh-review" class="btn btn-secondary btn-sm">🔄 Refresh</button>
+          <button id="btn-refresh-review" class="btn btn-secondary btn-sm">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16m0 0V21m0-5h5M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8m0 0V3m0 5h-5"/></svg>
+            Refresh
+          </button>
         </div>
         <div class="table-wrapper">
           <table>
@@ -156,7 +159,10 @@ function renderReviewOrders(orders) {
         <td><span class="status-tag warning">${escapeHtml(o.order_status)}</span></td>
         <td>${splitsHtml}</td>
         <td>
-          <button class="btn btn-primary btn-sm btn-resolve-order" data-id="${o.id}" data-order-id="${o.order_id}">⚠️ Resolve</button>
+          <button class="btn btn-primary btn-sm btn-resolve-order" data-id="${o.id}" data-order-id="${o.order_id}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Resolve
+          </button>
         </td>
       </tr>
     `;

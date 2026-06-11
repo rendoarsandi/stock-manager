@@ -14,7 +14,10 @@ export function render() {
       <div class="section-card">
         <div class="section-header">
           <h2>Import Templates Mapping</h2>
-          <button id="btn-add-template" class="btn btn-primary">➕ Create Template</button>
+          <button id="btn-add-template" class="btn btn-primary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 12h14M12 5v14"/></svg>
+            Create Template
+          </button>
         </div>
         <div class="table-wrapper">
           <table>
@@ -38,7 +41,10 @@ export function render() {
       <div class="section-card" id="user-management-section" style="display: none;">
         <div class="section-header">
           <h2>User Accounts Management</h2>
-          <button id="btn-add-user" class="btn btn-primary">➕ Create Account</button>
+          <button id="btn-add-user" class="btn btn-primary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 12h14M12 5v14"/></svg>
+            Create Account
+          </button>
         </div>
         <div class="table-wrapper">
           <table>
@@ -138,8 +144,14 @@ function renderTemplatesTable(templates) {
         </td>
         <td>
           <div style="display: flex; gap: 0.5rem;">
-            <button class="btn btn-secondary btn-sm btn-edit-template" data-id="${t.id}">✏️ Edit</button>
-            <button class="btn btn-danger btn-sm btn-delete-template" data-id="${t.id}">🗑️ Delete</button>
+            <button class="btn btn-secondary btn-sm btn-edit-template" data-id="${t.id}">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+              Edit
+            </button>
+            <button class="btn btn-danger btn-sm btn-delete-template" data-id="${t.id}">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2M10 11v6M14 11v6"/></svg>
+              Delete
+            </button>
           </div>
         </td>
       </tr>
@@ -392,7 +404,7 @@ function renderUsersTable(users) {
         <td>
           ${isSelfOrMainAdmin 
             ? `<span style="font-size: 0.85rem; color: var(--text-muted)">Protected</span>` 
-            : `<button class="btn btn-danger btn-sm btn-delete-user" data-id="${u.id}">🗑️ Delete</button>`
+            : `<button class="btn btn-danger btn-sm btn-delete-user" data-id="${u.id}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2M10 11v6M14 11v6"/></svg>Delete</button>`
           }
         </td>
       </tr>

@@ -14,13 +14,17 @@ export function render() {
     <div class="section-card">
       <div class="section-header">
         <h2>Product List</h2>
-        <button id="btn-add-product" class="btn btn-primary">➕ Add Product</button>
+        <button id="btn-add-product" class="btn btn-primary">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 12h14M12 5v14"/></svg>
+          Add Product
+        </button>
       </div>
       
       <!-- Search and Sort Controls -->
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; gap: 1rem; flex-wrap: wrap;">
-        <div style="display: flex; gap: 0.5rem; align-items: center; width: 100%; max-width: 400px;">
-          <input type="text" id="search-product" placeholder="🔍 Search name or SKU..." style="flex: 1; padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); background-color: var(--bg-secondary); color: var(--text-primary); font-size: 0.9rem;">
+        <div class="search-wrapper">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <input type="text" id="search-product" placeholder="Search name or SKU...">
         </div>
         <div style="display: flex; gap: 0.5rem; align-items: center;">
           <span style="font-size: 0.9rem; color: var(--text-secondary); font-weight: 500;">Sort by:</span>
@@ -123,9 +127,18 @@ function renderProductsTable(products) {
         <td><span class="status-tag ${statusClass}">${statusText}</span></td>
         <td>
           <div class="actions-cell">
-            <button class="btn btn-secondary btn-sm btn-adjust" data-id="${p.id}" data-name="${p.name}">🔢 Adjust</button>
-            <button class="btn btn-secondary btn-sm btn-edit" data-id="${p.id}">✏️ Edit</button>
-            <button class="btn btn-danger btn-sm btn-delete" data-id="${p.id}" data-name="${escapeHtml(p.name)}">🗑️ Delete</button>
+            <button class="btn btn-secondary btn-sm btn-adjust" data-id="${p.id}" data-name="${p.name}">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg>
+              Adjust
+            </button>
+            <button class="btn btn-secondary btn-sm btn-edit" data-id="${p.id}">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+              Edit
+            </button>
+            <button class="btn btn-danger btn-sm btn-delete" data-id="${p.id}" data-name="${escapeHtml(p.name)}">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2M10 11v6M14 11v6"/></svg>
+              Delete
+            </button>
           </div>
         </td>
       </tr>

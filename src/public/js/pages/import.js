@@ -34,7 +34,8 @@ export function render() {
           </div>
           
           <button type="submit" class="btn btn-primary" style="justify-content: center; align-self: flex-start;">
-            📥 Upload and Preview
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+            Upload and Preview
           </button>
         </form>
       </div>
@@ -399,7 +400,7 @@ function renderSplitsEditor(container, splits, orderIndex) {
       const btnDel = document.createElement('button');
       btnDel.className = 'btn btn-danger btn-sm';
       btnDel.style.padding = '0.15rem 0.3rem';
-      btnDel.textContent = '❌';
+      btnDel.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 6 6 18M6 6l12 12"/></svg>';
       btnDel.onclick = () => {
         currentPreviewOrders[orderIndex].splits.splice(splitIndex, 1);
         renderSplitsEditor(container, currentPreviewOrders[orderIndex].splits, orderIndex);
