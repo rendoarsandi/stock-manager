@@ -1,4 +1,4 @@
-import XLSX from 'xlsx';
+import * as XLSX from 'xlsx';
 
 /**
  * Parses an Excel file buffer and maps its headers to system keys based on a template mapping configuration.

@@ -4,10 +4,14 @@ import { broadcast } from '../ws/broker.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import XLSX from 'xlsx';
+import * as XLSX from 'xlsx';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+let __filename = '';
+let __dirname = '';
+try {
+  __filename = fileURLToPath(import.meta.url);
+  __dirname = path.dirname(__filename);
+} catch (e) {}
 
 // Seeding implementation using SQL statements
 export async function seedIfNeeded(storage) {
