@@ -30,7 +30,7 @@ app.get('/*', async (c, next) => {
       return await c.env.ASSETS.fetch(c.req.raw);
     } else {
       const url = new URL(c.req.url);
-      url.pathname = '/index.html';
+      url.pathname = '/';
       console.log("Rewriting to index.html:", url.toString());
       return await c.env.ASSETS.fetch(new Request(url.toString(), c.req.raw));
     }
@@ -120,8 +120,7 @@ export class StockRoom extends DurableObject {
       this.ctx.acceptWebSocket(pair[1]);
       return new Response(null, {
         status: 101,
-        webSocketStatusText: "Switching Protocols",
-        headers: { Upgrade: "websocket" }
+        webSocket: pair[0]
       });
     }
     return new Response("Not found", { status: 404 });
