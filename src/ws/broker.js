@@ -1,5 +1,5 @@
 import { WebSocketServer } from 'ws';
-import { getActiveStorage, storageContext } from '../db/context.js';
+import { getActiveStorage, storageContext, getActiveEnv } from '../db/context.js';
 
 const localClients = new Set();
 let localWss = null;
@@ -51,20 +51,16 @@ export function broadcast(message) {
     }
   }
 
-  // 2. Broadcast to Cloudflare Durable Object clients (if active in DO context)
+  // 2. Broadcast to Cloudflare Durable Object clients via RPC
   try {
-    const store = storageContext.getStore();
-    if (store && store.state && typeof store.state.getWebSockets === 'function') {
-      const websockets = store.state.getWebSockets();
-      for (const ws of websockets) {
-        try {
-          ws.send(payload);
-        } catch (err) {
-          console.error('Error broadcasting to DO client:', err);
-        }
-      }
+    const env = getActiveEnv();
+    if (env && env.STOCK_ROOM) {
+      const id = env.STOCK_ROOM.idFromName('global');
+      const stub = env.STOCK_ROOM.get(id);
+      stub.broadcast(payload);
     }
   } catch (err) {
     // Not running in Cloudflare DO context or error fetching websockets
   }
 }
+

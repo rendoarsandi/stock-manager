@@ -1,0 +1,11 @@
+name = "stock-manager"
+main = "src/worker.js"
+compatibility_date = "2024-04-03"
+
+[[durable_objects.bindings]]
+name = "STOCK_ROOM"
+class_name = "StockRoom"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["StockRoom"]
