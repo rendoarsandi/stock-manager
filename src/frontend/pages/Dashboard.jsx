@@ -28,8 +28,10 @@ export default function Dashboard() {
 
   useEffect(() => {
     const unsubscribe = addWsListener((msg) => {
-      // Invalidate stats on any WS message that affects dashboard data
-      queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
+      // Invalidate stats on any WS message that affects dashboard data (exclude online count updates)
+      if (msg.type !== 'ONLINE_COUNT') {
+        queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
+      }
     });
 
     const handleResync = () => {

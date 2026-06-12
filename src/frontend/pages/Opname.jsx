@@ -10,6 +10,7 @@ export default function Opname() {
   // Modal states
   const [activeModal, setActiveModal] = useState(null); // 'new' | 'details'
   const [selectedOpnameId, setSelectedOpnameId] = useState(null);
+  const [isFormInitialized, setIsFormInitialized] = useState(false);
 
   // Form states (New Opname)
   const [notes, setNotes] = useState('');
@@ -49,16 +50,17 @@ export default function Opname() {
     enabled: activeModal === 'details' && !!selectedOpnameId,
   });
 
-  // Initialize physical stock counts when products load
+  // Initialize physical stock counts when products load (exactly once per session)
   useEffect(() => {
-    if (products.length > 0) {
+    if (activeModal === 'new' && products.length > 0 && !isFormInitialized) {
       const initialCounts = {};
       products.forEach((p) => {
         initialCounts[p.id] = p.current_stock;
       });
       setPhysicalCounts(initialCounts);
+      setIsFormInitialized(true);
     }
-  }, [products]);
+  }, [products, activeModal, isFormInitialized]);
 
   // Handle errors
   useEffect(() => {
@@ -116,11 +118,8 @@ export default function Opname() {
   const openNewOpnameModal = () => {
     setNotes('');
     setProductSearch('');
-    const initialCounts = {};
-    products.forEach((p) => {
-      initialCounts[p.id] = p.current_stock;
-    });
-    setPhysicalCounts(initialCounts);
+    setPhysicalCounts({});
+    setIsFormInitialized(false);
     setActiveModal('new');
   };
 
@@ -132,6 +131,7 @@ export default function Opname() {
   const closeModal = () => {
     setActiveModal(null);
     setSelectedOpnameId(null);
+    setIsFormInitialized(false);
   };
 
   const handlePhysicalCountChange = (productId, val) => {

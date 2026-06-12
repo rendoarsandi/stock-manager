@@ -1,12 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { useAuth } from './AuthContext';
 
 export const WebSocketContext = createContext(null);
 
-const COLORS = ['#2563eb', '#16a34a', '#db2777', '#ea580c', '#7c3aed', '#0891b2', '#e11d48', '#4f46e5', '#ca8a04'];
-
 export function WebSocketProvider({ children }) {
-  const { currentUser } = useAuth();
   const [onlineCount, setOnlineCount] = useState(1);
   const [isConnected, setIsConnected] = useState(false);
   

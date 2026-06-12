@@ -183,7 +183,7 @@ export default function Layout({ children }) {
           </div>
           <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <span id="online-users" className="status-indicator" style={{ backgroundColor: 'var(--accent-light)', color: 'var(--accent-color)', fontWeight: '600', fontSize: '0.8rem', borderRadius: '9999px', padding: '0.25rem 0.6rem', display: 'flex', alignItems: 'center', gap: '0.35rem', border: '1px solid var(--border-color)' }}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style={{ width:'14px', height:'14px', color: 'var(--accent-color)' }}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width:'14px', height:'14px', color: 'var(--accent-color)' }}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
               <span id="online-users-count">{onlineCount}</span> online
             </span>
             <span id="connection-status" className={`status-indicator ${isConnected ? 'online' : 'danger'}`}>

@@ -316,54 +316,99 @@ export default function Import() {
 
   // Split management
   const handleSplitQtyChange = (orderIdx, splitIdx, newQty) => {
-    const nextOrders = [...currentOrders];
-    nextOrders[orderIdx].splits[splitIdx].quantity = newQty;
+    const nextOrders = currentOrders.map((order, oIdx) => {
+      if (oIdx !== orderIdx) return order;
+      return {
+        ...order,
+        splits: order.splits.map((split, sIdx) => {
+          if (sIdx !== splitIdx) return split;
+          return { ...split, quantity: newQty };
+        })
+      };
+    });
     setCurrentOrders(nextOrders);
     syncSession(nextOrders);
   };
 
   const handleSplitProductChange = (orderIdx, splitIdx, productId) => {
-    const nextOrders = [...currentOrders];
     const selectedProd = products.find((p) => p.id === productId);
-    nextOrders[orderIdx].splits[splitIdx].product_id = productId;
-    nextOrders[orderIdx].splits[splitIdx].product_name = selectedProd ? selectedProd.name : '';
-    nextOrders[orderIdx].splits[splitIdx].parse_source = 'manual';
+    const nextOrders = currentOrders.map((order, oIdx) => {
+      if (oIdx !== orderIdx) return order;
+      return {
+        ...order,
+        splits: order.splits.map((split, sIdx) => {
+          if (sIdx !== splitIdx) return split;
+          return {
+            ...split,
+            product_id: productId,
+            product_name: selectedProd ? selectedProd.name : '',
+            parse_source: 'manual'
+          };
+        })
+      };
+    });
     setCurrentOrders(nextOrders);
     syncSession(nextOrders);
   };
 
   const handleAddSplit = (orderIdx, rawText) => {
-    const nextOrders = [...currentOrders];
-    nextOrders[orderIdx].splits.push({
-      product_id: null,
-      product_name: '',
-      quantity: 1,
-      parse_source: 'auto_split',
-      original_text: rawText,
+    const nextOrders = currentOrders.map((order, oIdx) => {
+      if (oIdx !== orderIdx) return order;
+      return {
+        ...order,
+        splits: [
+          ...order.splits,
+          {
+            product_id: null,
+            product_name: '',
+            quantity: 1,
+            parse_source: 'auto_split',
+            original_text: rawText,
+          }
+        ]
+      };
     });
     setCurrentOrders(nextOrders);
     syncSession(nextOrders);
   };
 
   const handleDeleteSplit = (orderIdx, splitIdx) => {
-    const nextOrders = [...currentOrders];
-    nextOrders[orderIdx].splits.splice(splitIdx, 1);
+    const nextOrders = currentOrders.map((order, oIdx) => {
+      if (oIdx !== orderIdx) return order;
+      return {
+        ...order,
+        splits: order.splits.filter((_, sIdx) => sIdx !== splitIdx)
+      };
+    });
     setCurrentOrders(nextOrders);
     syncSession(nextOrders);
   };
 
   const handleOrderSelectToggle = (orderIdx, checked) => {
-    const nextOrders = [...currentOrders];
-    nextOrders[orderIdx].is_selected = checked;
+    const nextOrders = currentOrders.map((order, oIdx) => {
+      if (oIdx !== orderIdx) return order;
+      return { ...order, is_selected: checked };
+    });
     setCurrentOrders(nextOrders);
     syncSession(nextOrders);
   };
 
   const handleAcceptSuggestion = (orderIdx, splitIdx, product) => {
-    const nextOrders = [...currentOrders];
-    nextOrders[orderIdx].splits[splitIdx].product_id = product.id;
-    nextOrders[orderIdx].splits[splitIdx].product_name = product.name;
-    nextOrders[orderIdx].splits[splitIdx].parse_source = 'manual';
+    const nextOrders = currentOrders.map((order, oIdx) => {
+      if (oIdx !== orderIdx) return order;
+      return {
+        ...order,
+        splits: order.splits.map((split, sIdx) => {
+          if (sIdx !== splitIdx) return split;
+          return {
+            ...split,
+            product_id: product.id,
+            product_name: product.name,
+            parse_source: 'manual'
+          };
+        })
+      };
+    });
     setCurrentOrders(nextOrders);
     syncSession(nextOrders);
   };
