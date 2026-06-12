@@ -375,7 +375,7 @@ export const db = {
     async insert(session) {
       const storage = getActiveStorage();
       const result = await storage.execute(
-        "INSERT INTO import_sessions (template_id, user_id, filename, status, total_rows, applied_rows, flagged_rows, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))",
+        "INSERT INTO import_sessions (template_id, user_id, filename, status, total_rows, applied_rows, flagged_rows, orders_data, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))",
         [
           session.template_id ? parseInt(session.template_id, 10) : null,
           session.user_id ? parseInt(session.user_id, 10) : null,
@@ -383,7 +383,8 @@ export const db = {
           session.status || 'pending',
           parseInt(session.total_rows, 10) || 0,
           parseInt(session.applied_rows, 10) || 0,
-          parseInt(session.flagged_rows, 10) || 0
+          parseInt(session.flagged_rows, 10) || 0,
+          session.orders_data || null
         ]
       );
       return await this.get(result.lastInsertRowid);
@@ -394,7 +395,7 @@ export const db = {
       if (!existing) return null;
       const merged = { ...existing, ...updates };
       await storage.execute(
-        "UPDATE import_sessions SET template_id = ?, user_id = ?, filename = ?, status = ?, total_rows = ?, applied_rows = ?, flagged_rows = ? WHERE id = ?",
+        "UPDATE import_sessions SET template_id = ?, user_id = ?, filename = ?, status = ?, total_rows = ?, applied_rows = ?, flagged_rows = ?, orders_data = ? WHERE id = ?",
         [
           merged.template_id ? parseInt(merged.template_id, 10) : null,
           merged.user_id ? parseInt(merged.user_id, 10) : null,
@@ -403,6 +404,7 @@ export const db = {
           parseInt(merged.total_rows, 10) || 0,
           parseInt(merged.applied_rows, 10) || 0,
           parseInt(merged.flagged_rows, 10) || 0,
+          merged.orders_data || null,
           id
         ]
       );

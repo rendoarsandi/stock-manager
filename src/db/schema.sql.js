@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS import_sessions (
     total_rows INTEGER DEFAULT 0,
     applied_rows INTEGER DEFAULT 0,
     flagged_rows INTEGER DEFAULT 0,
+    orders_data TEXT,
     created_at TEXT DEFAULT (datetime('now', 'localtime')),
     FOREIGN KEY (template_id) REFERENCES import_templates(id),
     FOREIGN KEY (user_id) REFERENCES users(id)
