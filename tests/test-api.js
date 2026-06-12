@@ -84,8 +84,12 @@ async function runTests() {
     }
     const meData = await resMeAuth.json();
     console.log("Auth user details:", meData);
+    console.log("DEBUG: meData keys:", Object.keys(meData));
+    console.log("DEBUG: meData.username type:", typeof meData.username);
+    console.log("DEBUG: meData.username value:", JSON.stringify(meData.username));
+    console.log("DEBUG: comparison:", meData.username === 'admin');
     if (meData.username !== 'admin') {
-      throw new Error("Authorized user data mismatch");
+      throw new Error(`Authorized user data mismatch: expected 'admin', got '${meData.username}'`);
     }
 
     // 6. Test /api/auth/logout

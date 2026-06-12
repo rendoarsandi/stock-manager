@@ -148,7 +148,7 @@ export default function Opname() {
     let hasError = false;
 
     products.forEach((p) => {
-      const val = physicalCounts[p.id];
+      const val = physicalCounts[p.id] !== undefined ? physicalCounts[p.id] : p.current_stock;
       const physical_stock = parseInt(val, 10);
       if (isNaN(physical_stock) || physical_stock < 0) {
         hasError = true;
@@ -175,9 +175,16 @@ export default function Opname() {
   const formatDate = (dateStr) => {
     if (!dateStr) return '-';
     try {
-      const cleanStr = typeof dateStr === 'string' && !dateStr.includes('T') ? dateStr.replace(/-/g, '/') : dateStr;
+      let cleanStr = null;
+      if (typeof dateStr === 'string') {
+        cleanStr = dateStr.includes('T') ? dateStr : dateStr.replace(/-/g, '/');
+      } else if (typeof dateStr === 'number') {
+        cleanStr = dateStr;
+      }
+      if (!cleanStr) return String(dateStr);
+
       const d = new Date(cleanStr);
-      if (isNaN(d.getTime())) return dateStr;
+      if (isNaN(d.getTime())) return String(dateStr);
       return d.toLocaleString('id-ID', {
         year: 'numeric',
         month: '2-digit',
@@ -186,7 +193,7 @@ export default function Opname() {
         minute: '2-digit',
       });
     } catch (e) {
-      return dateStr;
+      return String(dateStr);
     }
   };
 

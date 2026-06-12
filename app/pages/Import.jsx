@@ -3,36 +3,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { showToast } from '../utils/toast';
 
-// Simple character bigram similarity helper for fuzzy matching
-function getSimilarity(s1, s2) {
-  if (!s1 || !s2) return 0;
-  s1 = s1.toLowerCase().trim();
-  s2 = s2.toLowerCase().trim();
-  if (s1 === s2) return 100;
-
-  const getBigrams = (str) => {
-    const bigrams = new Set();
-    for (let i = 0; i < str.length - 1; i++) {
-      bigrams.add(str.substring(i, i + 2));
-    }
-    return bigrams;
-  };
-
-  const b1 = getBigrams(s1);
-  const b2 = getBigrams(s2);
-
-  if (b1.size === 0 || b2.size === 0) return 0;
-
-  let intersection = 0;
-  for (const item of b1) {
-    if (b2.has(item)) {
-      intersection++;
-    }
-  }
-
-  return Math.round((2.0 * intersection / (b1.size + b2.size)) * 100);
-}
-
 // SearchableSelect Component
 function SearchableSelect({ selectedId, products, onChange }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -268,12 +238,32 @@ export default function Import() {
       return;
     }
 
-    const hasUnmapped = selectedOrders.some((o) =>
-      o.splits && o.splits.some((s) => !s.product_id)
-    );
+    let hasUnmapped = false;
+    let hasInvalidQty = false;
+
+    for (const o of selectedOrders) {
+      if (!o.splits || o.splits.length === 0) {
+        hasUnmapped = true;
+        break;
+      }
+      for (const s of o.splits) {
+        if (!s.product_id) {
+          hasUnmapped = true;
+        }
+        const qty = parseInt(s.quantity, 10);
+        if (isNaN(qty) || qty <= 0) {
+          hasInvalidQty = true;
+        }
+      }
+    }
 
     if (hasUnmapped) {
       showToast('Error', 'Please resolve all highlighted yellow dropdowns to map products before importing', 'error');
+      return;
+    }
+
+    if (hasInvalidQty) {
+      showToast('Error', 'Please enter a valid positive quantity for all split items', 'error');
       return;
     }
 
@@ -411,25 +401,6 @@ export default function Import() {
     });
     setCurrentOrders(nextOrders);
     syncSession(nextOrders);
-  };
-
-  // Fuzzy matching generator
-  const getFuzzySuggestion = (splitText) => {
-    if (!splitText) return null;
-    let bestProd = null;
-    let maxSim = 0;
-    for (const p of products) {
-      const sim = getSimilarity(splitText, p.name);
-      if (sim > maxSim) {
-        maxSim = sim;
-        bestProd = p;
-      }
-    }
-    // medium confidence matching
-    if (maxSim >= 30 && maxSim < 95) {
-      return { product: bestProd, similarity: maxSim };
-    }
-    return null;
   };
 
   // Filtering / Sorting logic for preview table
@@ -669,7 +640,7 @@ export default function Import() {
                           ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                               {order.splits.map((split, splitIdx) => {
-                                const fuzzySuggestion = !split.product_id ? getFuzzySuggestion(split.original_text || order.product_name_raw) : null;
+                                const fuzzySuggestion = !split.product_id ? split.fuzzy_suggestion : null;
                                 return (
                                   <div key={splitIdx} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

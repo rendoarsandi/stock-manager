@@ -9,6 +9,7 @@ export function WebSocketProvider({ children }) {
   const wsRef = useRef(null);
   const listenersRef = useRef(new Set());
   const reconnectTimeoutRef = useRef(null);
+  const isUnmountedRef = useRef(false);
 
   const connect = useCallback(() => {
     if (wsRef.current && (wsRef.current.readyState === WebSocket.CONNECTING || wsRef.current.readyState === WebSocket.OPEN)) {
@@ -53,6 +54,8 @@ export function WebSocketProvider({ children }) {
       setIsConnected(false);
       wsRef.current = null;
       
+      if (isUnmountedRef.current) return;
+
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }
@@ -101,6 +104,7 @@ export function WebSocketProvider({ children }) {
     window.addEventListener('online', handleOnline);
 
     return () => {
+      isUnmountedRef.current = true;
       window.removeEventListener('focus', handleFocus);
       window.removeEventListener('online', handleOnline);
       if (wsRef.current) {

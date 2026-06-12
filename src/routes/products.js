@@ -203,20 +203,25 @@ products.get('/:id/ledger', async (c) => {
       }
     }
 
-    // Batch-fetch platform names for those order IDs (avoids per-row subquery)
+    // Batch-fetch platform names for those order IDs in chunks of 999 (avoids SQLite parameter limit)
     const platformMap = new Map();
     if (orderIdSet.size > 0) {
-      const placeholders = Array.from(orderIdSet).map(() => '?').join(',');
-      const orderRows = await activeStorage.query(
-        `SELECT o.order_id, t.name AS platform_name
-         FROM orders o
-         JOIN import_sessions s ON o.import_session_id = s.id
-         JOIN import_templates t ON s.template_id = t.id
-         WHERE o.order_id IN (${placeholders})`,
-        [...orderIdSet]
-      );
-      for (const row of orderRows) {
-        platformMap.set(row.order_id, row.platform_name);
+      const orderIds = Array.from(orderIdSet);
+      const CHUNK_SIZE = 999;
+      for (let i = 0; i < orderIds.length; i += CHUNK_SIZE) {
+        const chunk = orderIds.slice(i, i + CHUNK_SIZE);
+        const placeholders = chunk.map(() => '?').join(',');
+        const orderRows = await activeStorage.query(
+          `SELECT o.order_id, t.name AS platform_name
+           FROM orders o
+           JOIN import_sessions s ON o.import_session_id = s.id
+           JOIN import_templates t ON s.template_id = t.id
+           WHERE o.order_id IN (${placeholders})`,
+          chunk
+        );
+        for (const row of orderRows) {
+          platformMap.set(row.order_id, row.platform_name);
+        }
       }
     }
 

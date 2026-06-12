@@ -694,9 +694,15 @@ export default function Products() {
                       const qty = m.quantity_change;
                       balance += qty;
 
-                      const cleanStr = typeof m.created_at === 'string' && !m.created_at.includes('T') ? m.created_at.replace(/-/g, '/') : m.created_at;
-                      const dateObj = new Date(cleanStr);
-                      const dateStr = !isNaN(dateObj.getTime())
+                      let cleanStr = null;
+                      if (typeof m.created_at === 'string') {
+                        cleanStr = m.created_at.includes('T') ? m.created_at : m.created_at.replace(/-/g, '/');
+                      } else if (typeof m.created_at === 'number') {
+                        cleanStr = m.created_at;
+                      }
+
+                      const dateObj = cleanStr ? new Date(cleanStr) : null;
+                      const dateStr = dateObj && !isNaN(dateObj.getTime())
                         ? `${dateObj.getDate()}/${dateObj.getMonth() + 1}/${dateObj.getFullYear()}`
                         : (m.created_at || '-');
 

@@ -18,6 +18,7 @@ const tests = [
   'test-api.js',
   'test-products.js',
   'test-services.js',
+  'test-fuzzy-matching.js',
   'test-import.js',
   'test-review.js',
   'test-dashboard.js',

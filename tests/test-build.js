@@ -11,9 +11,9 @@ console.log("--- Running Build Infrastructure Tests ---");
 
 // 1. Verify existence of source files
 const expectedSrcFiles = [
-  'src/frontend/index.html',
-  'src/frontend/main.jsx',
-  'src/frontend/index.css',
+  'app/client.jsx',
+  'app/routes/__root.jsx',
+  'app/index.css',
   'vite.config.js'
 ];
 
@@ -34,7 +34,7 @@ if (!fs.existsSync(backupDir) || !fs.statSync(backupDir).isDirectory()) {
 }
 console.log("✅ Verified backup directory src/public_vanilla exists.");
 
-// 3. Run build and verify output in src/public
+// 3. Run build and verify output in dist/
 console.log("Running npm run build...");
 try {
   execSync('npm run build', { cwd: rootDir, stdio: 'inherit' });
@@ -45,17 +45,17 @@ try {
 }
 
 // 4. Verify output files exist
-const outputHtml = path.join(rootDir, 'src/public/index.html');
-const outputAssetsDir = path.join(rootDir, 'src/public/assets');
+const outputServerJs = path.join(rootDir, 'dist/server/server.js');
+const outputAssetsDir = path.join(rootDir, 'dist/client/assets');
 
-if (!fs.existsSync(outputHtml)) {
-  console.error("❌ Build output index.html not found in src/public!");
+if (!fs.existsSync(outputServerJs)) {
+  console.error("❌ Build output server.js not found in dist/server!");
   process.exit(1);
 }
-console.log("✅ Verified build output index.html exists.");
+console.log("✅ Verified build output server.js exists.");
 
 if (!fs.existsSync(outputAssetsDir) || !fs.statSync(outputAssetsDir).isDirectory()) {
-  console.error("❌ Build output assets directory not found in src/public/assets!");
+  console.error("❌ Build output assets directory not found in dist/client/assets!");
   process.exit(1);
 }
 console.log("✅ Verified build output assets directory exists.");

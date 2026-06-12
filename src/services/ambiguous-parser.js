@@ -470,11 +470,59 @@ export function findProductInCatalog(text, catalog) {
 }
 
 /**
+ * Calculates Sorensen-Dice similarity coefficient (0 to 1) between two strings using character bigrams.
+ */
+export function getSorensenDiceSimilarity(s1, s2) {
+  if (!s1 || !s2) return 0;
+  s1 = s1.toLowerCase().trim().replace(/\s+/g, ' ');
+  s2 = s2.toLowerCase().trim().replace(/\s+/g, ' ');
+  if (s1 === s2) return 1.0;
+
+  const getBigrams = (str) => {
+    const bigrams = new Set();
+    for (let i = 0; i < str.length - 1; i++) {
+      bigrams.add(str.substring(i, i + 2));
+    }
+    return bigrams;
+  };
+
+  const b1 = getBigrams(s1);
+  const b2 = getBigrams(s2);
+
+  if (b1.size === 0 || b2.size === 0) return 0;
+
+  let intersection = 0;
+  for (const item of b1) {
+    if (b2.has(item)) {
+      intersection++;
+    }
+  }
+
+  return (2.0 * intersection) / (b1.size + b2.size);
+}
+
+/**
+ * Finds the product in catalog with highest Sorensen-Dice similarity.
+ */
+export function findFuzzyProductInCatalog(text, catalog) {
+  let bestProduct = null;
+  let maxSimilarity = 0;
+  for (const p of catalog) {
+    const similarity = getSorensenDiceSimilarity(text, p.name);
+    if (similarity > maxSimilarity) {
+      maxSimilarity = similarity;
+      bestProduct = p;
+    }
+  }
+  return { product: bestProduct, similarity: maxSimilarity };
+}
+
+/**
  * Parses an order item line from Excel and returns a list of suggested product splits.
  * @param {string} rawText - Raw product text from Excel.
  * @param {number} orderQty - The overall quantity of the line item ordered.
  * @param {Array<Object>} catalog - Registered products catalog.
- * @returns {Array<Object>} Suggested splits containing { product_id, product_name, quantity, parse_source, original_text }
+ * @returns {Array<Object>} Suggested splits containing { product_id, product_name, quantity, parse_source, original_text, fuzzy_suggestion }
  */
 export function parseAmbiguousDescription(rawText, orderQty, catalog) {
   const text = rawText.trim();
@@ -482,13 +530,31 @@ export function parseAmbiguousDescription(rawText, orderQty, catalog) {
 
   // Helper to push a match
   const addSplit = (product, qty, source, orig) => {
+    let finalProduct = product;
+    let finalSource = source;
+    let fuzzySuggestion = null;
+
+    if (!finalProduct && orig) {
+      const fuzzyRes = findFuzzyProductInCatalog(orig, catalog);
+      if (fuzzyRes.similarity >= 0.75) {
+        finalProduct = fuzzyRes.product;
+        finalSource = 'fuzzy_auto';
+      } else if (fuzzyRes.similarity >= 0.40) {
+        fuzzySuggestion = {
+          product: { id: fuzzyRes.product.id, name: fuzzyRes.product.name },
+          similarity: Math.round(fuzzyRes.similarity * 100)
+        };
+      }
+    }
+
     splits.push({
-      product_id: product ? product.id : null,
-      product_name: product ? product.name : 'Unknown Product (Awaiting Selection)',
-      model: product ? product.model : '',
+      product_id: finalProduct ? finalProduct.id : null,
+      product_name: finalProduct ? finalProduct.name : 'Unknown Product (Awaiting Selection)',
+      model: finalProduct ? finalProduct.model : '',
       quantity: qty,
-      parse_source: source,
-      original_text: orig
+      parse_source: finalSource,
+      original_text: orig,
+      fuzzy_suggestion: fuzzySuggestion
     });
   };
 
