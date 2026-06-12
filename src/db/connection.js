@@ -135,22 +135,12 @@ export async function seedIfNeeded(storage) {
         }
         console.log(`Successfully parsed ${products.length} products from SKUCODE sheet.`);
       } else {
-        console.warn(`Excel file not found at ${xlsxPath} or filesystem unavailable. Seeding fallback mock products.`);
-        products = [
-          { name: 'Korek Api Model A', model: 'Model A', current_stock: 100, low_stock_threshold: 20 },
-          { name: 'Korek Api Model B', model: 'Model B', current_stock: 80, low_stock_threshold: 15 },
-          { name: 'Korek Api Model C', model: 'Model C', current_stock: 50, low_stock_threshold: 10 },
-          { name: 'Korek Api Model D', model: 'Model D', current_stock: 3, low_stock_threshold: 10 }
-        ];
+        console.warn(`Excel file not found at ${xlsxPath} or filesystem unavailable. No fallback mock products seeded.`);
+        products = [];
       }
     } catch (err) {
       console.error("Error reading Ecomm HPP.xlsx during seeding:", err);
-      products = [
-        { name: 'Korek Api Model A', model: 'Model A', current_stock: 100, low_stock_threshold: 20 },
-        { name: 'Korek Api Model B', model: 'Model B', current_stock: 80, low_stock_threshold: 15 },
-        { name: 'Korek Api Model C', model: 'Model C', current_stock: 50, low_stock_threshold: 10 },
-        { name: 'Korek Api Model D', model: 'Model D', current_stock: 3, low_stock_threshold: 10 }
-      ];
+      products = [];
     }
   }
 
