@@ -1,6 +1,7 @@
 import { getActiveStorage } from './context.js';
 import { hashPassword } from '../utils/crypto.js';
 import { broadcast } from '../ws/broker.js';
+import productsSeed from './products_seed.json' with { type: 'json' };
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -70,80 +71,7 @@ export async function seedIfNeeded(storage) {
       { name: 'Korek Api Model D', model: 'Model D', current_stock: 3, low_stock_threshold: 10 }
     ];
   } else {
-    try {
-      const xlsxPath = path.resolve(__dirname, '../../Ecomm HPP.xlsx');
-      if (fs.existsSync && fs.existsSync(xlsxPath)) {
-        const xlsxLib = XLSX;
-        const wb = xlsxLib.readFile(xlsxPath);
-        const ws = wb.Sheets['SKUCODE'];
-        const data = xlsxLib.utils.sheet_to_json(ws, { header: 1 });
-
-        const nameSet = new Set();
-        for (let i = 3; i < data.length; i++) {
-          const row = data[i];
-          if (!row || row.length === 0) continue;
-
-          const groupName = row[0] ? String(row[0]).trim() : '';
-          const skuInduk = row[1] ? String(row[1]).trim() : '';
-          
-          const variations = [];
-          for (let col = 2; col <= 6; col++) {
-            if (row[col] && String(row[col]).trim() !== '') {
-              variations.push(String(row[col]).trim());
-            }
-          }
-
-          const fullSetName = row[7] ? String(row[7]).trim() : '';
-          const fullSetSku = row[8] ? String(row[8]).trim() : '';
-
-          if (!groupName && !skuInduk) continue;
-
-          const items = [];
-          if (variations.length > 0) {
-            variations.forEach(v => {
-              items.push({
-                name: getProductName(groupName, v, skuInduk),
-                model: v
-              });
-            });
-          } else if (skuInduk) {
-            items.push({
-              name: groupName,
-              model: skuInduk
-            });
-          }
-
-          if (fullSetSku) {
-            items.push({
-              name: fullSetName || `${groupName} Pack/Set`,
-              model: fullSetSku
-            });
-          }
-
-          items.forEach(item => {
-            let finalName = item.name;
-            if (nameSet.has(finalName)) {
-              finalName = `${finalName} (${item.model})`;
-            }
-            nameSet.add(finalName);
-
-            products.push({
-              name: finalName,
-              model: item.model,
-              current_stock: 100, // Seed initial stock as 100
-              low_stock_threshold: 10
-            });
-          });
-        }
-        console.log(`Successfully parsed ${products.length} products from SKUCODE sheet.`);
-      } else {
-        console.warn(`Excel file not found at ${xlsxPath} or filesystem unavailable. No fallback mock products seeded.`);
-        products = [];
-      }
-    } catch (err) {
-      console.error("Error reading Ecomm HPP.xlsx during seeding:", err);
-      products = [];
-    }
+    products = productsSeed;
   }
 
   for (const p of products) {
