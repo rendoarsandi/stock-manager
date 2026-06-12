@@ -155,13 +155,19 @@ export class StockRoom extends DurableObject {
       this.ctx.acceptWebSocket(pair[1]);
       
       // Delay slightly to ensure the new WebSocket is registered in getWebSockets()
-      setTimeout(() => {
-        try {
-          this.broadcastOnlineCount();
-        } catch (e) {
-          console.error('Error broadcasting initial online count:', e);
-        }
-      }, 50);
+      // Wrapped in waitUntil() so Cloudflare DO doesn't suspend before the timer fires.
+      this.ctx.waitUntil(
+        new Promise((resolve) => {
+          setTimeout(() => {
+            try {
+              this.broadcastOnlineCount();
+            } catch (e) {
+              console.error('Error broadcasting initial online count:', e);
+            }
+            resolve();
+          }, 50);
+        })
+      );
 
       return new Response(null, {
         status: 101,

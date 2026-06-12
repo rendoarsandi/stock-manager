@@ -115,7 +115,7 @@ async function runTests() {
     price: "Total"
   };
 
-  const parsedOrders = parseExcel(excelBuffer, columnMapping);
+  const parsedOrders = await parseExcel(excelBuffer, columnMapping);
   console.log("Parsed Excel rows:", parsedOrders);
 
   if (parsedOrders.length !== 2) {

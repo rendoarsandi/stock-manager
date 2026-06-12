@@ -696,7 +696,9 @@ export default function Products() {
 
                       const cleanStr = typeof m.created_at === 'string' && !m.created_at.includes('T') ? m.created_at.replace(/-/g, '/') : m.created_at;
                       const dateObj = new Date(cleanStr);
-                      const dateStr = `${dateObj.getDate()}/${dateObj.getMonth() + 1}/${dateObj.getFullYear()}`;
+                      const dateStr = !isNaN(dateObj.getTime())
+                        ? `${dateObj.getDate()}/${dateObj.getMonth() + 1}/${dateObj.getFullYear()}`
+                        : (m.created_at || '-');
 
                       let noSj = '-';
                       if (m.reference) {

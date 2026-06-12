@@ -30,105 +30,110 @@ export async function seedIfNeeded(storage) {
 
   // Check if products need seeding
   const existingProducts = await storage.query("SELECT * FROM products LIMIT 1");
-  if (existingProducts && existingProducts.length > 0) return;
+  const hasProducts = existingProducts && existingProducts.length > 0;
 
-  // Only seed products if the database was completely fresh (i.e. we had to seed users)
-  if (!wasEmpty) return;
+  if (!hasProducts) {
+    // Only seed products on a completely fresh database (users were just created)
+    if (wasEmpty) {
+      console.log("Database empty. Seeding initial data...");
 
-  console.log("Database empty. Seeding initial data...");
+      // Helper function to clean up and structure product names
+      function getProductName(groupName, variationSku, skuInduk) {
+        if (!variationSku) return groupName;
+        if (variationSku === skuInduk) return groupName;
 
-  // Helper function to clean up and structure product names
-  function getProductName(groupName, variationSku, skuInduk) {
-    if (!variationSku) return groupName;
-    if (variationSku === skuInduk) return groupName;
+        let prefix = '';
+        if (skuInduk && skuInduk.includes('_')) {
+          prefix = skuInduk.split('_')[0] + '_';
+        } else if (skuInduk) {
+          let i = 0;
+          while (i < skuInduk.length && i < variationSku.length && skuInduk[i] === variationSku[i]) {
+            i++;
+          }
+          if (i > 0) {
+            prefix = skuInduk.substring(0, i);
+          }
+        }
 
-    let prefix = '';
-    if (skuInduk && skuInduk.includes('_')) {
-      prefix = skuInduk.split('_')[0] + '_';
-    } else if (skuInduk) {
-      let i = 0;
-      while (i < skuInduk.length && i < variationSku.length && skuInduk[i] === variationSku[i]) {
-        i++;
+        if (prefix && variationSku.startsWith(prefix)) {
+          const suffix = variationSku.substring(prefix.length).replace(/_/g, ' ').trim();
+          if (suffix) {
+            const capitalized = suffix.charAt(0).toUpperCase() + suffix.slice(1).toLowerCase();
+            return `${groupName} - ${capitalized}`;
+          }
+        }
+
+        return `${groupName} - ${variationSku}`;
       }
-      if (i > 0) {
-        prefix = skuInduk.substring(0, i);
+
+      let products = [];
+
+      if (process.env.NODE_ENV === 'test') {
+        products = [
+          { name: 'Korek Api Model A', model: 'Model A', current_stock: 100, low_stock_threshold: 20 },
+          { name: 'Korek Api Model B', model: 'Model B', current_stock: 80, low_stock_threshold: 15 },
+          { name: 'Korek Api Model C', model: 'Model C', current_stock: 50, low_stock_threshold: 10 },
+          { name: 'Korek Api Model D', model: 'Model D', current_stock: 3, low_stock_threshold: 10 }
+        ];
+      } else {
+        products = productsSeed;
       }
+
+      for (const p of products) {
+        const res = await storage.execute(
+          "INSERT INTO products (name, model, master_sku, description, current_stock, low_stock_threshold, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+          [p.name, p.model, p.master_sku || null, null, p.current_stock, p.low_stock_threshold, now, now]
+        );
+        const productId = res.lastInsertRowid;
+
+        await storage.execute(
+          "INSERT INTO stock_movements (product_id, quantity_change, movement_type, reference, user_id, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+          [productId, p.current_stock, 'initial', 'Initial seeding', 1, now]
+        );
+      }
+
+      const shopeeMapping = {
+        order_id: "No. Pesanan",
+        resi_number: "No. Resi",
+        product_name_raw: "Nama Produk",
+        quantity: "Jumlah",
+        order_status: "Status Pesanan",
+        customer_name: "Username Pembeli",
+        expedition: "Opsi Pengiriman",
+        order_date: "Waktu Pembayaran",
+        price: "Total Pembayaran",
+        sku_ref: "Nomor Referensi SKU"
+      };
+
+      const tokopediaMapping = {
+        order_id: "Nomor Invoice",
+        resi_number: "Nomor Resi",
+        product_name_raw: "Nama Produk",
+        quantity: "Jumlah Produk",
+        order_status: "Status Terakhir",
+        customer_name: "Nama Pembeli",
+        expedition: "Kurir",
+        order_date: "Tanggal Transaksi",
+        price: "Nilai Transaksi",
+        sku_ref: "Nomor Referensi SKU"
+      };
+
+      await storage.execute(
+        "INSERT OR IGNORE INTO import_templates (id, name, column_mapping, created_at) VALUES (?, ?, ?, ?)",
+        [1, 'Shopee', JSON.stringify(shopeeMapping), now]
+      );
+
+      await storage.execute(
+        "INSERT OR IGNORE INTO import_templates (id, name, column_mapping, created_at) VALUES (?, ?, ?, ?)",
+        [2, 'Tokopedia', JSON.stringify(tokopediaMapping), now]
+      );
+
+      console.log("Database seeded successfully.");
     }
-
-    if (prefix && variationSku.startsWith(prefix)) {
-      const suffix = variationSku.substring(prefix.length).replace(/_/g, ' ').trim();
-      if (suffix) {
-        const capitalized = suffix.charAt(0).toUpperCase() + suffix.slice(1).toLowerCase();
-        return `${groupName} - ${capitalized}`;
-      }
-    }
-
-    return `${groupName} - ${variationSku}`;
   }
 
-  let products = [];
-
-  if (process.env.NODE_ENV === 'test') {
-    products = [
-      { name: 'Korek Api Model A', model: 'Model A', current_stock: 100, low_stock_threshold: 20 },
-      { name: 'Korek Api Model B', model: 'Model B', current_stock: 80, low_stock_threshold: 15 },
-      { name: 'Korek Api Model C', model: 'Model C', current_stock: 50, low_stock_threshold: 10 },
-      { name: 'Korek Api Model D', model: 'Model D', current_stock: 3, low_stock_threshold: 10 }
-    ];
-  } else {
-    products = productsSeed;
-  }
-
-  for (const p of products) {
-    const res = await storage.execute(
-      "INSERT INTO products (name, model, master_sku, description, current_stock, low_stock_threshold, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-      [p.name, p.model, p.master_sku || null, null, p.current_stock, p.low_stock_threshold, now, now]
-    );
-    const productId = res.lastInsertRowid;
-
-    await storage.execute(
-      "INSERT INTO stock_movements (product_id, quantity_change, movement_type, reference, user_id, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-      [productId, p.current_stock, 'initial', 'Initial seeding', 1, now]
-    );
-  }
-
-  const shopeeMapping = {
-    order_id: "No. Pesanan",
-    resi_number: "No. Resi",
-    product_name_raw: "Nama Produk",
-    quantity: "Jumlah",
-    order_status: "Status Pesanan",
-    customer_name: "Username Pembeli",
-    expedition: "Opsi Pengiriman",
-    order_date: "Waktu Pembayaran",
-    price: "Total Pembayaran",
-    sku_ref: "Nomor Referensi SKU"
-  };
-
-  const tokopediaMapping = {
-    order_id: "Nomor Invoice",
-    resi_number: "Nomor Resi",
-    product_name_raw: "Nama Produk",
-    quantity: "Jumlah Produk",
-    order_status: "Status Terakhir",
-    customer_name: "Nama Pembeli",
-    expedition: "Kurir",
-    order_date: "Tanggal Transaksi",
-    price: "Nilai Transaksi",
-    sku_ref: "Nomor Referensi SKU"
-  };
-
-  await storage.execute(
-    "INSERT OR IGNORE INTO import_templates (id, name, column_mapping, created_at) VALUES (?, ?, ?, ?)",
-    [1, 'Shopee', JSON.stringify(shopeeMapping), now]
-  );
-
-  await storage.execute(
-    "INSERT OR IGNORE INTO import_templates (id, name, column_mapping, created_at) VALUES (?, ?, ?, ?)",
-    [2, 'Tokopedia', JSON.stringify(tokopediaMapping), now]
-  );
-
-  // Dynamic seeding for SKU mappings
+  // Always attempt to seed SKU mappings (idempotent via INSERT OR IGNORE)
+  // This ensures existing databases without sku_mappings get them populated.
   try {
     const { BUNDLE_MAPPINGS } = await import('../services/ambiguous-parser.js');
     for (const [skuCode, items] of Object.entries(BUNDLE_MAPPINGS)) {
@@ -145,8 +150,6 @@ export async function seedIfNeeded(storage) {
   } catch (err) {
     console.error("Error seeding SKU mappings:", err);
   }
-
-  console.log("Database seeded successfully.");
 }
 
 // Export initialization placeholder to maintain current interface

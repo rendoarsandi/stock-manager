@@ -109,7 +109,7 @@ imports.post('/upload', async (c) => {
     const buffer = Buffer.from(arrayBuffer);
 
     // Parse rows
-    const parsedRows = parseExcel(buffer, mapping);
+    const parsedRows = await parseExcel(buffer, mapping);
     
     const previewOrders = [];
     let flaggedRowsCount = 0;

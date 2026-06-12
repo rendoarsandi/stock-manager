@@ -183,20 +183,54 @@ products.get('/:id/ledger', async (c) => {
     const id = parseInt(c.req.param('id'), 10);
     const { getActiveStorage } = await import('../db/context.js');
     const activeStorage = getActiveStorage();
-    
+
+    // Fetch all movements for this product
     const movements = await activeStorage.query(
-      `SELECT sm.*, 
-              (SELECT t.name FROM orders o 
-               JOIN import_sessions s ON o.import_session_id = s.id 
-               JOIN import_templates t ON s.template_id = t.id 
-               WHERE sm.reference LIKE '%' || o.order_id || '%' LIMIT 1) AS platform_name 
-       FROM stock_movements sm 
-       WHERE sm.product_id = ? 
-       ORDER BY sm.created_at ASC`,
+      `SELECT * FROM stock_movements WHERE product_id = ? ORDER BY created_at ASC`,
       [id]
     );
-    
-    return c.json(movements);
+
+    if (!movements || movements.length === 0) {
+      return c.json([]);
+    }
+
+    // Extract order IDs referenced in movements (format: "Order ID: <id>")
+    const orderIdSet = new Set();
+    for (const m of movements) {
+      if (m.reference) {
+        const match = m.reference.match(/Order ID:\s*([^\s,]+)/i);
+        if (match) orderIdSet.add(match[1]);
+      }
+    }
+
+    // Batch-fetch platform names for those order IDs (avoids per-row subquery)
+    const platformMap = new Map();
+    if (orderIdSet.size > 0) {
+      const placeholders = Array.from(orderIdSet).map(() => '?').join(',');
+      const orderRows = await activeStorage.query(
+        `SELECT o.order_id, t.name AS platform_name
+         FROM orders o
+         JOIN import_sessions s ON o.import_session_id = s.id
+         JOIN import_templates t ON s.template_id = t.id
+         WHERE o.order_id IN (${placeholders})`,
+        [...orderIdSet]
+      );
+      for (const row of orderRows) {
+        platformMap.set(row.order_id, row.platform_name);
+      }
+    }
+
+    // Attach platform_name to each movement
+    const result = movements.map((m) => {
+      let platform_name = null;
+      if (m.reference) {
+        const match = m.reference.match(/Order ID:\s*([^\s,]+)/i);
+        if (match) platform_name = platformMap.get(match[1]) || null;
+      }
+      return { ...m, platform_name };
+    });
+
+    return c.json(result);
   } catch (err) {
     console.error("Get product ledger history error:", err);
     return c.json({ message: 'Failed to retrieve product ledger history' }, 500);
