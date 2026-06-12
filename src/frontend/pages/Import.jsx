@@ -216,7 +216,8 @@ export default function Import() {
 
       const data = await res.json();
       setCurrentSessionId(data.session_id);
-      const ordersWithSelection = data.orders.map((o) => ({
+      const rawOrders = data.orders || [];
+      const ordersWithSelection = rawOrders.map((o) => ({
         ...o,
         is_selected: !o.is_duplicate,
       }));

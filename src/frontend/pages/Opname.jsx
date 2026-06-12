@@ -116,7 +116,11 @@ export default function Opname() {
   const openNewOpnameModal = () => {
     setNotes('');
     setProductSearch('');
-    setPhysicalCounts({});
+    const initialCounts = {};
+    products.forEach((p) => {
+      initialCounts[p.id] = p.current_stock;
+    });
+    setPhysicalCounts(initialCounts);
     setActiveModal('new');
   };
 

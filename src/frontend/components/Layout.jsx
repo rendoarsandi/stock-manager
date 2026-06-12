@@ -2,8 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation } from '@tanstack/react-router';
 import { useAuth } from '../context/AuthContext';
 import { useWebSocket } from '../context/WebSocketContext';
-import CursorOverlay from './CursorOverlay';
-import { useCursorTracking } from '../hooks/useCursorTracking';
 
 const pageTitles = {
   '/': 'Dashboard',
@@ -19,9 +17,6 @@ export default function Layout({ children }) {
   const { currentUser, logout } = useAuth();
   const { onlineCount, isConnected, addWsListener } = useWebSocket();
   const location = useLocation();
-
-  // Activate cursor tracking
-  useCursorTracking();
 
   const [isCollapsed, setIsCollapsed] = useState(
     () => localStorage.getItem('sidebar-collapsed') === 'true'
@@ -73,9 +68,6 @@ export default function Layout({ children }) {
 
   return (
     <div className="app-layout">
-      {/* Remote Cursors Overlay */}
-      <CursorOverlay />
-
       <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''} ${isMobileVisible ? 'visible' : ''}`}>
         <div className="sidebar-header">
           <div className="logo-wrapper">
