@@ -186,12 +186,12 @@ export async function seedIfNeeded(storage) {
   };
 
   await storage.execute(
-    "INSERT INTO import_templates (id, name, column_mapping, created_at) VALUES (?, ?, ?, ?)",
+    "INSERT OR IGNORE INTO import_templates (id, name, column_mapping, created_at) VALUES (?, ?, ?, ?)",
     [1, 'Shopee', JSON.stringify(shopeeMapping), now]
   );
 
   await storage.execute(
-    "INSERT INTO import_templates (id, name, column_mapping, created_at) VALUES (?, ?, ?, ?)",
+    "INSERT OR IGNORE INTO import_templates (id, name, column_mapping, created_at) VALUES (?, ?, ?, ?)",
     [2, 'Tokopedia', JSON.stringify(tokopediaMapping), now]
   );
 
