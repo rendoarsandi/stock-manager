@@ -57,7 +57,7 @@ products.get('/ledger', async (c) => {
 // 2. Add a new product (Admin only)
 products.post('/', requireRole('admin'), async (c) => {
   try {
-    const { name, model, description, initial_stock, low_stock_threshold } = await c.req.json();
+    const { name, model, master_sku, description, initial_stock, low_stock_threshold } = await c.req.json();
     
     if (!name || !model) {
       return c.json({ message: 'Product name and model are required' }, 400);
@@ -77,6 +77,7 @@ products.post('/', requireRole('admin'), async (c) => {
     const inserted = await db.products.insert({
       name,
       model,
+      master_sku: master_sku || null,
       description: description || '',
       current_stock: stock,
       low_stock_threshold: threshold
@@ -104,7 +105,7 @@ products.post('/', requireRole('admin'), async (c) => {
 products.put('/:id', requireRole('admin'), async (c) => {
   try {
     const id = parseInt(c.req.param('id'), 10);
-    const { name, model, description, low_stock_threshold } = await c.req.json();
+    const { name, model, master_sku, description, low_stock_threshold } = await c.req.json();
 
     if (!name || !model) {
       return c.json({ message: 'Product name and model are required' }, 400);
@@ -121,6 +122,7 @@ products.put('/:id', requireRole('admin'), async (c) => {
     await db.products.update(id, {
       name,
       model,
+      master_sku: master_sku || null,
       description: description || '',
       low_stock_threshold: threshold
     });
@@ -172,6 +174,32 @@ products.post('/:id/adjust-stock', async (c) => {
   } catch (err) {
     console.error("Adjust stock error:", err);
     return c.json({ message: 'Failed to adjust stock' }, 500);
+  }
+});
+
+// Get ledger history for a single product with platform mapping
+products.get('/:id/ledger', async (c) => {
+  try {
+    const id = parseInt(c.req.param('id'), 10);
+    const { getActiveStorage } = await import('../db/context.js');
+    const activeStorage = getActiveStorage();
+    
+    const movements = await activeStorage.query(
+      `SELECT sm.*, 
+              (SELECT t.name FROM orders o 
+               JOIN import_sessions s ON o.import_session_id = s.id 
+               JOIN import_templates t ON s.template_id = t.id 
+               WHERE sm.reference LIKE '%' || o.order_id || '%' LIMIT 1) AS platform_name 
+       FROM stock_movements sm 
+       WHERE sm.product_id = ? 
+       ORDER BY sm.created_at ASC`,
+      [id]
+    );
+    
+    return c.json(movements);
+  } catch (err) {
+    console.error("Get product ledger history error:", err);
+    return c.json({ message: 'Failed to retrieve product ledger history' }, 500);
   }
 });
 

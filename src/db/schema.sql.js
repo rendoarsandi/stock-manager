@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS products (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,
     model TEXT NOT NULL,
+    master_sku TEXT,
     description TEXT,
     current_stock INTEGER DEFAULT 0,
     low_stock_threshold INTEGER DEFAULT 10,

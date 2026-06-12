@@ -1,6 +1,8 @@
 import { showToast, showModal, addWsListener } from '../app.js';
 
 let productsList = [];
+let currentSortColumn = 'id';
+let currentSortDirection = 'asc';
 
 // Render the main page shell
 export function render() {
@@ -20,24 +22,11 @@ export function render() {
         </button>
       </div>
       
-      <!-- Search and Sort Controls -->
+      <!-- Search Controls -->
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; gap: 1rem; flex-wrap: wrap;">
         <div class="search-wrapper">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
           <input type="text" id="search-product" placeholder="Search name or SKU...">
-        </div>
-        <div style="display: flex; gap: 0.5rem; align-items: center;">
-          <span style="font-size: 0.9rem; color: var(--text-secondary); font-weight: 500;">Sort by:</span>
-          <select id="sort-product" style="padding: 0.5rem 0.75rem; border: 1px solid var(--border-color); border-radius: var(--border-radius-sm); background-color: var(--bg-secondary); color: var(--text-primary); font-size: 0.9rem; cursor: pointer; font-weight: 500;">
-            <option value="name-asc">Name (A-Z)</option>
-            <option value="name-desc">Name (Z-A)</option>
-            <option value="sku-asc">SKU (A-Z)</option>
-            <option value="sku-desc">SKU (Z-A)</option>
-            <option value="id-asc" selected>ID (Low to High)</option>
-            <option value="id-desc">ID (High to Low)</option>
-            <option value="stock-asc">Stock (Low to High)</option>
-            <option value="stock-desc">Stock (High to Low)</option>
-          </select>
         </div>
       </div>
 
@@ -45,18 +34,33 @@ export function render() {
         <table>
           <thead>
             <tr>
-              <th>ID</th>
-              <th>Name</th>
-              <th>SKU</th>
-              <th>Stock</th>
-              <th>Threshold</th>
-              <th>Status</th>
+              <th class="sortable-header" data-column="id" style="cursor: pointer; user-select: none;">
+                ID <span class="sort-icon" id="sort-icon-id"></span>
+              </th>
+              <th class="sortable-header" data-column="name" style="cursor: pointer; user-select: none;">
+                Name <span class="sort-icon" id="sort-icon-name"></span>
+              </th>
+              <th class="sortable-header" data-column="master_sku" style="cursor: pointer; user-select: none;">
+                Master SKU <span class="sort-icon" id="sort-icon-master_sku"></span>
+              </th>
+              <th class="sortable-header" data-column="sku" style="cursor: pointer; user-select: none;">
+                SKU <span class="sort-icon" id="sort-icon-sku"></span>
+              </th>
+              <th class="sortable-header" data-column="stock" style="cursor: pointer; user-select: none;">
+                Stock <span class="sort-icon" id="sort-icon-stock"></span>
+              </th>
+              <th class="sortable-header" data-column="threshold" style="cursor: pointer; user-select: none;">
+                Threshold <span class="sort-icon" id="sort-icon-threshold"></span>
+              </th>
+              <th class="sortable-header" data-column="status" style="cursor: pointer; user-select: none;">
+                Status <span class="sort-icon" id="sort-icon-status"></span>
+              </th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody id="products-table-body">
             <tr>
-              <td colspan="7" style="text-align: center; color: var(--text-muted)">Loading products...</td>
+              <td colspan="8" style="text-align: center; color: var(--text-muted)">Loading products...</td>
             </tr>
           </tbody>
         </table>
@@ -80,7 +84,7 @@ async function fetchProducts() {
     console.error("Error loading products:", err);
     tbody.innerHTML = `
       <tr>
-        <td colspan="7" style="text-align: center; color: var(--danger)">
+        <td colspan="8" style="text-align: center; color: var(--danger)">
           Failed to load products. Connection error.
         </td>
       </tr>
@@ -97,7 +101,7 @@ function renderProductsTable(products) {
   if (products.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="7" style="text-align: center; color: var(--text-muted)">
+        <td colspan="8" style="text-align: center; color: var(--text-muted)">
           No products registered. Click "Add Product" to create one.
         </td>
       </tr>
@@ -120,7 +124,10 @@ function renderProductsTable(products) {
     return `
       <tr>
         <td>${p.id}</td>
-        <td style="font-weight: 500;">${escapeHtml(p.name)}</td>
+        <td class="hover-ledger-trigger" data-id="${p.id}" data-name="${escapeHtml(p.name)}" data-model="${escapeHtml(p.model)}" style="font-weight: 500; cursor: help; text-decoration: underline dotted var(--text-muted); text-underline-offset: 4px;">
+          ${escapeHtml(p.name)}
+        </td>
+        <td><span class="status-tag info" style="background-color: var(--accent-light); color: var(--text-secondary); font-weight: 500;">${escapeHtml(p.master_sku || '-')}</span></td>
         <td><span class="status-tag info">${escapeHtml(p.model)}</span></td>
         <td style="font-weight: 600; font-size: 1rem;">${p.current_stock}</td>
         <td>${p.low_stock_threshold}</td>
@@ -144,6 +151,37 @@ function renderProductsTable(products) {
       </tr>
     `;
   }).join('');
+
+  // Register hover ledger triggers
+  const triggers = tbody.querySelectorAll('.hover-ledger-trigger');
+  triggers.forEach(el => {
+    el.onmouseenter = (e) => {
+      if (window.matchMedia('(hover: hover)').matches) {
+        const id = el.dataset.id;
+        const name = el.dataset.name;
+        const model = el.dataset.model;
+        showHoverLedgerCard(e, id, name, model);
+      }
+    };
+    el.onmouseleave = () => {
+      if (window.matchMedia('(hover: hover)').matches) {
+        hideHoverLedgerCard();
+      }
+    };
+    el.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation(); // Prevent immediate document click trigger from dismissing card
+      const id = el.dataset.id;
+      const name = el.dataset.name;
+      const model = el.dataset.model;
+      const card = document.getElementById('hover-ledger-card');
+      if (card && card.classList.contains('visible') && card.dataset.currentId === id) {
+        hideHoverLedgerCard();
+      } else {
+        showHoverLedgerCard(e, id, name, model);
+      }
+    };
+  });
 }
 
 // Setup click events for page-level actions
@@ -158,9 +196,15 @@ function setupEventListeners() {
     searchInput.oninput = () => applyFilterAndSort();
   }
 
-  const sortSelect = document.getElementById('sort-product');
-  if (sortSelect) {
-    sortSelect.onchange = () => applyFilterAndSort();
+  const thead = document.querySelector('.table-wrapper table thead');
+  if (thead) {
+    thead.onclick = (e) => {
+      const th = e.target.closest('.sortable-header');
+      if (th) {
+        const col = th.dataset.column;
+        handleHeaderSort(col);
+      }
+    };
   }
 
   const tbody = document.getElementById('products-table-body');
@@ -195,7 +239,11 @@ function openAddProductModal() {
         <input type="text" id="p-name" required placeholder="e.g. Korek Api Model A">
       </div>
       <div class="form-group">
-        <label for="p-model">SKU</label>
+        <label for="p-master-sku">Master SKU (Optional)</label>
+        <input type="text" id="p-master-sku" placeholder="e.g. CROSUP_1S">
+      </div>
+      <div class="form-group">
+        <label for="p-model">SKU (Reference)</label>
         <input type="text" id="p-model" required placeholder="e.g. CROBAR_1S">
       </div>
       <div class="form-group">
@@ -226,6 +274,7 @@ function openAddProductModal() {
     e.preventDefault();
     const data = {
       name: document.getElementById('p-name').value,
+      master_sku: document.getElementById('p-master-sku').value,
       model: document.getElementById('p-model').value,
       description: document.getElementById('p-desc').value,
       initial_stock: parseInt(document.getElementById('p-stock').value, 10) || 0,
@@ -266,7 +315,11 @@ function openEditProductModal(id) {
         <input type="text" id="p-edit-name" required value="${escapeHtml(product.name)}">
       </div>
       <div class="form-group">
-        <label for="p-edit-model">SKU</label>
+        <label for="p-edit-master-sku">Master SKU</label>
+        <input type="text" id="p-edit-master-sku" value="${escapeHtml(product.master_sku || '')}" placeholder="e.g. CROSUP_1S">
+      </div>
+      <div class="form-group">
+        <label for="p-edit-model">SKU (Reference)</label>
         <input type="text" id="p-edit-model" required value="${escapeHtml(product.model)}">
       </div>
       <div class="form-group">
@@ -293,6 +346,7 @@ function openEditProductModal(id) {
     e.preventDefault();
     const data = {
       name: document.getElementById('p-edit-name').value,
+      master_sku: document.getElementById('p-edit-master-sku').value,
       model: document.getElementById('p-edit-model').value,
       description: document.getElementById('p-edit-desc').value,
       low_stock_threshold: parseInt(document.getElementById('p-edit-threshold').value, 10) || 0
@@ -434,7 +488,7 @@ function confirmDeleteProduct(id, name) {
 // Simple HTML escaping helper to prevent XSS
 function escapeHtml(str) {
   if (!str) return '';
-  return str
+  return String(str)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
@@ -442,10 +496,224 @@ function escapeHtml(str) {
     .replace(/'/g, '&#039;');
 }
 
+function showHoverLedgerCard(e, productId, name, model) {
+  let card = document.getElementById('hover-ledger-card');
+  if (!card) {
+    card = document.createElement('div');
+    card.id = 'hover-ledger-card';
+    card.className = 'hover-ledger-card';
+    document.body.appendChild(card);
+  }
+
+  // Populate content first so that the element has layout and can be measured
+  card.innerHTML = `
+    <div class="hover-card-header">
+      <div style="font-weight: 600; color: var(--text-primary); font-size: 0.9rem;">${escapeHtml(name)}</div>
+      <div style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 500;">${escapeHtml(model)}</div>
+    </div>
+    <div style="padding: 1.5rem; text-align: center; color: var(--text-secondary); font-size: 0.8rem;">
+      <span class="loading-spinner"></span> Loading stock history...
+    </div>
+  `;
+
+  card.classList.add('visible');
+
+  // Measure size dynamically
+  const rect = e.currentTarget.getBoundingClientRect();
+  const cardWidth = card.offsetWidth || 580;
+  const cardHeight = card.offsetHeight || 250;
+  
+  let left = rect.left;
+  if (left + cardWidth > window.innerWidth) {
+    left = window.innerWidth - cardWidth - 10;
+  }
+  if (left < 10) left = 10;
+
+  let top = rect.bottom + window.scrollY + 8;
+  if (rect.bottom + cardHeight > window.innerHeight) {
+    top = rect.top + window.scrollY - cardHeight - 8;
+    if (top < window.scrollY) {
+      top = rect.bottom + window.scrollY + 8;
+    }
+  }
+
+  card.style.left = `${left}px`;
+  card.style.top = `${top}px`;
+
+  card.dataset.currentId = productId;
+
+  fetch(`/api/products/${productId}/ledger`)
+    .then(res => {
+      if (!res.ok) throw new Error('Failed to load');
+      return res.json();
+    })
+    .then(movements => {
+      if (card.dataset.currentId !== productId) return;
+      renderLedgerInCard(card, movements, name, model);
+    })
+    .catch(err => {
+      if (card.dataset.currentId !== productId) return;
+      card.innerHTML = `
+        <div class="hover-card-header">
+          <div style="font-weight: 600; color: var(--text-primary); font-size: 0.9rem;">${escapeHtml(name)}</div>
+        </div>
+        <div style="padding: 1.5rem; color: var(--danger); font-size: 0.8rem; text-align: center; font-weight: 500;">
+          ⚠️ Failed to load stock history
+        </div>
+      `;
+    });
+}
+
+function hideHoverLedgerCard() {
+  const card = document.getElementById('hover-ledger-card');
+  if (card) {
+    card.classList.remove('visible');
+    card.dataset.currentId = '';
+  }
+}
+
+function renderLedgerInCard(card, movements, name, model) {
+  if (movements.length === 0) {
+    card.innerHTML = `
+      <div class="hover-card-header">
+        <div style="font-weight: 600; color: var(--text-primary); font-size: 0.9rem;">${escapeHtml(name)}</div>
+        <div style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 500;">${escapeHtml(model)}</div>
+      </div>
+      <div style="padding: 1.5rem; color: var(--text-secondary); font-size: 0.8rem; text-align: center;">
+        No stock history recorded.
+      </div>
+    `;
+    return;
+  }
+
+  // Sort by created_at ASC to calculate running balance chronologically
+  movements.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+  let balance = 0;
+  const rowsHtml = movements.map(m => {
+    const qty = m.quantity_change;
+    balance += qty;
+    
+    const dateObj = new Date(m.created_at);
+    const dateStr = `${dateObj.getDate()}/${dateObj.getMonth() + 1}/${dateObj.getFullYear()}`;
+    
+    let noSj = '-';
+    if (m.reference) {
+      const orderIdMatch = m.reference.match(/(?:Order ID:\s*)([a-zA-Z0-9\/\-]+)/i);
+      if (orderIdMatch && orderIdMatch[1]) {
+        noSj = orderIdMatch[1];
+      } else if (m.reference.startsWith('Opname ID:')) {
+        noSj = '-';
+      } else {
+        noSj = m.reference;
+      }
+    }
+
+    let keterangan = m.movement_type.toUpperCase();
+    if (m.movement_type === 'initial') {
+      keterangan = 'STOCK OPNAME';
+    } else if (m.movement_type === 'manual_adjust') {
+      if (m.reference && m.reference.includes('Opname')) {
+        keterangan = 'STOCK OPNAME';
+      } else if (m.quantity_change > 0) {
+        keterangan = 'BARANG MASUK';
+      } else {
+        keterangan = 'MANUAL ADJUST';
+      }
+    } else if (m.movement_type === 'sale') {
+      keterangan = m.platform_name ? m.platform_name.toUpperCase() : 'SHOPEE';
+    } else if (m.movement_type === 'return') {
+      keterangan = 'DIRETUR';
+    } else if (m.movement_type === 'write_off') {
+      keterangan = 'WRITE OFF';
+    }
+
+    const masuk = qty > 0 ? qty : '';
+    const keluar = qty < 0 ? Math.abs(qty) : '';
+
+    return `
+      <tr>
+        <td style="text-align: center;">${dateStr}</td>
+        <td style="font-family: monospace; font-size: 0.72rem;">${escapeHtml(noSj)}</td>
+        <td>
+          <span class="status-tag info" style="font-size: 0.65rem; padding: 0.1rem 0.35rem; display: inline-block;">
+            ${escapeHtml(keterangan)}
+          </span>
+        </td>
+        <td style="color: var(--success); font-weight: 600; text-align: center;">${masuk}</td>
+        <td style="color: var(--danger); font-weight: 600; text-align: center;">${keluar}</td>
+        <td style="font-weight: 600; color: var(--text-primary); text-align: center;">${balance}</td>
+      </tr>
+    `;
+  }).join('');
+
+  card.innerHTML = `
+    <div class="hover-card-header">
+      <div style="font-weight: 600; color: var(--text-primary); font-size: 0.9rem;">${escapeHtml(name)}</div>
+      <div style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 500;">${escapeHtml(model)}</div>
+    </div>
+    <div style="overflow-x: auto;">
+      <table class="hover-ledger-table" style="width: 100%; border-collapse: collapse;">
+        <thead>
+          <tr>
+            <th rowspan="2" style="text-align: center; vertical-align: middle;">Tanggal</th>
+            <th rowspan="2" style="text-align: center; vertical-align: middle;">No. SJ</th>
+            <th rowspan="2" style="text-align: center; vertical-align: middle;">Keterangan</th>
+            <th colspan="2" style="text-align: center;">Mutasi Barang</th>
+            <th rowspan="2" style="text-align: center; vertical-align: middle;">Stok Akhir</th>
+          </tr>
+          <tr>
+            <th style="color: var(--success); text-align: center;">Masuk</th>
+            <th style="color: var(--danger); text-align: center;">Keluar</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rowsHtml}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+// Helper to get status text for a product
+function getStatusText(p) {
+  if (p.current_stock <= 0) return 'Out of Stock';
+  if (p.current_stock <= p.low_stock_threshold) return 'Low Stock';
+  return 'Good';
+}
+
+// Handle header click sorting toggle
+function handleHeaderSort(column) {
+  if (currentSortColumn === column) {
+    currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
+  } else {
+    currentSortColumn = column;
+    currentSortDirection = 'asc';
+  }
+  applyFilterAndSort();
+}
+
+// Update the visual arrow indicators on headers
+function updateSortHeaders() {
+  const columns = ['id', 'name', 'master_sku', 'sku', 'stock', 'threshold', 'status'];
+  columns.forEach(col => {
+    const el = document.getElementById(`sort-icon-${col}`);
+    if (!el) return;
+    if (currentSortColumn === col) {
+      el.innerHTML = currentSortDirection === 'asc' ? ' ▲' : ' ▼';
+      el.style.opacity = '1';
+      el.style.color = 'var(--text-primary)';
+    } else {
+      el.innerHTML = ' ↕';
+      el.style.opacity = '0.35';
+      el.style.color = 'var(--text-secondary)';
+    }
+  });
+}
+
 // Apply dynamic filtering and sorting to the products list
 function applyFilterAndSort() {
   const searchInput = document.getElementById('search-product');
-  const sortSelect = document.getElementById('sort-product');
   
   let filtered = [...productsList];
   
@@ -455,27 +723,44 @@ function applyFilterAndSort() {
       filtered = filtered.filter(p => 
         p.name.toLowerCase().includes(query) || 
         p.model.toLowerCase().includes(query) ||
+        (p.master_sku && p.master_sku.toLowerCase().includes(query)) ||
         p.id.toString().includes(query)
       );
     }
   }
   
-  if (sortSelect) {
-    const sortVal = sortSelect.value;
-    filtered.sort((a, b) => {
-      if (sortVal === 'name-asc') return a.name.localeCompare(b.name);
-      if (sortVal === 'name-desc') return b.name.localeCompare(a.name);
-      if (sortVal === 'sku-asc') return a.model.localeCompare(b.model);
-      if (sortVal === 'sku-desc') return b.model.localeCompare(a.model);
-      if (sortVal === 'id-asc') return a.id - b.id;
-      if (sortVal === 'id-desc') return b.id - a.id;
-      if (sortVal === 'stock-asc') return a.current_stock - b.current_stock;
-      if (sortVal === 'stock-desc') return b.current_stock - a.current_stock;
-      return 0;
-    });
-  }
+  filtered.sort((a, b) => {
+    let valA, valB;
+    if (currentSortColumn === 'id') {
+      valA = a.id;
+      valB = b.id;
+    } else if (currentSortColumn === 'name') {
+      valA = a.name.toLowerCase();
+      valB = b.name.toLowerCase();
+    } else if (currentSortColumn === 'master_sku') {
+      valA = (a.master_sku || '').toLowerCase();
+      valB = (b.master_sku || '').toLowerCase();
+    } else if (currentSortColumn === 'sku') {
+      valA = a.model.toLowerCase();
+      valB = b.model.toLowerCase();
+    } else if (currentSortColumn === 'stock') {
+      valA = a.current_stock;
+      valB = b.current_stock;
+    } else if (currentSortColumn === 'threshold') {
+      valA = a.low_stock_threshold;
+      valB = b.low_stock_threshold;
+    } else if (currentSortColumn === 'status') {
+      valA = getStatusText(a).toLowerCase();
+      valB = getStatusText(b).toLowerCase();
+    }
+
+    if (valA < valB) return currentSortDirection === 'asc' ? -1 : 1;
+    if (valA > valB) return currentSortDirection === 'asc' ? 1 : -1;
+    return 0;
+  });
   
   renderProductsTable(filtered);
+  updateSortHeaders();
 }
 
 // Register WebSocket Listener to update product table in real-time

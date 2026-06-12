@@ -19,7 +19,9 @@ export async function seedIfNeeded(storage) {
   // Seed users if empty
   const existingUsers = await storage.query("SELECT * FROM users WHERE id = 1");
   const now = new Date().toISOString();
+  let wasEmpty = false;
   if (!existingUsers || existingUsers.length === 0) {
+    wasEmpty = true;
     const adminHash = hashPassword('admin123');
     const staffHash = hashPassword('staff123');
     await storage.execute("INSERT INTO users (id, username, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?)", [1, 'admin', adminHash, 'admin', now]);
@@ -29,6 +31,9 @@ export async function seedIfNeeded(storage) {
   // Check if products need seeding
   const existingProducts = await storage.query("SELECT * FROM products LIMIT 1");
   if (existingProducts && existingProducts.length > 0) return;
+
+  // Only seed products if the database was completely fresh (i.e. we had to seed users)
+  if (!wasEmpty) return;
 
   console.log("Database empty. Seeding initial data...");
 
@@ -76,8 +81,8 @@ export async function seedIfNeeded(storage) {
 
   for (const p of products) {
     const res = await storage.execute(
-      "INSERT INTO products (name, model, description, current_stock, low_stock_threshold, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-      [p.name, p.model, null, p.current_stock, p.low_stock_threshold, now, now]
+      "INSERT INTO products (name, model, master_sku, description, current_stock, low_stock_threshold, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      [p.name, p.model, p.master_sku || null, null, p.current_stock, p.low_stock_threshold, now, now]
     );
     const productId = res.lastInsertRowid;
 
@@ -246,8 +251,8 @@ export const db = {
     async insert(product) {
       const storage = getActiveStorage();
       const result = await storage.execute(
-        "INSERT INTO products (name, model, description, current_stock, low_stock_threshold, created_at, updated_at) VALUES (?, ?, ?, ?, ?, datetime('now', 'localtime'), datetime('now', 'localtime'))",
-        [product.name, product.model, product.description || null, product.current_stock || 0, product.low_stock_threshold || 10]
+        "INSERT INTO products (name, model, master_sku, description, current_stock, low_stock_threshold, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now', 'localtime'), datetime('now', 'localtime'))",
+        [product.name, product.model, product.master_sku || null, product.description || null, product.current_stock || 0, product.low_stock_threshold || 10]
       );
       const newProduct = await this.get(result.lastInsertRowid);
       broadcast({ type: 'PRODUCT_CREATED', payload: newProduct });
@@ -260,8 +265,8 @@ export const db = {
       
       const merged = { ...existing, ...updates };
       await storage.execute(
-        "UPDATE products SET name = ?, model = ?, description = ?, current_stock = ?, low_stock_threshold = ?, updated_at = datetime('now', 'localtime') WHERE id = ?",
-        [merged.name, merged.model, merged.description, merged.current_stock, merged.low_stock_threshold, id]
+        "UPDATE products SET name = ?, model = ?, master_sku = ?, description = ?, current_stock = ?, low_stock_threshold = ?, updated_at = datetime('now', 'localtime') WHERE id = ?",
+        [merged.name, merged.model, merged.master_sku, merged.description, merged.current_stock, merged.low_stock_threshold, id]
       );
       const updated = await this.get(id);
       broadcast({ type: 'PRODUCT_UPDATED', payload: updated });

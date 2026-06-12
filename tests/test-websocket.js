@@ -48,7 +48,10 @@ async function runTest() {
     ws.on('open', resolve);
     ws.on('error', reject);
     ws.on('message', (data) => {
-      receivedMessages.push(JSON.parse(data));
+      const parsed = JSON.parse(data);
+      if (parsed.type !== 'ONLINE_COUNT') {
+        receivedMessages.push(parsed);
+      }
     });
   });
 

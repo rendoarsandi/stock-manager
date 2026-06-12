@@ -113,6 +113,22 @@ export class StockRoom extends DurableObject {
     }
   }
 
+  // Broadcast the number of online clients
+  broadcastOnlineCount() {
+    const websockets = this.ctx.getWebSockets();
+    const payload = JSON.stringify({
+      type: 'ONLINE_COUNT',
+      count: websockets.length
+    });
+    for (const ws of websockets) {
+      try {
+        ws.send(payload);
+      } catch (err) {
+        console.error('Error broadcasting online count from DO:', err);
+      }
+    }
+  }
+
   // Handle incoming DO WebSocket messages (e.g. MOUSE_MOVE cursor events)
   webSocketMessage(ws, message) {
     try {
@@ -123,11 +139,29 @@ export class StockRoom extends DurableObject {
     }
   }
 
+  webSocketClose(ws, code, reason, wasClean) {
+    this.broadcastOnlineCount();
+  }
+
+  webSocketError(ws, error) {
+    this.broadcastOnlineCount();
+  }
+
   // WebSocket handshake
   async fetch(request) {
     if (request.headers.get("Upgrade") === "websocket") {
       const pair = new WebSocketPair();
       this.ctx.acceptWebSocket(pair[1]);
+      
+      // Delay slightly to ensure the new WebSocket is registered in getWebSockets()
+      setTimeout(() => {
+        try {
+          this.broadcastOnlineCount();
+        } catch (e) {
+          console.error('Error broadcasting initial online count:', e);
+        }
+      }, 50);
+
       return new Response(null, {
         status: 101,
         webSocket: pair[0]

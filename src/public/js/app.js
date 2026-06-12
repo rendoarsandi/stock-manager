@@ -45,8 +45,7 @@ export function showToast(title, message, type = 'info', duration = 3000) {
 // Modal Utility
 export function showModal(title, contentHtml, footerButtonsHtml = '', onClose = null) {
   // Remove existing modal if any
-  const existingModal = document.querySelector('.modal-overlay');
-  if (existingModal) existingModal.remove();
+  document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
 
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
@@ -68,7 +67,9 @@ export function showModal(title, contentHtml, footerButtonsHtml = '', onClose = 
     if (onClose) onClose();
   };
 
-  overlay.querySelector('.modal-close').addEventListener('click', closeModal);
+  overlay.querySelectorAll('.modal-close').forEach(btn => {
+    btn.addEventListener('click', closeModal);
+  });
   overlay.addEventListener('click', (e) => {
     if (e.target === overlay) closeModal();
   });
@@ -265,32 +266,15 @@ function connectWebSocket() {
     try {
       const data = JSON.parse(event.data);
       
-      // Handle MOUSE_MOVE directly
-      if (data.type === 'MOUSE_MOVE' && data.senderId !== localSessionId) {
-        let cursor = document.getElementById(`remote-cursor-${data.senderId}`);
-        if (!cursor) {
-          cursor = document.createElement('div');
-          cursor.id = `remote-cursor-${data.senderId}`;
-          cursor.className = 'remote-cursor';
-          cursor.innerHTML = `
-            <svg viewBox="0 0 24 24" style="fill: ${data.color}; stroke: #ffffff; stroke-width: 1.5px; width: 22px; height: 22px; filter: drop-shadow(1px 2px 2px rgba(0,0,0,0.4));">
-              <path d="M4.5 3v15.2l4.7-4.5 3.3 7.8 2.5-1.1-3.3-7.7 6.3-.3z"/>
-            </svg>
-            <span class="cursor-label" style="background-color: ${data.color}">
-              ${escapeHtml(data.username)}
-            </span>
-          `;
-          document.body.appendChild(cursor);
+      // Handle ONLINE_COUNT directly
+      if (data.type === 'ONLINE_COUNT') {
+        const countEl = document.getElementById('online-users-count');
+        if (countEl) {
+          countEl.textContent = data.count;
         }
-        cursor.style.left = `${data.x}vw`;
-        cursor.style.top = `${data.y}vh`;
-
-        clearTimeout(cursor.inactiveTimeout);
-        cursor.inactiveTimeout = setTimeout(() => {
-          cursor.remove();
-        }, 5000);
         return;
       }
+      
 
       console.log('WS received:', data);
       for (const listener of wsListeners) {
@@ -359,6 +343,18 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // Global dismisser for hover ledger card when clicking outside
+  document.addEventListener('click', (e) => {
+    const trigger = e.target.closest('.hover-ledger-trigger');
+    const card = document.getElementById('hover-ledger-card');
+    if (card && card.classList.contains('visible')) {
+      if (!trigger && !card.contains(e.target)) {
+        card.classList.remove('visible');
+        card.dataset.currentId = '';
+      }
+    }
+  });
+
   // Connection listener
   window.addEventListener('online', () => {
     const status = document.getElementById('connection-status');
@@ -376,24 +372,15 @@ window.addEventListener('DOMContentLoaded', () => {
     showToast('Connection Lost', 'You are working offline', 'error');
   });
 
-  // Track and send local cursor position relative to viewport percentages
-  let lastSentMouse = 0;
-  window.addEventListener('mousemove', (e) => {
-    const now = Date.now();
-    if (now - lastSentMouse < 50) return; // limit to 20fps
-    lastSentMouse = now;
-
-    const x = (e.clientX / window.innerWidth) * 100;
-    const y = (e.clientY / window.innerHeight) * 100;
-
-    sendWsMessage({
-      type: 'MOUSE_MOVE',
-      senderId: localSessionId,
-      username: currentUser ? currentUser.username : 'Guest',
-      x,
-      y,
-      color: localColor
-    });
-  });
 });
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
 

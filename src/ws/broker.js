@@ -11,11 +11,19 @@ let localWss = null;
 export function setupLocalWebSocket(server) {
   localWss = new WebSocketServer({ noServer: true });
   
+  const broadcastCount = () => {
+    broadcast({
+      type: 'ONLINE_COUNT',
+      count: localClients.size
+    });
+  };
+
   server.on('upgrade', (request, socket, head) => {
     const url = new URL(request.url, `http://${request.headers.host || 'localhost'}`);
     if (url.pathname === '/ws') {
       localWss.handleUpgrade(request, socket, head, (ws) => {
         localClients.add(ws);
+        broadcastCount();
         
         ws.on('message', (msg) => {
           try {
@@ -29,11 +37,13 @@ export function setupLocalWebSocket(server) {
 
         ws.on('close', () => {
           localClients.delete(ws);
+          broadcastCount();
         });
         
         ws.on('error', (err) => {
           console.error('Local WebSocket error:', err);
           localClients.delete(ws);
+          broadcastCount();
         });
       });
     } else {
