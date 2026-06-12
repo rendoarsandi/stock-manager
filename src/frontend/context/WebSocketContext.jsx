@@ -8,16 +8,11 @@ const COLORS = ['#2563eb', '#16a34a', '#db2777', '#ea580c', '#7c3aed', '#0891b2'
 export function WebSocketProvider({ children }) {
   const { currentUser } = useAuth();
   const [onlineCount, setOnlineCount] = useState(1);
-  const [cursors, setCursors] = useState({});
   const [isConnected, setIsConnected] = useState(false);
   
   const wsRef = useRef(null);
   const listenersRef = useRef(new Set());
   const reconnectTimeoutRef = useRef(null);
-  const lastSentRef = useRef(0);
-
-  const colorRef = useRef(COLORS[Math.floor(Math.random() * COLORS.length)]);
-  const sessionIdRef = useRef(Math.random().toString(36).substring(2, 9));
 
   const connect = useCallback(() => {
     if (wsRef.current && (wsRef.current.readyState === WebSocket.CONNECTING || wsRef.current.readyState === WebSocket.OPEN)) {
@@ -42,20 +37,6 @@ export function WebSocketProvider({ children }) {
         const data = JSON.parse(event.data);
         if (data.type === 'ONLINE_COUNT') {
           setOnlineCount(data.count);
-        } else if (data.type === 'MOUSE_MOVE') {
-          const { sessionId, x, y, username, color, timestamp } = data;
-          if (sessionId && sessionId !== sessionIdRef.current) {
-            setCursors((prev) => ({
-              ...prev,
-              [sessionId]: {
-                x,
-                y,
-                username,
-                color: color || '#2563eb',
-                timestamp: timestamp || Date.now(),
-              },
-            }));
-          }
         }
 
         // Notify subscribers
@@ -75,7 +56,6 @@ export function WebSocketProvider({ children }) {
       console.log('WebSocket connection closed, retrying in 3 seconds...');
       setIsConnected(false);
       wsRef.current = null;
-      setCursors({});
       
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
@@ -103,23 +83,8 @@ export function WebSocketProvider({ children }) {
     return false;
   }, []);
 
-  // Throttled sendCursorPosition (50ms interval)
-  const sendCursorPosition = useCallback((x, y) => {
-    if (!currentUser) return;
-    const now = Date.now();
-    if (now - lastSentRef.current >= 50) {
-      lastSentRef.current = now;
-      sendWsMessage({
-        type: 'MOUSE_MOVE',
-        sessionId: sessionIdRef.current,
-        username: currentUser.username,
-        color: colorRef.current,
-        x,
-        y,
-        timestamp: now,
-      });
-    }
-  }, [currentUser, sendWsMessage]);
+  // Dummy sendCursorPosition (No-op as cursor tracking is disabled)
+  const sendCursorPosition = useCallback(() => {}, []);
 
   useEffect(() => {
     connect();
@@ -151,25 +116,8 @@ export function WebSocketProvider({ children }) {
     };
   }, [connect]);
 
-  // Periodically clean up remote cursors inactive for > 4 seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const now = Date.now();
-      setCursors((prev) => {
-        let changed = false;
-        const next = { ...prev };
-        for (const [sid, cursor] of Object.entries(prev)) {
-          if (now - cursor.timestamp > 4000) {
-            delete next[sid];
-            changed = true;
-          }
-        }
-        return changed ? next : prev;
-      });
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, []);
+  // Static empty cursors to maintain compatibility
+  const cursors = {};
 
   return (
     <WebSocketContext.Provider

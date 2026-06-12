@@ -13,7 +13,15 @@ import Settings from './pages/Settings';
 
 // Root route component
 function RootComponent() {
-  const { currentUser } = useAuth();
+  const { currentUser, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', height: '100vh', width: '100vw', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-primary)' }}>
+        <div className="loading-spinner" style={{ width: '2rem', height: '2rem', borderWidth: '3px' }} />
+      </div>
+    );
+  }
 
   if (!currentUser) {
     return <Login />;

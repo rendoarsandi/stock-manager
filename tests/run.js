@@ -25,6 +25,7 @@ const tests = [
   'test-extras.js',
   'test-websocket.js',
   'test-sku-mappings.js',
+  'test-review-feedback.js',
   'test-build.js'
 ];
 

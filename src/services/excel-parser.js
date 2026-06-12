@@ -10,12 +10,13 @@ export async function parseExcel(fileBuffer, columnMapping) {
   if (!columnMapping) throw new Error("Column mapping template is required");
 
   // Dynamic import for environment interop (Node.js and Cloudflare Workers)
-  let xlsxLib;
+  let imported;
   try {
-    xlsxLib = (await import('xlsx')).default || (await import('xlsx'));
+    imported = await import('xlsx');
   } catch (err) {
     throw new Error("XLSX library not available in this environment: " + err.message);
   }
+  const xlsxLib = imported.read ? imported : (imported.default || imported);
 
   // Read Excel file
   const workbook = xlsxLib.read(fileBuffer, { type: 'buffer' });

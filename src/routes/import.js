@@ -212,6 +212,10 @@ imports.post('/upload', async (c) => {
       });
     }
 
+    if (previewOrders.length === 0) {
+      return c.json({ message: 'No valid orders found in the uploaded file' }, 400);
+    }
+
     const user = c.get('user');
 
     // Cancel all previous previewing sessions to prevent multiple active sessions

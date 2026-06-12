@@ -3,7 +3,8 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 export const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [currentUser, setCurrentUser] = useState({ id: 1, username: 'admin', role: 'admin' });
+  const [currentUser, setCurrentUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchMe() {
@@ -12,9 +13,14 @@ export function AuthProvider({ children }) {
         if (res.ok) {
           const data = await res.json();
           setCurrentUser(data);
+        } else {
+          setCurrentUser(null);
         }
       } catch (err) {
-        console.error('Failed to fetch user details, using fallback:', err);
+        console.error('Failed to fetch user details:', err);
+        setCurrentUser(null);
+      } finally {
+        setLoading(false);
       }
     }
     fetchMe();
@@ -50,7 +56,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ currentUser, login, logout }}>
+    <AuthContext.Provider value={{ currentUser, loading, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

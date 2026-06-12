@@ -89,6 +89,17 @@ opname.post('/', async (c) => {
       return c.json({ message: 'Items are required' }, 400);
     }
 
+    // Validate all items before inserting anything
+    for (const item of items) {
+      const { product_id, physical_stock } = item;
+      const prodId = parseInt(product_id, 10);
+      const physStock = parseInt(physical_stock, 10);
+
+      if (isNaN(prodId) || isNaN(physStock) || physStock < 0) {
+        return c.json({ message: 'Invalid product_id or physical_stock' }, 400);
+      }
+    }
+
     // Insert stock_opnames
     const newOpname = await db.opnames.insert({
       user_id: user.id,
@@ -101,10 +112,6 @@ opname.post('/', async (c) => {
       const { product_id, physical_stock } = item;
       const prodId = parseInt(product_id, 10);
       const physStock = parseInt(physical_stock, 10);
-
-      if (isNaN(prodId) || isNaN(physStock)) {
-        throw new Error('Invalid product_id or physical_stock');
-      }
 
       // Query current_stock for the product
       const product = await db.products.get(prodId);
