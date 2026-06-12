@@ -1,5 +1,7 @@
 # Dependencies
 node_modules/
+dist/
+src/public/assets/
 
 # Database files
 data/*.db
