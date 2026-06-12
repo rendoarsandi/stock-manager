@@ -82,6 +82,13 @@ async function runTests() {
     throw new Error("Combined Promo and Pack test failed");
   }
 
+  // Test Case J: Plain Trailing Suffix Pack Multiplier
+  const resJ = parseAmbiguousDescription("Korek Api Model A 50 PCS", 2, catalog);
+  console.log("Plain trailing space pack output:", resJ);
+  if (resJ.length !== 1 || resJ[0].product_id !== 1 || resJ[0].quantity !== 100) {
+    throw new Error("Plain trailing space pack test failed");
+  }
+
   console.log("Ambiguous Parser tests passed!");
 
   // 3. Test Excel Parser

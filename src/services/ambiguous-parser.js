@@ -407,7 +407,9 @@ export function extractPackMultiplier(text) {
     // - 5 Buah or - 10 pcs — at end of string
     /\s+-\s*(\d+)\s*(?:pcs|buah|pc|pack|pak|item|items|btg|batang|sachet|bks|bungkus)\s*$/i,
     // 5's at end of string (e.g. "Product Name 5's")
-    /\s+(\d+)'s\s*$/i
+    /\s+(\d+)'s\s*$/i,
+    // 50 PCS or 50 Pcs at end of string without parens/dash
+    /\s+(\d+)\s*(?:pcs|buah|pc|pack|pak|item|items|btg|batang|sachet|bks|bungkus)\s*$/i
   ];
 
   for (const regex of suffixPatterns) {
