@@ -29,7 +29,7 @@ export function setupLocalWebSocket(server) {
           try {
             const parsed = JSON.parse(msg.toString());
             // Broadcast any client message (like MOUSE_MOVE) to all other clients
-            broadcast(parsed);
+            broadcast(parsed, ws);
           } catch (e) {
             console.error('Error handling local WS message:', e);
           }
@@ -56,11 +56,12 @@ export function setupLocalWebSocket(server) {
  * Broadcasts a message to all connected clients.
  * Isomorphic: handles both local Node.js clients and Durable Object WebSockets.
  */
-export function broadcast(message) {
+export function broadcast(message, excludeWs = null) {
   const payload = typeof message === 'string' ? message : JSON.stringify(message);
 
   // 1. Broadcast to local Node.js clients
   for (const client of localClients) {
+    if (client === excludeWs) continue;
     if (client.readyState === 1) { // OPEN
       try {
         client.send(payload);

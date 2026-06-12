@@ -287,7 +287,7 @@ export function resolvePromoProductToBaseItems(skuRef, productNameRaw, orderQty,
     // If not found, try matching by cleanName containing or matching sku_code
     if (matchedDb.length === 0) {
       const bestMatchKey = dbMappings.map(m => m.sku_code.toLowerCase()).find(key => {
-        return cleanName === key || cleanName.includes(key);
+        return cleanName === key || (key.length >= 4 && cleanName.includes(key));
       });
       if (bestMatchKey) {
         matchedDb = dbMappings.filter(m => m.sku_code.toLowerCase() === bestMatchKey);
@@ -315,7 +315,7 @@ export function resolvePromoProductToBaseItems(skuRef, productNameRaw, orderQty,
   // If not found by SKU, try finding by normalized name
   if (!mapping) {
     const matchingKey = Object.keys(BUNDLE_MAPPINGS).find(key => {
-      return cleanName === key || cleanName.includes(key);
+      return cleanName === key || (key.length >= 4 && cleanName.includes(key));
     });
     if (matchingKey) {
       mapping = BUNDLE_MAPPINGS[matchingKey];

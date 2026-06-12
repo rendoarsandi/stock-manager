@@ -57,6 +57,35 @@ async function runTest() {
 
   console.log("WebSocket connection established.");
 
+  // Connect second WebSocket client
+  const ws2 = new WebSocket(`ws://localhost:${PORT}/ws`);
+  const ws2ReceivedMessages = [];
+
+  await new Promise((resolve, reject) => {
+    ws2.on('open', resolve);
+    ws2.on('error', reject);
+    ws2.on('message', (data) => {
+      const parsed = JSON.parse(data);
+      if (parsed.type !== 'ONLINE_COUNT') {
+        ws2ReceivedMessages.push(parsed);
+      }
+    });
+  });
+
+  console.log("Second WebSocket connection established.");
+
+  // Test broadcasting client message to others excluding sender
+  ws.send(JSON.stringify({ type: 'MOUSE_MOVE', x: 10, y: 20 }));
+  await new Promise(resolve => setTimeout(resolve, 300));
+
+  const mouseMoveMsg = ws2ReceivedMessages.find(m => m.type === 'MOUSE_MOVE');
+  assert.ok(mouseMoveMsg, "ws2 should receive MOUSE_MOVE");
+  assert.strictEqual(mouseMoveMsg.x, 10);
+
+  const wsMouseMoveMsg = receivedMessages.find(m => m.type === 'MOUSE_MOVE');
+  assert.strictEqual(wsMouseMoveMsg, undefined, "ws should not receive its own MOUSE_MOVE");
+  console.log("✅ WebSocket broadcast excluding sender verified.");
+
   // Perform a mutation in storageContext
   const store = {
     type: 'local',
@@ -102,6 +131,7 @@ async function runTest() {
 
   // Close connections & server
   ws.close();
+  ws2.close();
   server.close();
   
   clearLocalDbFile();

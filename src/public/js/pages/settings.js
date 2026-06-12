@@ -421,7 +421,8 @@ function renderUsersTable(users) {
   if (!tbody) return;
 
   tbody.innerHTML = users.map(u => {
-    const createdDate = new Date(u.created_at).toLocaleString();
+    const cleanStr = typeof u.created_at === 'string' && !u.created_at.includes('T') ? u.created_at.replace(/-/g, '/') : u.created_at;
+    const createdDate = new Date(cleanStr).toLocaleString();
     const isSelfOrMainAdmin = u.id === 1 || (currentUser && u.id === currentUser.id);
 
     return `

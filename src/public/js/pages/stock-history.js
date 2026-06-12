@@ -97,7 +97,8 @@ function renderLedgerTable(ledger) {
 
     const productName = row.name ? `${row.name} (${row.model || ''})` : `Product #${row.product_id}`;
     const username = row.username || 'System';
-    const dateStr = new Date(row.created_at).toLocaleString();
+    const cleanStr = typeof row.created_at === 'string' && !row.created_at.includes('T') ? row.created_at.replace(/-/g, '/') : row.created_at;
+    const dateStr = new Date(cleanStr).toLocaleString();
 
     return `
       <tr>

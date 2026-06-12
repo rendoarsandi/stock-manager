@@ -587,14 +587,19 @@ function renderLedgerInCard(card, movements, name, model) {
   }
 
   // Sort by created_at ASC to calculate running balance chronologically
-  movements.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  movements.sort((a, b) => {
+    const da = typeof a.created_at === 'string' && !a.created_at.includes('T') ? a.created_at.replace(/-/g, '/') : a.created_at;
+    const db = typeof b.created_at === 'string' && !b.created_at.includes('T') ? b.created_at.replace(/-/g, '/') : b.created_at;
+    return new Date(da) - new Date(db);
+  });
 
   let balance = 0;
   const rowsHtml = movements.map(m => {
     const qty = m.quantity_change;
     balance += qty;
     
-    const dateObj = new Date(m.created_at);
+    const cleanStr = typeof m.created_at === 'string' && !m.created_at.includes('T') ? m.created_at.replace(/-/g, '/') : m.created_at;
+    const dateObj = new Date(cleanStr);
     const dateStr = `${dateObj.getDate()}/${dateObj.getMonth() + 1}/${dateObj.getFullYear()}`;
     
     let noSj = '-';

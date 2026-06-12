@@ -78,6 +78,17 @@ async function runTests() {
       }
       console.log("✅ Parser resolution with DB mappings passed");
 
+      // 5b. Test short SKU loose matching prevention
+      console.log("Testing short SKU loose matching prevention...");
+      const shortMappings = [
+        { sku_code: 'hi', product_id: productA.id, quantity: 1 }
+      ];
+      const shortSplits = resolvePromoProductToBaseItems('', 'Chili Pepper Product', 1, products, shortMappings);
+      if (shortSplits !== null) {
+        throw new Error("Expected no split resolution for short SKU 'hi' via loose matching in name 'Chili Pepper Product'");
+      }
+      console.log("✅ Short SKU loose matching prevention passed");
+
       // 6. Test deleting SKU mapping
       console.log("Testing db.skuMappings.delete...");
       await db.skuMappings.delete('case_1b', productA.id);

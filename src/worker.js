@@ -102,9 +102,10 @@ export class StockRoom extends DurableObject {
   }
 
   // RPC to broadcast message to all connected WS clients
-  broadcast(payload) {
+  broadcast(payload, excludeWs = null) {
     const websockets = this.ctx.getWebSockets();
     for (const ws of websockets) {
+      if (ws === excludeWs) continue;
       try {
         ws.send(payload);
       } catch (err) {
@@ -133,7 +134,7 @@ export class StockRoom extends DurableObject {
   webSocketMessage(ws, message) {
     try {
       // Broadcast client message directly to all other clients
-      this.broadcast(message);
+      this.broadcast(message, ws);
     } catch (err) {
       console.error('Error in DO webSocketMessage:', err);
     }

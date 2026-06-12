@@ -342,7 +342,8 @@ function escapeHtml(str) {
 function formatDate(dateStr) {
   if (!dateStr) return '-';
   try {
-    const d = new Date(dateStr);
+    const cleanStr = typeof dateStr === 'string' && !dateStr.includes('T') ? dateStr.replace(/-/g, '/') : dateStr;
+    const d = new Date(cleanStr);
     if (isNaN(d.getTime())) return dateStr;
     return d.toLocaleString('id-ID', { 
       year: 'numeric', 
