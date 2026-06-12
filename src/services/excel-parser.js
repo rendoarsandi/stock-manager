@@ -11,7 +11,7 @@ export function parseExcel(fileBuffer, columnMapping) {
   if (!columnMapping) throw new Error("Column mapping template is required");
 
   // Read Excel file
-  const xlsxLib = XLSX.read ? XLSX : (XLSX.default || XLSX);
+  const xlsxLib = XLSX;
   const workbook = xlsxLib.read(fileBuffer, { type: 'buffer' });
   const firstSheetName = workbook.SheetNames[0];
   const worksheet = workbook.Sheets[firstSheetName];
