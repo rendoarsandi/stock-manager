@@ -15,18 +15,21 @@ try {
 
 // Seeding implementation using SQL statements
 export async function seedIfNeeded(storage) {
-  // Check if database is already seeded
+  // Seed users if empty
   const existingUsers = await storage.query("SELECT * FROM users WHERE id = 1");
-  if (existingUsers && existingUsers.length > 0) return; // Already seeded
+  const now = new Date().toISOString();
+  if (!existingUsers || existingUsers.length === 0) {
+    const adminHash = hashPassword('admin123');
+    const staffHash = hashPassword('staff123');
+    await storage.execute("INSERT INTO users (id, username, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?)", [1, 'admin', adminHash, 'admin', now]);
+    await storage.execute("INSERT INTO users (id, username, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?)", [2, 'staff', staffHash, 'staff', now]);
+  }
+
+  // Check if products need seeding
+  const existingProducts = await storage.query("SELECT * FROM products LIMIT 1");
+  if (existingProducts && existingProducts.length > 0) return;
 
   console.log("Database empty. Seeding initial data...");
-
-  const adminHash = hashPassword('admin123');
-  const staffHash = hashPassword('staff123');
-  const now = new Date().toISOString();
-
-  await storage.execute("INSERT INTO users (id, username, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?)", [1, 'admin', adminHash, 'admin', now]);
-  await storage.execute("INSERT INTO users (id, username, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?)", [2, 'staff', staffHash, 'staff', now]);
 
   // Helper function to clean up and structure product names
   function getProductName(groupName, variationSku, skuInduk) {
