@@ -17,6 +17,16 @@ export function setupLocalWebSocket(server) {
       localWss.handleUpgrade(request, socket, head, (ws) => {
         localClients.add(ws);
         
+        ws.on('message', (msg) => {
+          try {
+            const parsed = JSON.parse(msg.toString());
+            // Broadcast any client message (like MOUSE_MOVE) to all other clients
+            broadcast(parsed);
+          } catch (e) {
+            console.error('Error handling local WS message:', e);
+          }
+        });
+
         ws.on('close', () => {
           localClients.delete(ws);
         });

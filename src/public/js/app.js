@@ -235,6 +235,18 @@ export function addWsListener(callback) {
   };
 }
 
+export function sendWsMessage(message) {
+  if (socket && socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify(message));
+    return true;
+  }
+  return false;
+}
+
+const colors = ['#2563eb', '#16a34a', '#db2777', '#ea580c', '#7c3aed', '#0891b2', '#e11d48', '#4f46e5', '#ca8a04'];
+const localColor = colors[Math.floor(Math.random() * colors.length)];
+const localSessionId = Math.random().toString(36).substring(2, 9);
+
 function connectWebSocket() {
   if (socket && (socket.readyState === WebSocket.CONNECTING || socket.readyState === WebSocket.OPEN)) {
     return;
@@ -252,6 +264,34 @@ function connectWebSocket() {
   socket.onmessage = (event) => {
     try {
       const data = JSON.parse(event.data);
+      
+      // Handle MOUSE_MOVE directly
+      if (data.type === 'MOUSE_MOVE' && data.senderId !== localSessionId) {
+        let cursor = document.getElementById(`remote-cursor-${data.senderId}`);
+        if (!cursor) {
+          cursor = document.createElement('div');
+          cursor.id = `remote-cursor-${data.senderId}`;
+          cursor.className = 'remote-cursor';
+          cursor.innerHTML = `
+            <svg viewBox="0 0 24 24" style="fill: ${data.color}; stroke: #ffffff; stroke-width: 1.5px; width: 22px; height: 22px; filter: drop-shadow(1px 2px 2px rgba(0,0,0,0.4));">
+              <path d="M4.5 3v15.2l4.7-4.5 3.3 7.8 2.5-1.1-3.3-7.7 6.3-.3z"/>
+            </svg>
+            <span class="cursor-label" style="background-color: ${data.color}">
+              ${escapeHtml(data.username)}
+            </span>
+          `;
+          document.body.appendChild(cursor);
+        }
+        cursor.style.left = `${data.x}vw`;
+        cursor.style.top = `${data.y}vh`;
+
+        clearTimeout(cursor.inactiveTimeout);
+        cursor.inactiveTimeout = setTimeout(() => {
+          cursor.remove();
+        }, 5000);
+        return;
+      }
+
       console.log('WS received:', data);
       for (const listener of wsListeners) {
         try {
@@ -268,6 +308,8 @@ function connectWebSocket() {
   socket.onclose = () => {
     console.log('WebSocket connection closed, retrying in 3 seconds...');
     socket = null;
+    // Remove all remote cursors on disconnect
+    document.querySelectorAll('.remote-cursor').forEach(el => el.remove());
     setTimeout(connectWebSocket, 3000);
   };
 
@@ -332,6 +374,26 @@ window.addEventListener('DOMContentLoaded', () => {
     status.textContent = 'Offline';
     status.className = 'status-indicator danger';
     showToast('Connection Lost', 'You are working offline', 'error');
+  });
+
+  // Track and send local cursor position relative to viewport percentages
+  let lastSentMouse = 0;
+  window.addEventListener('mousemove', (e) => {
+    const now = Date.now();
+    if (now - lastSentMouse < 50) return; // limit to 20fps
+    lastSentMouse = now;
+
+    const x = (e.clientX / window.innerWidth) * 100;
+    const y = (e.clientY / window.innerHeight) * 100;
+
+    sendWsMessage({
+      type: 'MOUSE_MOVE',
+      senderId: localSessionId,
+      username: currentUser ? currentUser.username : 'Guest',
+      x,
+      y,
+      color: localColor
+    });
   });
 });
 

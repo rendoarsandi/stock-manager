@@ -113,6 +113,16 @@ export class StockRoom extends DurableObject {
     }
   }
 
+  // Handle incoming DO WebSocket messages (e.g. MOUSE_MOVE cursor events)
+  webSocketMessage(ws, message) {
+    try {
+      // Broadcast client message directly to all other clients
+      this.broadcast(message);
+    } catch (err) {
+      console.error('Error in DO webSocketMessage:', err);
+    }
+  }
+
   // WebSocket handshake
   async fetch(request) {
     if (request.headers.get("Upgrade") === "websocket") {
