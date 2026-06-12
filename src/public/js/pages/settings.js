@@ -65,6 +65,34 @@ export function render() {
           </table>
         </div>
       </div>
+
+      <div class="section-card">
+        <div class="section-header">
+          <h2>SKU & Bundle Mappings Master</h2>
+          <button id="btn-add-sku-mapping" class="btn btn-primary" style="display: none;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 12h14M12 5v14"/></svg>
+            Add SKU Mapping
+          </button>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>SKU Code</th>
+                <th>Target Product</th>
+                <th>Model</th>
+                <th>Quantity</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="sku-mappings-table-body">
+              <tr>
+                <td colspan="5" style="text-align: center; color: var(--text-muted)">Loading mappings...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   `;
 }
@@ -73,12 +101,17 @@ async function initSettings() {
   await fetchCurrentUser();
   await fetchTemplates();
   setupTemplateEventListeners();
+  await fetchSkuMappings();
 
   if (currentUser && currentUser.role === 'admin') {
     const userSection = document.getElementById('user-management-section');
     if (userSection) userSection.style.display = 'block';
     await fetchUsers();
     setupUserEventListeners();
+
+    const addSkuBtn = document.getElementById('btn-add-sku-mapping');
+    if (addSkuBtn) addSkuBtn.style.display = 'inline-flex';
+    setupSkuMappingEventListeners();
   }
 }
 
@@ -508,6 +541,181 @@ async function deleteUser(id) {
   } catch (err) {
     console.error("Delete user error:", err);
     showToast('Error', 'Connection error. Failed to delete user account', 'error');
+  }
+}
+
+// SKU Mappings Logic
+let skuMappingsList = [];
+
+async function fetchSkuMappings() {
+  const tbody = document.getElementById('sku-mappings-table-body');
+  if (!tbody) return;
+
+  try {
+    const res = await fetch('/api/import/sku-mappings');
+    if (!res.ok) throw new Error('Failed to fetch SKU mappings');
+    skuMappingsList = await res.json();
+    renderSkuMappingsTable(skuMappingsList);
+  } catch (err) {
+    console.error("Error loading SKU mappings:", err);
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="5" style="text-align: center; color: var(--danger)">
+          Failed to load SKU mappings.
+        </td>
+      </tr>
+    `;
+  }
+}
+
+function renderSkuMappingsTable(mappings) {
+  const tbody = document.getElementById('sku-mappings-table-body');
+  if (!tbody) return;
+
+  if (mappings.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="5" style="text-align: center; color: var(--text-muted)">
+          No custom SKU mappings defined.
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  tbody.innerHTML = mappings.map(m => {
+    const deleteBtn = currentUser && currentUser.role === 'admin'
+      ? `<button class="btn btn-danger btn-sm btn-delete-sku" data-sku="${escapeHtml(m.sku_code)}" data-pid="${m.product_id}">
+           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2M10 11v6M14 11v6"/></svg>
+           Delete
+         </button>`
+      : `<span style="font-size: 0.85rem; color: var(--text-muted)">Protected</span>`;
+
+    return `
+      <tr>
+        <td><strong>${escapeHtml(m.sku_code.toUpperCase())}</strong></td>
+        <td>${escapeHtml(m.product_name)}</td>
+        <td><code class="code-badge">${escapeHtml(m.product_model)}</code></td>
+        <td>${m.quantity} Pcs</td>
+        <td>
+          <div style="display: flex; gap: 0.5rem;">
+            ${deleteBtn}
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  tbody.querySelectorAll('.btn-delete-sku').forEach(btn => {
+    btn.onclick = () => {
+      const sku = btn.getAttribute('data-sku');
+      const pid = parseInt(btn.getAttribute('data-pid'), 10);
+      deleteSkuMapping(sku, pid);
+    };
+  });
+}
+
+function setupSkuMappingEventListeners() {
+  const btn = document.getElementById('btn-add-sku-mapping');
+  if (btn) {
+    btn.onclick = () => openSkuMappingModal();
+  }
+}
+
+async function openSkuMappingModal() {
+  let products = [];
+  try {
+    const res = await fetch('/api/products');
+    if (res.ok) products = await res.json();
+  } catch (err) {
+    console.error("Failed to load products list for modal:", err);
+  }
+
+  const selectOptions = products.map(p => `
+    <option value="${p.id}">${escapeHtml(p.name)} (${escapeHtml(p.model)})</option>
+  `).join('');
+
+  const content = `
+    <form id="modal-sku-form" style="display: flex; flex-direction: column; gap: 1rem;">
+      <div class="form-group">
+        <label for="sku-code">SKU Code (e.g. CROOR_5S or CASE_1B)</label>
+        <input type="text" id="sku-code" placeholder="Enter ecommerce SKU code" required>
+      </div>
+
+      <div class="form-group">
+        <label for="sku-product-id">Target Product</label>
+        <select id="sku-product-id" required>
+          <option value="" disabled selected>Select target product</option>
+          ${selectOptions}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="sku-quantity">Quantity Multiplier</label>
+        <input type="number" id="sku-quantity" value="1" min="1" required>
+      </div>
+    </form>
+  `;
+
+  const footer = `
+    <button class="btn btn-secondary btn-cancel-modal">Cancel</button>
+    <button type="submit" form="modal-sku-form" class="btn btn-primary">Save Mapping</button>
+  `;
+
+  const modalInstance = showModal('Create SKU / Bundle Mapping', content, footer);
+  modalInstance.element.querySelector('.btn-cancel-modal').onclick = () => modalInstance.close();
+
+  document.getElementById('modal-sku-form').onsubmit = async (e) => {
+    e.preventDefault();
+
+    const data = {
+      sku_code: document.getElementById('sku-code').value.trim(),
+      product_id: parseInt(document.getElementById('sku-product-id').value, 10),
+      quantity: parseInt(document.getElementById('sku-quantity').value, 10)
+    };
+
+    try {
+      const res = await fetch('/api/import/sku-mappings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+
+      if (res.ok) {
+        showToast('Success', 'SKU mapping saved successfully', 'success');
+        modalInstance.close();
+        fetchSkuMappings();
+      } else {
+        const err = await res.json();
+        showToast('Error', err.message || 'Failed to save SKU mapping', 'error');
+      }
+    } catch (err) {
+      console.error("Save SKU mapping error:", err);
+      showToast('Error', 'Connection error. Failed to save SKU mapping', 'error');
+    }
+  };
+}
+
+async function deleteSkuMapping(skuCode, productId) {
+  if (!confirm(`Are you sure you want to delete mapping for "${skuCode.toUpperCase()}"?`)) return;
+
+  try {
+    const res = await fetch('/api/import/sku-mappings', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sku_code: skuCode, product_id: productId })
+    });
+
+    if (res.ok) {
+      showToast('Success', 'SKU mapping deleted successfully', 'success');
+      fetchSkuMappings();
+    } else {
+      const err = await res.json();
+      showToast('Error', err.message || 'Failed to delete SKU mapping', 'error');
+    }
+  } catch (err) {
+    console.error("Delete SKU mapping error:", err);
+    showToast('Error', 'Connection error. Failed to delete SKU mapping', 'error');
   }
 }
 

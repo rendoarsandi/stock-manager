@@ -100,8 +100,9 @@ imports.post('/upload', async (c) => {
     }
     const mapping = JSON.parse(template.column_mapping);
 
-    // Retrieve product catalog for matching
+    // Retrieve product catalog and sku mappings for matching
     const catalog = await db.products.list();
+    const skuMappings = await db.skuMappings.list();
 
     // Convert file to buffer
     const arrayBuffer = await file.arrayBuffer();
@@ -141,7 +142,7 @@ imports.post('/upload', async (c) => {
       let resolvedDirectly = false;
 
       // 2. Check if the SKU or name matches a bundle / promo mapping first
-      const promoSplits = resolvePromoProductToBaseItems(row.sku_ref, row.product_name_raw, row.quantity, catalog);
+      const promoSplits = resolvePromoProductToBaseItems(row.sku_ref, row.product_name_raw, row.quantity, catalog, skuMappings);
       if (promoSplits) {
         suggestedSplits = promoSplits;
         resolvedDirectly = true;
@@ -436,6 +437,47 @@ imports.get('/sessions', async (c) => {
   } catch (err) {
     console.error("Get sessions error:", err);
     return c.json({ message: 'Failed to retrieve sessions history' }, 500);
+  }
+});
+
+// GET /sku-mappings: List all custom SKU/bundle mappings
+imports.get('/sku-mappings', async (c) => {
+  try {
+    const list = await db.skuMappings.list();
+    return c.json(list);
+  } catch (err) {
+    console.error("Get sku mappings error:", err);
+    return c.json({ message: 'Failed to retrieve SKU mappings' }, 500);
+  }
+});
+
+// POST /sku-mappings: Add/update SKU mapping (Admin only)
+imports.post('/sku-mappings', requireRole('admin'), async (c) => {
+  try {
+    const { sku_code, product_id, quantity } = await c.req.json();
+    if (!sku_code || !product_id || !quantity) {
+      return c.json({ message: 'sku_code, product_id, and quantity are required' }, 400);
+    }
+    await db.skuMappings.insert({ sku_code, product_id, quantity });
+    return c.json({ success: true });
+  } catch (err) {
+    console.error("Save sku mapping error:", err);
+    return c.json({ message: 'Failed to save SKU mapping' }, 500);
+  }
+});
+
+// DELETE /sku-mappings: Delete SKU mapping entry (Admin only)
+imports.delete('/sku-mappings', requireRole('admin'), async (c) => {
+  try {
+    const { sku_code, product_id } = await c.req.json();
+    if (!sku_code || !product_id) {
+      return c.json({ message: 'sku_code and product_id are required' }, 400);
+    }
+    await db.skuMappings.delete(sku_code, product_id);
+    return c.json({ success: true });
+  } catch (err) {
+    console.error("Delete sku mapping error:", err);
+    return c.json({ message: 'Failed to delete SKU mapping' }, 500);
   }
 });
 

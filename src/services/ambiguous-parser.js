@@ -272,12 +272,44 @@ export const BUNDLE_MAPPINGS = {
  * @param {string} productNameRaw - Raw product name from Excel.
  * @param {number} orderQty - The quantity of the line item ordered.
  * @param {Array<Object>} catalog - The database product catalog.
+ * @param {Array<Object>} [dbMappings] - Optional SKU mappings retrieved from DB.
  * @returns {Array<Object>|null} Resolved splits or null if not a bundle.
  */
-export function resolvePromoProductToBaseItems(skuRef, productNameRaw, orderQty, catalog) {
+export function resolvePromoProductToBaseItems(skuRef, productNameRaw, orderQty, catalog, dbMappings) {
   const cleanSku = skuRef ? String(skuRef).trim().toLowerCase() : '';
   const cleanName = productNameRaw ? String(productNameRaw).trim().toLowerCase() : '';
 
+  // 1. Check DB SKU mappings first if provided
+  if (dbMappings && dbMappings.length > 0) {
+    // Check match by skuRef
+    let matchedDb = dbMappings.filter(m => m.sku_code.toLowerCase() === cleanSku);
+    
+    // If not found, try matching by cleanName containing or matching sku_code
+    if (matchedDb.length === 0) {
+      const bestMatchKey = dbMappings.map(m => m.sku_code.toLowerCase()).find(key => {
+        return cleanName === key || cleanName.includes(key);
+      });
+      if (bestMatchKey) {
+        matchedDb = dbMappings.filter(m => m.sku_code.toLowerCase() === bestMatchKey);
+      }
+    }
+
+    if (matchedDb.length > 0) {
+      return matchedDb.map(item => {
+        const catalogProd = catalog.find(p => p.id === item.product_id);
+        return {
+          product_id: item.product_id,
+          product_name: catalogProd ? catalogProd.name : item.product_name,
+          model: catalogProd ? catalogProd.model : item.product_model,
+          quantity: item.quantity * orderQty,
+          parse_source: 'auto_split',
+          original_text: productNameRaw
+        };
+      });
+    }
+  }
+
+  // 2. Fallback to hardcoded BUNDLE_MAPPINGS
   let mapping = BUNDLE_MAPPINGS[cleanSku];
 
   // If not found by SKU, try finding by normalized name

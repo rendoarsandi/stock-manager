@@ -108,4 +108,13 @@ CREATE TABLE IF NOT EXISTS stock_opname_items (
     FOREIGN KEY (opname_id) REFERENCES stock_opnames(id) ON DELETE CASCADE,
     FOREIGN KEY (product_id) REFERENCES products(id)
 );
+
+CREATE TABLE IF NOT EXISTS sku_mappings (
+    sku_code TEXT NOT NULL,
+    product_id INTEGER NOT NULL,
+    quantity INTEGER NOT NULL,
+    PRIMARY KEY (sku_code, product_id),
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+);
 `;
+

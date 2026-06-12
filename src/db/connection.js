@@ -193,6 +193,24 @@ export async function seedIfNeeded(storage) {
     [2, 'Tokopedia', JSON.stringify(tokopediaMapping), now]
   );
 
+  // Dynamic seeding for SKU mappings
+  try {
+    const { BUNDLE_MAPPINGS } = await import('../services/ambiguous-parser.js');
+    for (const [skuCode, items] of Object.entries(BUNDLE_MAPPINGS)) {
+      for (const item of items) {
+        const prodRows = await storage.query("SELECT id FROM products WHERE LOWER(name) = ? OR LOWER(model) = ?", [item.name.toLowerCase(), item.name.toLowerCase()]);
+        if (prodRows && prodRows[0]) {
+          await storage.execute(
+            "INSERT OR IGNORE INTO sku_mappings (sku_code, product_id, quantity) VALUES (?, ?, ?)",
+            [skuCode.toLowerCase(), prodRows[0].id, item.qty]
+          );
+        }
+      }
+    }
+  } catch (err) {
+    console.error("Error seeding SKU mappings:", err);
+  }
+
   console.log("Database seeded successfully.");
 }
 
@@ -215,6 +233,38 @@ export const db = {
         "INSERT OR REPLACE INTO product_aliases (clean_text, product_id) VALUES (?, ?)",
         [cleanText.toLowerCase(), parseInt(productId, 10)]
       );
+    }
+  },
+
+  skuMappings: {
+    async list() {
+      const storage = getActiveStorage();
+      return await storage.query(
+        "SELECT sm.*, p.name as product_name, p.model as product_model FROM sku_mappings sm JOIN products p ON sm.product_id = p.id"
+      );
+    },
+    async getBySku(skuCode) {
+      const storage = getActiveStorage();
+      return await storage.query(
+        "SELECT sm.*, p.name as product_name, p.model as product_model FROM sku_mappings sm JOIN products p ON sm.product_id = p.id WHERE LOWER(sm.sku_code) = LOWER(?)",
+        [skuCode]
+      );
+    },
+    async insert(mapping) {
+      const storage = getActiveStorage();
+      await storage.execute(
+        "INSERT OR REPLACE INTO sku_mappings (sku_code, product_id, quantity) VALUES (?, ?, ?)",
+        [mapping.sku_code.toLowerCase(), parseInt(mapping.product_id, 10), parseInt(mapping.quantity, 10)]
+      );
+      return true;
+    },
+    async delete(skuCode, productId) {
+      const storage = getActiveStorage();
+      await storage.execute(
+        "DELETE FROM sku_mappings WHERE LOWER(sku_code) = LOWER(?) AND product_id = ?",
+        [skuCode, parseInt(productId, 10)]
+      );
+      return true;
     }
   },
 
