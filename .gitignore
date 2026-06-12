@@ -18,3 +18,9 @@ Thumbs.db
 # Logs
 logs/
 *.log
+
+# Agent tools files
+.agents/
+ORIGINAL_REQUEST.md
+PROJECT.md
+

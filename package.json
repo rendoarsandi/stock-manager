@@ -7,6 +7,7 @@
     "dev": "node src/index.js",
     "dev:local": "npx wrangler dev",
     "dev:remote": "npx wrangler dev --remote",
+    "build": "node node_modules/vite/bin/vite.js build",
     "test": "node tests/run.js"
   },
   "keywords": [],
@@ -15,9 +16,20 @@
   "type": "module",
   "dependencies": {
     "@hono/node-server": "^1.13.8",
+    "@tanstack/react-query": "^5.101.0",
+    "@tanstack/react-router": "^1.170.15",
+    "@tanstack/react-table": "^8.21.3",
     "hono": "^4.7.2",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
     "sql.js": "^1.14.1",
     "ws": "^8.21.0",
     "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.0.0",
+    "@vitejs/plugin-react": "^6.0.0",
+    "tailwindcss": "^4.0.0",
+    "vite": "^6.0.0 || ^8.0.0"
   }
 }

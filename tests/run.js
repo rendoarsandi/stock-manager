@@ -24,7 +24,8 @@ const tests = [
   'test-opname.js',
   'test-extras.js',
   'test-websocket.js',
-  'test-sku-mappings.js'
+  'test-sku-mappings.js',
+  'test-build.js'
 ];
 
 console.log("Starting Stock Manager Test Suite...");
