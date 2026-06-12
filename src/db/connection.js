@@ -71,9 +71,10 @@ export async function seedIfNeeded(storage) {
       const xlsxPath = path.resolve(__dirname, '../../Ecomm HPP.xlsx');
       // Verify fs exists (since workerd runtime doesn't have fs)
       if (fs.existsSync && fs.existsSync(xlsxPath)) {
-        const wb = XLSX.readFile(xlsxPath);
+        const xlsxLib = XLSX.readFile ? XLSX : (XLSX.default || XLSX);
+        const wb = xlsxLib.readFile(xlsxPath);
         const ws = wb.Sheets['SKUCODE'];
-        const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
+        const data = xlsxLib.utils.sheet_to_json(ws, { header: 1 });
 
         const nameSet = new Set();
         for (let i = 3; i < data.length; i++) {

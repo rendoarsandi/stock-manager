@@ -11,12 +11,13 @@ export function parseExcel(fileBuffer, columnMapping) {
   if (!columnMapping) throw new Error("Column mapping template is required");
 
   // Read Excel file
-  const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
+  const xlsxLib = XLSX.read ? XLSX : (XLSX.default || XLSX);
+  const workbook = xlsxLib.read(fileBuffer, { type: 'buffer' });
   const firstSheetName = workbook.SheetNames[0];
   const worksheet = workbook.Sheets[firstSheetName];
   
   // Convert sheet to JSON array
-  const rawRows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+  const rawRows = xlsxLib.utils.sheet_to_json(worksheet, { defval: '' });
 
   return rawRows.map((row, index) => {
     const mappedOrder = {};
