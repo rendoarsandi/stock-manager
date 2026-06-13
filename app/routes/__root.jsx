@@ -9,6 +9,32 @@ import Login from '../components/Login';
 import '../index.css';
 import '../style.css';
 
+import { createServerFn } from '@tanstack/react-start';
+
+const fetchClerkPublishableKey = createServerFn({ method: 'GET' }).handler(async () => {
+  let publishableKey = undefined;
+  
+  // 1. Try to get env from Vinxi context
+  try {
+    const { getEvent } = await import('vinxi/http');
+    const event = getEvent();
+    const env = event?.context?.cloudflare?.env || event?.context?.cloudflareEnv;
+    publishableKey = env?.CLERK_PUBLISHABLE_KEY || env?.VITE_CLERK_PUBLISHABLE_KEY;
+  } catch (e) {
+    console.error("Vinxi getEvent env fetch failed:", e);
+  }
+  
+  // 2. Fallback to global env
+  if (!publishableKey) {
+    const env = globalThis.MINIMAL_CLOUDFLARE_ENV || process.env;
+    publishableKey = env?.CLERK_PUBLISHABLE_KEY || env?.VITE_CLERK_PUBLISHABLE_KEY;
+  }
+  
+  return {
+    clerkPublishableKey: publishableKey
+  };
+});
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -88,15 +114,13 @@ function AppWithProviders() {
 export const Route = createRootRoute({
   beforeLoad: async () => {
     let publishableKey = undefined;
-    if (typeof window === 'undefined') {
-      const env = globalThis.MINIMAL_CLOUDFLARE_ENV || process.env;
-      publishableKey = env?.CLERK_PUBLISHABLE_KEY || env?.VITE_CLERK_PUBLISHABLE_KEY;
-    } else {
-      publishableKey = window.__CLERK_PUBLISHABLE_KEY || import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+    if (typeof window !== 'undefined') {
+      publishableKey = window.__CLERK_PUBLISHABLE_KEY;
     }
     
     if (!publishableKey) {
-      publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+      const res = await fetchClerkPublishableKey();
+      publishableKey = res.clerkPublishableKey;
     }
     
     return {
