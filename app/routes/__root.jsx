@@ -115,16 +115,26 @@ function AppWithProviders() {
   );
 }
 
+let cachedPublishableKey = typeof window !== 'undefined' ? window.__CLERK_PUBLISHABLE_KEY : undefined;
+
 export const Route = createRootRoute({
   beforeLoad: async () => {
     let publishableKey = undefined;
-    if (typeof window !== 'undefined') {
-      publishableKey = window.__CLERK_PUBLISHABLE_KEY;
-    }
     
-    if (!publishableKey) {
-      const res = await fetchClerkPublishableKey();
-      publishableKey = res.clerkPublishableKey;
+    if (typeof window === 'undefined') {
+      // On the server, read directly from Cloudflare env bindings
+      const env = globalThis.MINIMAL_CLOUDFLARE_ENV || process.env;
+      publishableKey = env?.CLERK_PUBLISHABLE_KEY || env?.VITE_CLERK_PUBLISHABLE_KEY;
+    } else {
+      // On the client, check cache or window global
+      publishableKey = cachedPublishableKey || window.__CLERK_PUBLISHABLE_KEY;
+      
+      if (!publishableKey) {
+        // Fetch once and cache to prevent infinite request loops
+        const res = await fetchClerkPublishableKey();
+        publishableKey = res.clerkPublishableKey;
+        cachedPublishableKey = publishableKey;
+      }
     }
     
     return {
