@@ -4,7 +4,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { showToast } from '../utils/toast';
 
 // SearchableSelect Component
-function SearchableSelect({ selectedId, products, onChange }) {
+function SearchableSelect({ selectedId, products, onChange, id, name }) {
   const [isOpen, setIsOpen] = useState(false);
   const [filterText, setFilterText] = useState('');
   const containerRef = useRef(null);
@@ -31,6 +31,8 @@ function SearchableSelect({ selectedId, products, onChange }) {
     <div ref={containerRef} className="searchable-select-container" style={{ position: 'relative', width: '220px' }}>
       <input
         type="text"
+        id={id}
+        name={name}
         className="searchable-select-input"
         placeholder="-- Map Product (Search...) --"
         style={
@@ -563,9 +565,11 @@ export default function Import() {
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)', cursor: 'pointer', userSelect: 'none' }}>
+              <label htmlFor="sort-unmapped-top" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)', cursor: 'pointer', userSelect: 'none' }}>
                 <input
                   type="checkbox"
+                  id="sort-unmapped-top"
+                  name="sort-unmapped-top"
                   checked={sortUnmappedToTop}
                   onChange={(e) => setSortUnmappedToTop(e.target.checked)}
                   style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: 'var(--accent-color)' }}
@@ -613,6 +617,8 @@ export default function Import() {
                         <td style={{ textAlign: 'center', verticalAlign: 'top' }}>
                           <input
                             type="checkbox"
+                            id={`select-order-${order.order_id}`}
+                            name={`select-order-${order.order_id}`}
                             checked={!!order.is_selected}
                             onChange={(e) => handleOrderSelectToggle(originalIndex, e.target.checked)}
                           />
@@ -646,12 +652,16 @@ export default function Import() {
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                       <input
                                         type="number"
+                                        id={`split-qty-${originalIndex}-${splitIdx}`}
+                                        name={`split-qty-${originalIndex}-${splitIdx}`}
                                         value={split.quantity}
                                         min="1"
                                         style={{ width: '60px', padding: '0.2rem', fontSize: '0.8rem' }}
                                         onChange={(e) => handleSplitQtyChange(originalIndex, splitIdx, parseInt(e.target.value, 10) || 1)}
                                       />
                                       <SearchableSelect
+                                        id={`split-product-${originalIndex}-${splitIdx}`}
+                                        name={`split-product-${originalIndex}-${splitIdx}`}
                                         selectedId={split.product_id}
                                         products={products}
                                         onChange={(pId) => handleSplitProductChange(originalIndex, splitIdx, pId)}

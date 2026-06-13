@@ -544,6 +544,8 @@ export default function Products() {
           </svg>
           <input
             type="text"
+            id="search-products"
+            name="search-products"
             placeholder="Search name or SKU..."
             value={globalFilter ?? ''}
             onChange={(e) => setGlobalFilter(e.target.value)}

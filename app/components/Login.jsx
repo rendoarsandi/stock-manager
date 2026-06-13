@@ -57,6 +57,7 @@ export default function Login() {
             <input
               type="text"
               id="username"
+              name="username"
               required
               placeholder="Enter username"
               autoComplete="username"
@@ -69,6 +70,7 @@ export default function Login() {
             <input
               type="password"
               id="password"
+              name="password"
               required
               placeholder="Enter password"
               autoComplete="current-password"
