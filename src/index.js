@@ -1,11 +1,7 @@
 import { serve } from '@hono/node-server';
-import { serveStatic } from '@hono/node-server/serve-static';
 import { app } from './app.js';
-import { storageContext } from './db/context.js';
-import { getLocalStore } from './db/local_sqlite.js';
-import { seedIfNeeded } from './db/connection.js';
 import { setupLocalWebSocket } from './ws/broker.js';
-import fs from 'fs';
+import fs, { promises as fsPromises } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import os from 'os';
@@ -13,41 +9,84 @@ import os from 'os';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Serve static assets from public/css, public/js, etc.
-app.use('/css/*', serveStatic({ root: './src/public' }));
-app.use('/js/*', serveStatic({ root: './src/public' }));
-app.use('/assets/*', serveStatic({ root: './src/public' }));
+const mimeTypes = {
+  '.html': 'text/html',
+  '.css': 'text/css',
+  '.js': 'application/javascript',
+  '.json': 'application/json',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon'
+};
 
-// Local websocket endpoint placeholder (handled on upgrade)
-app.get('/ws', async (c) => {
-  return c.text('WebSocket endpoint. Use a WebSocket client to connect.', 400);
-});
+async function serveStaticFile(urlPath) {
+  const publicDir = path.resolve(path.join(__dirname, 'public'));
+  const filePath = path.resolve(path.join(publicDir, urlPath));
 
-// SPA fallback: Serve index.html for all non-API GET requests
-app.get('/*', async (c, next) => {
-  const pathUrl = c.req.path;
-  if (pathUrl.startsWith('/api')) {
-    return next();
+  // Security check: Path Traversal
+  if (filePath !== publicDir && !filePath.startsWith(publicDir + path.sep)) {
+    return null;
   }
-  
+
   try {
-    const indexPath = path.resolve(__dirname, 'public/index.html');
-    if (fs.existsSync(indexPath)) {
-      const html = fs.readFileSync(indexPath, 'utf8');
-      return c.html(html);
+    const stat = await fsPromises.stat(filePath);
+    if (stat.isFile()) {
+      const ext = path.extname(filePath).toLowerCase();
+      const contentType = mimeTypes[ext] || 'application/octet-stream';
+      const content = await fsPromises.readFile(filePath);
+      return new Response(content, {
+        status: 200,
+        headers: { 'Content-Type': contentType }
+      });
     }
-  } catch (err) {
-    console.error("Error serving SPA index.html:", err);
+  } catch (e) {}
+  return null;
+}
+
+const apiFetch = app.fetch;
+
+async function entryFetch(request) {
+  const url = new URL(request.url);
+  const pathUrl = url.pathname;
+
+  // 1. Static Assets
+  if (pathUrl.startsWith('/css/') || pathUrl.startsWith('/js/') || pathUrl.startsWith('/assets/')) {
+    const staticRes = await serveStaticFile(pathUrl);
+    if (staticRes) return staticRes;
   }
-  return c.text('Not Found', 404);
-});
+
+  // 2. API Routes
+  if (pathUrl.startsWith('/api') || pathUrl === '/ws') {
+    return apiFetch(request);
+  }
+
+  // 3. SPA Fallback
+  if (request.method === 'GET') {
+    try {
+      const indexPath = path.resolve(__dirname, 'public/index.html');
+      const stat = await fsPromises.stat(indexPath);
+      if (stat.isFile()) {
+        const html = await fsPromises.readFile(indexPath, 'utf8');
+        return new Response(html, {
+          status: 200,
+          headers: { 'Content-Type': 'text/html' }
+        });
+      }
+    } catch (err) {
+      console.error("Error serving SPA index.html:", err);
+    }
+  }
+
+  return new Response('Not Found', { status: 404 });
+}
 
 // Start-up logic
 const PORT = process.env.PORT || 3000;
 
 async function startServer() {
   try {
-    // Find local IP address
     const interfaces = os.networkInterfaces();
     let localIp = 'localhost';
     for (const name of Object.keys(interfaces)) {
@@ -61,7 +100,7 @@ async function startServer() {
     }
 
     const server = serve({
-      fetch: app.fetch,
+      fetch: entryFetch,
       port: PORT,
       hostname: '0.0.0.0'
     }, (info) => {

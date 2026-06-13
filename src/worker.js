@@ -4,15 +4,7 @@ import { storageContext } from './db/context.js';
 import { seedIfNeeded } from './db/connection.js';
 import { schemaSql } from './db/schema.sql.js';
 
-// WebSocket route for Cloudflare DO / Production environment
-app.get('/ws', async (c) => {
-  if (c.env && c.env.STOCK_ROOM) {
-    const id = c.env.STOCK_ROOM.idFromName('global');
-    const stub = c.env.STOCK_ROOM.get(id);
-    return stub.fetch(c.req.raw);
-  }
-  return c.text('WebSocket not configured', 400);
-});
+
 
 import server_default from '../dist/server/server.js';
 

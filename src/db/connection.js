@@ -21,11 +21,16 @@ export async function seedIfNeeded(storage) {
 
   // Seed users only in test mode — Clerk handles auth in production/dev
   if (process.env.NODE_ENV === 'test') {
-    const existingUsers = await storage.query("SELECT * FROM users WHERE id = 1");
+    const existingUsers = await storage.query("SELECT * FROM users WHERE username = ?", ['admin']);
     if (!existingUsers || existingUsers.length === 0) {
       wasEmpty = true;
-      const adminHash = hashPassword(process.env.SEED_ADMIN_PASSWORD || 'changeme_admin');
+      const adminHash = hashPassword(process.env.SEED_ADMIN_PASSWORD || 'admin123');
       await storage.execute("INSERT INTO users (id, username, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?)", [1, 'admin', adminHash, 'admin', now]);
+    }
+    const existingStaff = await storage.query("SELECT * FROM users WHERE username = ?", ['staff']);
+    if (!existingStaff || existingStaff.length === 0) {
+      const staffHash = hashPassword('staff123');
+      await storage.execute("INSERT INTO users (id, username, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?)", [2, 'staff', staffHash, 'staff', now]);
     }
   }
 
