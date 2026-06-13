@@ -16,14 +16,14 @@ binding = "ASSETS"
 directory = "./src/public"
 
 [observability]
-enabled = true
+enabled = false
 
 [observability.logs]
-enabled = true
-invocation_logs = true
+enabled = false
+invocation_logs = false
 
 [observability.traces]
-enabled = true
+enabled = false
 
 [vars]
 VITE_CLERK_PUBLISHABLE_KEY = "pk_test_ZmFzdC1oZXJyaW5nLTE5LmNsZXJrLmFjY291bnRzLmRldiQ"
