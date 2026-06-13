@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { clerkMiddleware } from '@clerk/hono';
 import authRouter from './routes/auth.js';
 import productsRouter from './routes/products.js';
 import importsRouter from './routes/import.js';
@@ -11,6 +12,10 @@ import { seedIfNeeded } from './db/connection.js';
 import { getLocalStore } from './db/local_sqlite.js';
 
 export const app = new Hono();
+
+if (process.env.NODE_ENV !== 'test') {
+  app.use('/api/*', clerkMiddleware());
+}
 
 // Prevent browser caching for static resources and SPA files
 app.use('*', async (c, next) => {

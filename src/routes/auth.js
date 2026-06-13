@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { sign, verify } from 'hono/jwt';
+import { getAuth } from '@clerk/hono';
 import { db } from '../db/connection.js';
 import { verifyPassword, hashPassword } from '../utils/crypto.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -53,33 +54,58 @@ auth.post('/logout', (c) => {
 });
 
 auth.get('/me', async (c) => {
-  if (process.env.NODE_ENV !== 'test') {
-    return c.json({
-      id: 1,
-      username: 'admin',
-      role: 'admin'
-    });
+  if (process.env.NODE_ENV === 'test') {
+    const token = getCookie(c, 'token');
+    console.log("DEBUG: token from getCookie:", token);
+    console.log("DEBUG: Cookie header:", c.req.header('cookie') || c.req.header('Cookie'));
+    if (!token) {
+      return c.json({ message: 'Not logged in' }, 401);
+    }
+
+    try {
+      const payload = await verify(token, JWT_SECRET, 'HS256');
+      return c.json({
+        id: payload.id,
+        username: payload.username,
+        role: payload.role
+      });
+    } catch (err) {
+      console.error("DEBUG: verification failed with error:", err);
+      deleteCookie(c, 'token');
+      return c.json({ message: 'Invalid or expired session' }, 401);
+    }
   }
 
-  const token = getCookie(c, 'token');
-  console.log("DEBUG: token from getCookie:", token);
-  console.log("DEBUG: Cookie header:", c.req.header('cookie') || c.req.header('Cookie'));
-  if (!token) {
+  const auth = getAuth(c);
+  if (!auth || !auth.userId) {
     return c.json({ message: 'Not logged in' }, 401);
   }
 
-  try {
-    const payload = await verify(token, JWT_SECRET, 'HS256');
-    return c.json({
-      id: payload.id,
-      username: payload.username,
-      role: payload.role
-    });
-  } catch (err) {
-    console.error("DEBUG: verification failed with error:", err);
-    deleteCookie(c, 'token');
-    return c.json({ message: 'Invalid or expired session' }, 401);
+  const id = auth.userId;
+  let username = auth.sessionClaims?.username;
+  let role = 'staff';
+
+  if (!username) {
+    try {
+      const clerkClient = c.get('clerk');
+      const user = await clerkClient.users.getUser(id);
+      username = user.username || user.firstName || 'user';
+      role = user.publicMetadata?.role || 'staff';
+    } catch (e) {
+      username = 'user';
+      role = 'staff';
+    }
+  } else {
+    try {
+      const clerkClient = c.get('clerk');
+      const user = await clerkClient.users.getUser(id);
+      role = user.publicMetadata?.role || 'staff';
+    } catch (e) {
+      role = auth.sessionClaims?.metadata?.role || auth.sessionClaims?.publicMetadata?.role || 'staff';
+    }
   }
+
+  return c.json({ id, username, role });
 });
 
 // GET /users (requires admin role): lists all users

@@ -1,58 +1,30 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext } from 'react';
+import { useAuth as useClerkAuth, useUser as useClerkUser } from '@clerk/tanstack-react-start';
 
 export const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [currentUser, setCurrentUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const { userId, isLoaded: isAuthLoaded, signOut } = useClerkAuth();
+  const { user, isLoaded: isUserLoaded } = useClerkUser();
 
-  useEffect(() => {
-    async function fetchMe() {
-      try {
-        const res = await fetch('/api/auth/me');
-        if (res.ok) {
-          const data = await res.json();
-          setCurrentUser(data);
-        } else {
-          setCurrentUser(null);
-        }
-      } catch (err) {
-        console.error('Failed to fetch user details:', err);
-        setCurrentUser(null);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchMe();
-  }, []);
+  const loading = !isAuthLoaded || !isUserLoaded;
 
-  const login = async (username, password) => {
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ username, password }),
-    });
-
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.message || 'Invalid username or password');
-    }
-
-    const data = await res.json();
-    setCurrentUser(data);
-    return data;
-  };
+  const currentUser = userId && user ? {
+    id: userId,
+    username: user.username || user.firstName || 'user',
+    role: user.publicMetadata?.role || 'staff'
+  } : null;
 
   const logout = async () => {
     try {
-      await fetch('/api/auth/logout', { method: 'POST' });
+      await signOut();
     } catch (err) {
-      console.error('Failed to logout on server:', err);
-    } finally {
-      setCurrentUser(null);
+      console.error('Failed to sign out:', err);
     }
+  };
+
+  const login = async () => {
+    // Login is handled by Clerk prebuilt component
   };
 
   return (

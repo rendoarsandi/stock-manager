@@ -1,6 +1,7 @@
 import { createRootRoute, Outlet, ScrollRestoration, HeadContent, Scripts } from '@tanstack/react-router';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ClerkProvider } from '@clerk/tanstack-react-start';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import { WebSocketProvider } from '../context/WebSocketContext';
 import Layout from '../components/Layout';
@@ -69,13 +70,15 @@ function RootComponent() {
 
 function AppWithProviders() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <WebSocketProvider>
-          <RootComponent />
-        </WebSocketProvider>
-      </AuthProvider>
-    </QueryClientProvider>
+    <ClerkProvider publishableKey={import.meta.env.VITE_CLERK_PUBLISHABLE_KEY}>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <WebSocketProvider>
+            <RootComponent />
+          </WebSocketProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </ClerkProvider>
   );
 }
 
