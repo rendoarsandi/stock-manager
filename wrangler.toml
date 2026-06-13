@@ -27,4 +27,3 @@ enabled = false
 
 [vars]
 VITE_CLERK_PUBLISHABLE_KEY = "pk_test_ZmFzdC1oZXJyaW5nLTE5LmNsZXJrLmFjY291bnRzLmRldiQ"
-CLERK_PUBLISHABLE_KEY = "pk_test_ZmFzdC1oZXJyaW5nLTE5LmNsZXJrLmFjY291bnRzLmRldiQ"
