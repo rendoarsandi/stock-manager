@@ -3,7 +3,7 @@ import { seedIfNeeded } from './db/connection.js';
 import { getLocalStore } from './db/local_sqlite.js';
 import { handleRequest, BadRequestError } from './routes_new/index.js';
 
-let seeded = false;
+let seedingPromise = null;
 
 export const app = {
   async fetch(request, env, ctx) {
@@ -36,9 +36,13 @@ export const app = {
     }
 
     return storageContext.run(store, async () => {
-      if (process.env.NODE_ENV === 'test' || !seeded) {
+      if (process.env.NODE_ENV === 'test') {
         await seedIfNeeded(store.storage);
-        if (process.env.NODE_ENV !== 'test') seeded = true;
+      } else {
+        if (!seedingPromise) {
+          seedingPromise = seedIfNeeded(store.storage);
+        }
+        await seedingPromise;
       }
       
       try {

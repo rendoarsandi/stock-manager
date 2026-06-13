@@ -15,7 +15,13 @@ function getCookie(request, name) {
     const parts = cookie.trim().split('=');
     const key = parts[0];
     const val = parts.slice(1).join('=');
-    if (key) acc[key] = decodeURIComponent(val || '');
+    if (key) {
+      try {
+        acc[key] = decodeURIComponent(val || '');
+      } catch (e) {
+        acc[key] = val || '';
+      }
+    }
     return acc;
   }, {});
   return cookies[name];
@@ -204,7 +210,7 @@ async function handleDeleteUser(req, params) {
     if (isNaN(id)) return json({ message: "Invalid user ID" }, 400);
     const currentUser = req.user; // populated by routing wrapper
 
-    if (id === 1 || id === currentUser?.id) {
+    if (id === 1 || String(id) === String(currentUser?.id)) {
       return json({ message: 'Cannot delete the main admin or your own current logged-in user account' }, 400);
     }
 
@@ -525,7 +531,7 @@ async function handleUploadExcel(req) {
     const file = formData.get('file');
     const templateId = parseInt(formData.get('template_id'), 10);
 
-    if (!file || !templateId) {
+    if (!file || typeof file.arrayBuffer !== 'function' || !templateId || isNaN(templateId)) {
       return json({ message: 'Excel file and template selection are required' }, 400);
     }
 
@@ -687,22 +693,28 @@ async function handleConfirmImport(req) {
     let appliedCount = 0;
     let flaggedCount = 0;
 
-    for (const order of orders) {
-      const insertedOrder = await db.orders.insert({
-        import_session_id: session_id,
-        order_id: order.order_id,
-        resi_number: order.resi_number || null,
-        product_name_raw: order.product_name_raw,
-        quantity: order.quantity,
-        order_status: order.order_status,
-        customer_name: order.customer_name || null,
-        expedition: order.expedition || null,
-        order_date: order.order_date || null,
-        price: order.price,
-        system_status: order.system_status
-      });
+    const queries = [];
 
-      const orderRecordId = insertedOrder.id;
+    for (const order of orders) {
+      queries.push({
+        sql: "INSERT INTO orders (import_session_id, order_id, resi_number, product_name_raw, quantity, order_status, customer_name, expedition, order_date, price, system_status, resolution, resolution_notes, resolved_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))",
+        params: [
+          parseInt(session_id, 10),
+          order.order_id,
+          order.resi_number || null,
+          order.product_name_raw,
+          parseInt(order.quantity, 10),
+          order.order_status,
+          order.customer_name || null,
+          order.expedition || null,
+          order.order_date || null,
+          parseFloat(order.price) || 0,
+          order.system_status || 'normal',
+          order.resolution || null,
+          order.resolution_notes || null,
+          order.resolved_at || null
+        ]
+      });
 
       if (order.system_status === 'needs_review') {
         flaggedCount++;
@@ -710,36 +722,48 @@ async function handleConfirmImport(req) {
 
       if (order.splits && Array.isArray(order.splits)) {
         for (const split of order.splits) {
-          await db.orderItems.insert({
-            order_id: orderRecordId,
-            product_id: split.product_id,
-            quantity: split.quantity,
-            parse_source: split.parse_source || 'direct',
-            original_text: split.original_text || order.product_name_raw,
-            is_confirmed: split.product_id ? 1 : 0
+          queries.push({
+            sql: "INSERT INTO order_items (order_id, product_id, quantity, parse_source, original_text, is_confirmed) VALUES (last_insert_rowid(), ?, ?, ?, ?, ?)",
+            params: [
+              split.product_id ? parseInt(split.product_id, 10) : null,
+              parseInt(split.quantity, 10),
+              split.parse_source || 'direct',
+              split.original_text || order.product_name_raw,
+              split.product_id ? 1 : 0
+            ]
           });
 
           if (split.parse_source === 'manual' && split.product_id && split.original_text) {
             const promoRes = extractSameProductPromo(split.original_text);
             const packRes = extractPackMultiplier(promoRes.cleanText);
-            await db.aliases.set(packRes.cleanText, split.product_id);
+            queries.push({
+              sql: "INSERT OR REPLACE INTO product_aliases (clean_text, product_id) VALUES (?, ?)",
+              params: [
+                packRes.cleanText.toLowerCase(),
+                parseInt(split.product_id, 10)
+              ]
+            });
           }
 
           if (order.system_status === 'normal' && split.product_id) {
-            await db.movements.insert({
-              product_id: split.product_id,
-              quantity_change: -split.quantity,
-              movement_type: 'sale',
-              reference: `Order ID: ${order.order_id}`,
-              user_id: user.id
+            queries.push({
+              sql: "INSERT INTO stock_movements (product_id, quantity_change, movement_type, reference, user_id, created_at) VALUES (?, ?, ?, ?, ?, datetime('now', 'localtime'))",
+              params: [
+                parseInt(split.product_id, 10),
+                -parseInt(split.quantity, 10),
+                'sale',
+                `Order ID: ${order.order_id}`,
+                user.id
+              ]
             });
 
-            const prod = await db.products.get(split.product_id);
-            if (prod) {
-              await db.products.update(split.product_id, {
-                current_stock: prod.current_stock - split.quantity
-              });
-            }
+            queries.push({
+              sql: "UPDATE products SET current_stock = current_stock - ?, updated_at = datetime('now', 'localtime') WHERE id = ?",
+              params: [
+                parseInt(split.quantity, 10),
+                parseInt(split.product_id, 10)
+              ]
+            });
           }
         }
       }
@@ -747,12 +771,29 @@ async function handleConfirmImport(req) {
       appliedCount++;
     }
 
-    await db.sessions.update(session_id, {
-      status: 'applied',
-      applied_rows: appliedCount,
-      flagged_rows: flaggedCount,
-      orders_data: null
+    queries.push({
+      sql: "UPDATE import_sessions SET template_id = ?, user_id = ?, filename = ?, status = ?, total_rows = ?, applied_rows = ?, flagged_rows = ?, orders_data = ? WHERE id = ?",
+      params: [
+        session.template_id ? parseInt(session.template_id, 10) : null,
+        session.user_id ? parseInt(session.user_id, 10) : null,
+        session.filename,
+        'applied',
+        parseInt(session.total_rows, 10) || 0,
+        appliedCount,
+        flaggedCount,
+        null,
+        parseInt(session_id, 10)
+      ]
     });
+
+    const activeStorage = getActiveStorage();
+    await activeStorage.executeTransaction(queries);
+
+    const { broadcast } = await import('../ws/broker.js');
+    const updatedSession = await db.sessions.get(parseInt(session_id, 10));
+    if (updatedSession) {
+      broadcast({ type: 'SESSION_UPDATED', payload: updatedSession });
+    }
 
     return json({ success: true, applied_rows: appliedCount, flagged_rows: flaggedCount });
 
