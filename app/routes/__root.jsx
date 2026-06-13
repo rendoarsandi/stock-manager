@@ -1,4 +1,4 @@
-import { createRootRoute, Outlet, ScrollRestoration, HeadContent, Scripts } from '@tanstack/react-router';
+import { createRootRoute, Outlet, HeadContent, Scripts } from '@tanstack/react-router';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ClerkProvider } from '@clerk/tanstack-react-start';
@@ -44,7 +44,6 @@ function RootComponent() {
     return (
       <>
         {bodyContent}
-        <ScrollRestoration />
         <Scripts />
       </>
     );
@@ -61,7 +60,6 @@ function RootComponent() {
       </head>
       <body>
         {bodyContent}
-        <ScrollRestoration />
         <Scripts />
       </body>
     </html>
