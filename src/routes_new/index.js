@@ -40,8 +40,27 @@ function verifyJwt(token, secret) {
   try {
     const [headerB64, payloadB64, signature] = token.split('.');
     const expectedSignature = crypto.createHmac('sha256', secret).update(`${headerB64}.${payloadB64}`).digest('base64url');
-    if (signature !== expectedSignature) return null;
-    return JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8'));
+    
+    const sigBuffer = Buffer.from(signature, 'utf8');
+    const expectedBuffer = Buffer.from(expectedSignature, 'utf8');
+    
+    if (sigBuffer.length !== expectedBuffer.length) {
+      return null;
+    }
+    
+    if (!crypto.timingSafeEqual(sigBuffer, expectedBuffer)) {
+      return null;
+    }
+    
+    const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8'));
+    
+    if (payload.exp && typeof payload.exp === 'number') {
+      if (Math.floor(Date.now() / 1000) > payload.exp) {
+        return null;
+      }
+    }
+    
+    return payload;
   } catch (e) {
     return null;
   }
@@ -714,11 +733,12 @@ async function handleConfirmImport(req) {
   try {
     const { session_id, orders } = await readJson(req);
 
-    if (!session_id || !orders || !Array.isArray(orders)) {
-      return json({ message: 'Session ID and confirmed orders list are required' }, 400);
+    const sessionIdNum = parseInt(session_id, 10);
+    if (isNaN(sessionIdNum)) {
+      return json({ message: 'Invalid Session ID parameter value' }, 400);
     }
 
-    const session = await db.sessions.get(session_id);
+    const session = await db.sessions.get(sessionIdNum);
     if (!session || session.status !== 'previewing') {
       return json({ message: 'Invalid or expired import session' }, 404);
     }
@@ -733,7 +753,7 @@ async function handleConfirmImport(req) {
       queries.push({
         sql: "INSERT INTO orders (import_session_id, order_id, resi_number, product_name_raw, quantity, order_status, customer_name, expedition, order_date, price, system_status, resolution, resolution_notes, resolved_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))",
         params: [
-          parseInt(session_id, 10),
+          sessionIdNum,
           order.order_id,
           order.resi_number || null,
           order.product_name_raw,
@@ -757,8 +777,10 @@ async function handleConfirmImport(req) {
       if (order.splits && Array.isArray(order.splits)) {
         for (const split of order.splits) {
           queries.push({
-            sql: "INSERT INTO order_items (order_id, product_id, quantity, parse_source, original_text, is_confirmed) VALUES (last_insert_rowid(), ?, ?, ?, ?, ?)",
+            sql: "INSERT INTO order_items (order_id, product_id, quantity, parse_source, original_text, is_confirmed) VALUES ((SELECT id FROM orders WHERE order_id = ? AND import_session_id = ?), ?, ?, ?, ?, ?)",
             params: [
+              order.order_id,
+              sessionIdNum,
               split.product_id ? parseInt(split.product_id, 10) : null,
               parseInt(split.quantity, 10),
               split.parse_source || 'direct',
@@ -816,7 +838,7 @@ async function handleConfirmImport(req) {
         appliedCount,
         flaggedCount,
         null,
-        parseInt(session_id, 10)
+        sessionIdNum
       ]
     });
 
@@ -824,7 +846,7 @@ async function handleConfirmImport(req) {
     await activeStorage.executeTransaction(queries);
 
     const { broadcast } = await import('../ws/broker.js');
-    const updatedSession = await db.sessions.get(parseInt(session_id, 10));
+    const updatedSession = await db.sessions.get(sessionIdNum);
     if (updatedSession) {
       broadcast({ type: 'SESSION_UPDATED', payload: updatedSession });
     }
@@ -1113,6 +1135,10 @@ async function handleConfirmSplit(req) {
     const itemIdNum = parseInt(item_id, 10);
     const productIdNum = parseInt(product_id, 10);
     const qty = parseInt(quantity, 10);
+
+    if (isNaN(itemIdNum) || isNaN(productIdNum) || isNaN(qty)) {
+      return json({ message: 'Invalid item ID, product ID, or quantity parameter values' }, 400);
+    }
 
     const item = await db.orderItems.get(itemIdNum);
     if (!item || item.is_confirmed === 1) {
