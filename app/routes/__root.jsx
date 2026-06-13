@@ -14,26 +14,29 @@ import { createServerFn } from '@tanstack/react-start';
 const fetchClerkPublishableKey = createServerFn({ method: 'GET' }).handler(async () => {
   let publishableKey = undefined;
   
-  // 1. Try to get env from Vinxi context
-  try {
-    const { getEvent } = await import('vinxi/http');
-    const event = getEvent();
-    const env = event?.context?.cloudflare?.env || event?.context?.cloudflareEnv;
-    publishableKey = env?.CLERK_PUBLISHABLE_KEY || env?.VITE_CLERK_PUBLISHABLE_KEY;
-  } catch (e) {
-    console.error("Vinxi getEvent env fetch failed:", e);
-  }
+  // 1. Try global env first (e.g. Cloudflare Worker or Node.js environment)
+  const globalEnv = globalThis.MINIMAL_CLOUDFLARE_ENV || (typeof process !== 'undefined' ? process.env : undefined);
+  publishableKey = globalEnv?.CLERK_PUBLISHABLE_KEY || globalEnv?.VITE_CLERK_PUBLISHABLE_KEY;
   
-  // 2. Fallback to global env
+  // 2. Try to get env from Vinxi context if not found globally
   if (!publishableKey) {
-    const env = globalThis.MINIMAL_CLOUDFLARE_ENV || process.env;
-    publishableKey = env?.CLERK_PUBLISHABLE_KEY || env?.VITE_CLERK_PUBLISHABLE_KEY;
+    try {
+      const { getEvent } = await import('vinxi/http');
+      const event = getEvent();
+      const env = event?.context?.cloudflare?.env || event?.context?.cloudflareEnv;
+      publishableKey = env?.CLERK_PUBLISHABLE_KEY || env?.VITE_CLERK_PUBLISHABLE_KEY;
+    } catch (e) {
+      if (e && e.message && !e.message.includes('vinxi/http')) {
+        console.error("Vinxi getEvent env fetch failed:", e);
+      }
+    }
   }
   
   return {
     clerkPublishableKey: publishableKey
   };
 });
+
 
 const queryClient = new QueryClient({
   defaultOptions: {
