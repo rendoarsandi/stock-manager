@@ -348,6 +348,56 @@ async function runTests() {
       }
       console.log("✅ Verified all splits map correctly to the inserted order ID.");
 
+      // 7. Test seedingPromise error caching bypass on failure
+      console.log("\nTesting seedingPromise behavior when seeding fails...");
+      process.env.NODE_ENV = 'production'; // bypass 'test' condition in app.js
+      
+      const { getLocalStore } = await import('../src/db/local_sqlite.js');
+      const storeObj = getLocalStore();
+      
+      const originalQuery = storeObj.query;
+      const originalExecute = storeObj.execute;
+
+      // Make it fail
+      storeObj.query = () => Promise.reject(new Error("Mock seeding failure"));
+      storeObj.execute = () => Promise.reject(new Error("Mock seeding failure"));
+
+      // Run failing request
+      try {
+        await app.request('/api/non-existent-path-for-testing');
+        throw new Error("Expected request to fail due to seeding error");
+      } catch (err) {
+        if (!err.message.includes("Mock seeding failure")) {
+          throw err;
+        }
+        console.log("✅ First request correctly failed with seeding error.");
+      }
+
+      // Restore and count runs
+      let runCount = 0;
+      storeObj.query = function(sql, params) {
+        runCount++;
+        return originalQuery.call(this, sql, params);
+      };
+      storeObj.execute = originalExecute;
+
+      // This request should succeed and call seedIfNeeded (triggering query)
+      const res = await app.request('/api/non-existent-path-for-testing');
+      console.log("✅ Second request status:", res.status);
+      if (res.status !== 404) {
+        throw new Error(`Expected 404 for non-existent path, got ${res.status}`);
+      }
+
+      if (runCount === 0) {
+        throw new Error("Expected seedIfNeeded to be called again on the second request");
+      }
+      
+      // Fully restore original functions
+      storeObj.query = originalQuery;
+      storeObj.execute = originalExecute;
+      process.env.NODE_ENV = 'test'; // restore
+      console.log("✅ Verified seedingPromise was cleared and retried on subsequent requests.");
+
       console.log("\nAll review feedback validation tests passed successfully!");
       process.exit(0);
     } catch (err) {

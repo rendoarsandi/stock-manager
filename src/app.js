@@ -40,7 +40,10 @@ export const app = {
         await seedIfNeeded(store.storage);
       } else {
         if (!seedingPromise) {
-          seedingPromise = seedIfNeeded(store.storage);
+          seedingPromise = seedIfNeeded(store.storage).catch(err => {
+            seedingPromise = null;
+            throw err;
+          });
         }
         await seedingPromise;
       }
