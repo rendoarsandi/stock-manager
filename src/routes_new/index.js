@@ -38,7 +38,17 @@ function signJwt(payload, secret) {
 
 function verifyJwt(token, secret) {
   try {
-    const [headerB64, payloadB64, signature] = token.split('.');
+    if (!token || typeof token !== 'string') {
+      return null;
+    }
+    const parts = token.split('.');
+    if (parts.length !== 3) {
+      return null;
+    }
+    const [headerB64, payloadB64, signature] = parts;
+    if (!headerB64 || !payloadB64 || !signature) {
+      return null;
+    }
     const expectedSignature = crypto.createHmac('sha256', secret).update(`${headerB64}.${payloadB64}`).digest('base64url');
     
     const sigBuffer = Buffer.from(signature, 'utf8');
@@ -734,8 +744,12 @@ async function handleConfirmImport(req) {
     const { session_id, orders } = await readJson(req);
 
     const sessionIdNum = parseInt(session_id, 10);
-    if (isNaN(sessionIdNum)) {
+    if (isNaN(sessionIdNum) || sessionIdNum <= 0) {
       return json({ message: 'Invalid Session ID parameter value' }, 400);
+    }
+
+    if (!orders || !Array.isArray(orders)) {
+      return json({ message: 'Invalid or missing orders list' }, 400);
     }
 
     const session = await db.sessions.get(sessionIdNum);
@@ -1136,7 +1150,7 @@ async function handleConfirmSplit(req) {
     const productIdNum = parseInt(product_id, 10);
     const qty = parseInt(quantity, 10);
 
-    if (isNaN(itemIdNum) || isNaN(productIdNum) || isNaN(qty)) {
+    if (isNaN(itemIdNum) || isNaN(productIdNum) || isNaN(qty) || itemIdNum <= 0 || productIdNum <= 0 || qty <= 0) {
       return json({ message: 'Invalid item ID, product ID, or quantity parameter values' }, 400);
     }
 
@@ -1148,6 +1162,11 @@ async function handleConfirmSplit(req) {
     const order = await db.orders.get(item.order_id);
     if (!order) {
       return json({ message: 'Order not found' }, 404);
+    }
+
+    const product = await db.products.get(productIdNum);
+    if (!product) {
+      return json({ message: 'Product not found' }, 404);
     }
 
     const user = req.user;
@@ -1309,8 +1328,13 @@ async function handleCreateOpname(req) {
       const prodId = parseInt(product_id, 10);
       const physStock = parseInt(physical_stock, 10);
 
-      if (isNaN(prodId) || isNaN(physStock) || physStock < 0) {
+      if (isNaN(prodId) || isNaN(physStock) || physStock < 0 || prodId <= 0) {
         return json({ message: 'Invalid product_id or physical_stock' }, 400);
+      }
+
+      const product = await db.products.get(prodId);
+      if (!product) {
+        return json({ message: `Product not found with ID ${prodId}` }, 404);
       }
     }
 

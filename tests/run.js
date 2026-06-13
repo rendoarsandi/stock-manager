@@ -32,6 +32,21 @@ const tests = [
 
 console.log("Starting Stock Manager Test Suite...");
 
+// Run ESLint check
+console.log(`\n========================================`);
+console.log(`Running ESLint Static Analysis...`);
+console.log(`========================================`);
+try {
+  const output = execSync('npm run lint', { encoding: 'utf8' });
+  console.log(output);
+  console.log('✅ ESLint check passed!');
+} catch (err) {
+  if (err.stdout) console.log(err.stdout);
+  if (err.stderr) console.error(err.stderr);
+  console.error(`❌ ESLint check failed with exit code ${err.status}`);
+  process.exit(1);
+}
+
 let failed = false;
 for (const test of tests) {
   console.log(`\n========================================`);
