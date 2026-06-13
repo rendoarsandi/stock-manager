@@ -17,7 +17,35 @@ import { Route as ProductsRouteImport } from './routes/products'
 import { Route as OpnameRouteImport } from './routes/opname'
 import { Route as ImportRouteImport } from './routes/import'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiProductsRouteImport } from './routes/api/products'
+import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiSplatRouteImport } from './routes/api/$'
+import { Route as ApiStockOpnameRouteImport } from './routes/api/stock/opname'
+import { Route as ApiStockHistoryRouteImport } from './routes/api/stock/history'
+import { Route as ApiReviewResolveRouteImport } from './routes/api/review/resolve'
+import { Route as ApiReviewOrdersRouteImport } from './routes/api/review/orders'
+import { Route as ApiReviewConfirmSplitRouteImport } from './routes/api/review/confirm-split'
+import { Route as ApiReviewAmbiguousRouteImport } from './routes/api/review/ambiguous'
+import { Route as ApiProductsLedgerRouteImport } from './routes/api/products/ledger'
+import { Route as ApiProductsIdRouteImport } from './routes/api/products/$id'
+import { Route as ApiImportUploadRouteImport } from './routes/api/import/upload'
+import { Route as ApiImportTemplatesRouteImport } from './routes/api/import/templates'
+import { Route as ApiImportSkuMappingsRouteImport } from './routes/api/import/sku-mappings'
+import { Route as ApiImportSessionsRouteImport } from './routes/api/import/sessions'
+import { Route as ApiImportConfirmRouteImport } from './routes/api/import/confirm'
+import { Route as ApiImportCancelRouteImport } from './routes/api/import/cancel'
+import { Route as ApiImportActiveSessionRouteImport } from './routes/api/import/active-session'
+import { Route as ApiDashboardStatsRouteImport } from './routes/api/dashboard/stats'
+import { Route as ApiAuthUsersRouteImport } from './routes/api/auth/users'
+import { Route as ApiAuthMeRouteImport } from './routes/api/auth/me'
+import { Route as ApiAuthLogoutRouteImport } from './routes/api/auth/logout'
+import { Route as ApiAuthLoginRouteImport } from './routes/api/auth/login'
+import { Route as ApiStockOpnameIdRouteImport } from './routes/api/stock/opname/$id'
+import { Route as ApiProductsIdLedgerRouteImport } from './routes/api/products/$id/ledger'
+import { Route as ApiProductsIdAdjustStockRouteImport } from './routes/api/products/$id/adjust-stock'
+import { Route as ApiImportTemplatesIdRouteImport } from './routes/api/import/templates/$id'
+import { Route as ApiImportActiveSessionSyncRouteImport } from './routes/api/import/active-session/sync'
+import { Route as ApiAuthUsersIdRouteImport } from './routes/api/auth/users/$id'
 
 const StockHistoryRoute = StockHistoryRouteImport.update({
   id: '/stock-history',
@@ -59,10 +87,152 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiProductsRoute = ApiProductsRouteImport.update({
+  id: '/api/products',
+  path: '/api/products',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHealthRoute = ApiHealthRouteImport.update({
+  id: '/api/health',
+  path: '/api/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiSplatRoute = ApiSplatRouteImport.update({
   id: '/api/$',
   path: '/api/$',
   getParentRoute: () => rootRouteImport,
+} as any)
+const ApiStockOpnameRoute = ApiStockOpnameRouteImport.update({
+  id: '/api/stock/opname',
+  path: '/api/stock/opname',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiStockHistoryRoute = ApiStockHistoryRouteImport.update({
+  id: '/api/stock/history',
+  path: '/api/stock/history',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiReviewResolveRoute = ApiReviewResolveRouteImport.update({
+  id: '/api/review/resolve',
+  path: '/api/review/resolve',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiReviewOrdersRoute = ApiReviewOrdersRouteImport.update({
+  id: '/api/review/orders',
+  path: '/api/review/orders',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiReviewConfirmSplitRoute = ApiReviewConfirmSplitRouteImport.update({
+  id: '/api/review/confirm-split',
+  path: '/api/review/confirm-split',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiReviewAmbiguousRoute = ApiReviewAmbiguousRouteImport.update({
+  id: '/api/review/ambiguous',
+  path: '/api/review/ambiguous',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiProductsLedgerRoute = ApiProductsLedgerRouteImport.update({
+  id: '/ledger',
+  path: '/ledger',
+  getParentRoute: () => ApiProductsRoute,
+} as any)
+const ApiProductsIdRoute = ApiProductsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ApiProductsRoute,
+} as any)
+const ApiImportUploadRoute = ApiImportUploadRouteImport.update({
+  id: '/api/import/upload',
+  path: '/api/import/upload',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiImportTemplatesRoute = ApiImportTemplatesRouteImport.update({
+  id: '/api/import/templates',
+  path: '/api/import/templates',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiImportSkuMappingsRoute = ApiImportSkuMappingsRouteImport.update({
+  id: '/api/import/sku-mappings',
+  path: '/api/import/sku-mappings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiImportSessionsRoute = ApiImportSessionsRouteImport.update({
+  id: '/api/import/sessions',
+  path: '/api/import/sessions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiImportConfirmRoute = ApiImportConfirmRouteImport.update({
+  id: '/api/import/confirm',
+  path: '/api/import/confirm',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiImportCancelRoute = ApiImportCancelRouteImport.update({
+  id: '/api/import/cancel',
+  path: '/api/import/cancel',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiImportActiveSessionRoute = ApiImportActiveSessionRouteImport.update({
+  id: '/api/import/active-session',
+  path: '/api/import/active-session',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiDashboardStatsRoute = ApiDashboardStatsRouteImport.update({
+  id: '/api/dashboard/stats',
+  path: '/api/dashboard/stats',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthUsersRoute = ApiAuthUsersRouteImport.update({
+  id: '/api/auth/users',
+  path: '/api/auth/users',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthMeRoute = ApiAuthMeRouteImport.update({
+  id: '/api/auth/me',
+  path: '/api/auth/me',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthLogoutRoute = ApiAuthLogoutRouteImport.update({
+  id: '/api/auth/logout',
+  path: '/api/auth/logout',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthLoginRoute = ApiAuthLoginRouteImport.update({
+  id: '/api/auth/login',
+  path: '/api/auth/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiStockOpnameIdRoute = ApiStockOpnameIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ApiStockOpnameRoute,
+} as any)
+const ApiProductsIdLedgerRoute = ApiProductsIdLedgerRouteImport.update({
+  id: '/ledger',
+  path: '/ledger',
+  getParentRoute: () => ApiProductsIdRoute,
+} as any)
+const ApiProductsIdAdjustStockRoute =
+  ApiProductsIdAdjustStockRouteImport.update({
+    id: '/adjust-stock',
+    path: '/adjust-stock',
+    getParentRoute: () => ApiProductsIdRoute,
+  } as any)
+const ApiImportTemplatesIdRoute = ApiImportTemplatesIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ApiImportTemplatesRoute,
+} as any)
+const ApiImportActiveSessionSyncRoute =
+  ApiImportActiveSessionSyncRouteImport.update({
+    id: '/sync',
+    path: '/sync',
+    getParentRoute: () => ApiImportActiveSessionRoute,
+  } as any)
+const ApiAuthUsersIdRoute = ApiAuthUsersIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ApiAuthUsersRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -75,6 +245,34 @@ export interface FileRoutesByFullPath {
   '/sign-up': typeof SignUpRoute
   '/stock-history': typeof StockHistoryRoute
   '/api/$': typeof ApiSplatRoute
+  '/api/health': typeof ApiHealthRoute
+  '/api/products': typeof ApiProductsRouteWithChildren
+  '/api/auth/login': typeof ApiAuthLoginRoute
+  '/api/auth/logout': typeof ApiAuthLogoutRoute
+  '/api/auth/me': typeof ApiAuthMeRoute
+  '/api/auth/users': typeof ApiAuthUsersRouteWithChildren
+  '/api/dashboard/stats': typeof ApiDashboardStatsRoute
+  '/api/import/active-session': typeof ApiImportActiveSessionRouteWithChildren
+  '/api/import/cancel': typeof ApiImportCancelRoute
+  '/api/import/confirm': typeof ApiImportConfirmRoute
+  '/api/import/sessions': typeof ApiImportSessionsRoute
+  '/api/import/sku-mappings': typeof ApiImportSkuMappingsRoute
+  '/api/import/templates': typeof ApiImportTemplatesRouteWithChildren
+  '/api/import/upload': typeof ApiImportUploadRoute
+  '/api/products/$id': typeof ApiProductsIdRouteWithChildren
+  '/api/products/ledger': typeof ApiProductsLedgerRoute
+  '/api/review/ambiguous': typeof ApiReviewAmbiguousRoute
+  '/api/review/confirm-split': typeof ApiReviewConfirmSplitRoute
+  '/api/review/orders': typeof ApiReviewOrdersRoute
+  '/api/review/resolve': typeof ApiReviewResolveRoute
+  '/api/stock/history': typeof ApiStockHistoryRoute
+  '/api/stock/opname': typeof ApiStockOpnameRouteWithChildren
+  '/api/auth/users/$id': typeof ApiAuthUsersIdRoute
+  '/api/import/active-session/sync': typeof ApiImportActiveSessionSyncRoute
+  '/api/import/templates/$id': typeof ApiImportTemplatesIdRoute
+  '/api/products/$id/adjust-stock': typeof ApiProductsIdAdjustStockRoute
+  '/api/products/$id/ledger': typeof ApiProductsIdLedgerRoute
+  '/api/stock/opname/$id': typeof ApiStockOpnameIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -86,6 +284,34 @@ export interface FileRoutesByTo {
   '/sign-up': typeof SignUpRoute
   '/stock-history': typeof StockHistoryRoute
   '/api/$': typeof ApiSplatRoute
+  '/api/health': typeof ApiHealthRoute
+  '/api/products': typeof ApiProductsRouteWithChildren
+  '/api/auth/login': typeof ApiAuthLoginRoute
+  '/api/auth/logout': typeof ApiAuthLogoutRoute
+  '/api/auth/me': typeof ApiAuthMeRoute
+  '/api/auth/users': typeof ApiAuthUsersRouteWithChildren
+  '/api/dashboard/stats': typeof ApiDashboardStatsRoute
+  '/api/import/active-session': typeof ApiImportActiveSessionRouteWithChildren
+  '/api/import/cancel': typeof ApiImportCancelRoute
+  '/api/import/confirm': typeof ApiImportConfirmRoute
+  '/api/import/sessions': typeof ApiImportSessionsRoute
+  '/api/import/sku-mappings': typeof ApiImportSkuMappingsRoute
+  '/api/import/templates': typeof ApiImportTemplatesRouteWithChildren
+  '/api/import/upload': typeof ApiImportUploadRoute
+  '/api/products/$id': typeof ApiProductsIdRouteWithChildren
+  '/api/products/ledger': typeof ApiProductsLedgerRoute
+  '/api/review/ambiguous': typeof ApiReviewAmbiguousRoute
+  '/api/review/confirm-split': typeof ApiReviewConfirmSplitRoute
+  '/api/review/orders': typeof ApiReviewOrdersRoute
+  '/api/review/resolve': typeof ApiReviewResolveRoute
+  '/api/stock/history': typeof ApiStockHistoryRoute
+  '/api/stock/opname': typeof ApiStockOpnameRouteWithChildren
+  '/api/auth/users/$id': typeof ApiAuthUsersIdRoute
+  '/api/import/active-session/sync': typeof ApiImportActiveSessionSyncRoute
+  '/api/import/templates/$id': typeof ApiImportTemplatesIdRoute
+  '/api/products/$id/adjust-stock': typeof ApiProductsIdAdjustStockRoute
+  '/api/products/$id/ledger': typeof ApiProductsIdLedgerRoute
+  '/api/stock/opname/$id': typeof ApiStockOpnameIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -98,6 +324,34 @@ export interface FileRoutesById {
   '/sign-up': typeof SignUpRoute
   '/stock-history': typeof StockHistoryRoute
   '/api/$': typeof ApiSplatRoute
+  '/api/health': typeof ApiHealthRoute
+  '/api/products': typeof ApiProductsRouteWithChildren
+  '/api/auth/login': typeof ApiAuthLoginRoute
+  '/api/auth/logout': typeof ApiAuthLogoutRoute
+  '/api/auth/me': typeof ApiAuthMeRoute
+  '/api/auth/users': typeof ApiAuthUsersRouteWithChildren
+  '/api/dashboard/stats': typeof ApiDashboardStatsRoute
+  '/api/import/active-session': typeof ApiImportActiveSessionRouteWithChildren
+  '/api/import/cancel': typeof ApiImportCancelRoute
+  '/api/import/confirm': typeof ApiImportConfirmRoute
+  '/api/import/sessions': typeof ApiImportSessionsRoute
+  '/api/import/sku-mappings': typeof ApiImportSkuMappingsRoute
+  '/api/import/templates': typeof ApiImportTemplatesRouteWithChildren
+  '/api/import/upload': typeof ApiImportUploadRoute
+  '/api/products/$id': typeof ApiProductsIdRouteWithChildren
+  '/api/products/ledger': typeof ApiProductsLedgerRoute
+  '/api/review/ambiguous': typeof ApiReviewAmbiguousRoute
+  '/api/review/confirm-split': typeof ApiReviewConfirmSplitRoute
+  '/api/review/orders': typeof ApiReviewOrdersRoute
+  '/api/review/resolve': typeof ApiReviewResolveRoute
+  '/api/stock/history': typeof ApiStockHistoryRoute
+  '/api/stock/opname': typeof ApiStockOpnameRouteWithChildren
+  '/api/auth/users/$id': typeof ApiAuthUsersIdRoute
+  '/api/import/active-session/sync': typeof ApiImportActiveSessionSyncRoute
+  '/api/import/templates/$id': typeof ApiImportTemplatesIdRoute
+  '/api/products/$id/adjust-stock': typeof ApiProductsIdAdjustStockRoute
+  '/api/products/$id/ledger': typeof ApiProductsIdLedgerRoute
+  '/api/stock/opname/$id': typeof ApiStockOpnameIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -111,6 +365,34 @@ export interface FileRouteTypes {
     | '/sign-up'
     | '/stock-history'
     | '/api/$'
+    | '/api/health'
+    | '/api/products'
+    | '/api/auth/login'
+    | '/api/auth/logout'
+    | '/api/auth/me'
+    | '/api/auth/users'
+    | '/api/dashboard/stats'
+    | '/api/import/active-session'
+    | '/api/import/cancel'
+    | '/api/import/confirm'
+    | '/api/import/sessions'
+    | '/api/import/sku-mappings'
+    | '/api/import/templates'
+    | '/api/import/upload'
+    | '/api/products/$id'
+    | '/api/products/ledger'
+    | '/api/review/ambiguous'
+    | '/api/review/confirm-split'
+    | '/api/review/orders'
+    | '/api/review/resolve'
+    | '/api/stock/history'
+    | '/api/stock/opname'
+    | '/api/auth/users/$id'
+    | '/api/import/active-session/sync'
+    | '/api/import/templates/$id'
+    | '/api/products/$id/adjust-stock'
+    | '/api/products/$id/ledger'
+    | '/api/stock/opname/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -122,6 +404,34 @@ export interface FileRouteTypes {
     | '/sign-up'
     | '/stock-history'
     | '/api/$'
+    | '/api/health'
+    | '/api/products'
+    | '/api/auth/login'
+    | '/api/auth/logout'
+    | '/api/auth/me'
+    | '/api/auth/users'
+    | '/api/dashboard/stats'
+    | '/api/import/active-session'
+    | '/api/import/cancel'
+    | '/api/import/confirm'
+    | '/api/import/sessions'
+    | '/api/import/sku-mappings'
+    | '/api/import/templates'
+    | '/api/import/upload'
+    | '/api/products/$id'
+    | '/api/products/ledger'
+    | '/api/review/ambiguous'
+    | '/api/review/confirm-split'
+    | '/api/review/orders'
+    | '/api/review/resolve'
+    | '/api/stock/history'
+    | '/api/stock/opname'
+    | '/api/auth/users/$id'
+    | '/api/import/active-session/sync'
+    | '/api/import/templates/$id'
+    | '/api/products/$id/adjust-stock'
+    | '/api/products/$id/ledger'
+    | '/api/stock/opname/$id'
   id:
     | '__root__'
     | '/'
@@ -133,6 +443,34 @@ export interface FileRouteTypes {
     | '/sign-up'
     | '/stock-history'
     | '/api/$'
+    | '/api/health'
+    | '/api/products'
+    | '/api/auth/login'
+    | '/api/auth/logout'
+    | '/api/auth/me'
+    | '/api/auth/users'
+    | '/api/dashboard/stats'
+    | '/api/import/active-session'
+    | '/api/import/cancel'
+    | '/api/import/confirm'
+    | '/api/import/sessions'
+    | '/api/import/sku-mappings'
+    | '/api/import/templates'
+    | '/api/import/upload'
+    | '/api/products/$id'
+    | '/api/products/ledger'
+    | '/api/review/ambiguous'
+    | '/api/review/confirm-split'
+    | '/api/review/orders'
+    | '/api/review/resolve'
+    | '/api/stock/history'
+    | '/api/stock/opname'
+    | '/api/auth/users/$id'
+    | '/api/import/active-session/sync'
+    | '/api/import/templates/$id'
+    | '/api/products/$id/adjust-stock'
+    | '/api/products/$id/ledger'
+    | '/api/stock/opname/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -145,6 +483,26 @@ export interface RootRouteChildren {
   SignUpRoute: typeof SignUpRoute
   StockHistoryRoute: typeof StockHistoryRoute
   ApiSplatRoute: typeof ApiSplatRoute
+  ApiHealthRoute: typeof ApiHealthRoute
+  ApiProductsRoute: typeof ApiProductsRouteWithChildren
+  ApiAuthLoginRoute: typeof ApiAuthLoginRoute
+  ApiAuthLogoutRoute: typeof ApiAuthLogoutRoute
+  ApiAuthMeRoute: typeof ApiAuthMeRoute
+  ApiAuthUsersRoute: typeof ApiAuthUsersRouteWithChildren
+  ApiDashboardStatsRoute: typeof ApiDashboardStatsRoute
+  ApiImportActiveSessionRoute: typeof ApiImportActiveSessionRouteWithChildren
+  ApiImportCancelRoute: typeof ApiImportCancelRoute
+  ApiImportConfirmRoute: typeof ApiImportConfirmRoute
+  ApiImportSessionsRoute: typeof ApiImportSessionsRoute
+  ApiImportSkuMappingsRoute: typeof ApiImportSkuMappingsRoute
+  ApiImportTemplatesRoute: typeof ApiImportTemplatesRouteWithChildren
+  ApiImportUploadRoute: typeof ApiImportUploadRoute
+  ApiReviewAmbiguousRoute: typeof ApiReviewAmbiguousRoute
+  ApiReviewConfirmSplitRoute: typeof ApiReviewConfirmSplitRoute
+  ApiReviewOrdersRoute: typeof ApiReviewOrdersRoute
+  ApiReviewResolveRoute: typeof ApiReviewResolveRoute
+  ApiStockHistoryRoute: typeof ApiStockHistoryRoute
+  ApiStockOpnameRoute: typeof ApiStockOpnameRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -205,6 +563,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/products': {
+      id: '/api/products'
+      path: '/api/products'
+      fullPath: '/api/products'
+      preLoaderRoute: typeof ApiProductsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/health': {
+      id: '/api/health'
+      path: '/api/health'
+      fullPath: '/api/health'
+      preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/$': {
       id: '/api/$'
       path: '/api/$'
@@ -212,8 +584,267 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/stock/opname': {
+      id: '/api/stock/opname'
+      path: '/api/stock/opname'
+      fullPath: '/api/stock/opname'
+      preLoaderRoute: typeof ApiStockOpnameRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/stock/history': {
+      id: '/api/stock/history'
+      path: '/api/stock/history'
+      fullPath: '/api/stock/history'
+      preLoaderRoute: typeof ApiStockHistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/review/resolve': {
+      id: '/api/review/resolve'
+      path: '/api/review/resolve'
+      fullPath: '/api/review/resolve'
+      preLoaderRoute: typeof ApiReviewResolveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/review/orders': {
+      id: '/api/review/orders'
+      path: '/api/review/orders'
+      fullPath: '/api/review/orders'
+      preLoaderRoute: typeof ApiReviewOrdersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/review/confirm-split': {
+      id: '/api/review/confirm-split'
+      path: '/api/review/confirm-split'
+      fullPath: '/api/review/confirm-split'
+      preLoaderRoute: typeof ApiReviewConfirmSplitRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/review/ambiguous': {
+      id: '/api/review/ambiguous'
+      path: '/api/review/ambiguous'
+      fullPath: '/api/review/ambiguous'
+      preLoaderRoute: typeof ApiReviewAmbiguousRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/products/ledger': {
+      id: '/api/products/ledger'
+      path: '/ledger'
+      fullPath: '/api/products/ledger'
+      preLoaderRoute: typeof ApiProductsLedgerRouteImport
+      parentRoute: typeof ApiProductsRoute
+    }
+    '/api/products/$id': {
+      id: '/api/products/$id'
+      path: '/$id'
+      fullPath: '/api/products/$id'
+      preLoaderRoute: typeof ApiProductsIdRouteImport
+      parentRoute: typeof ApiProductsRoute
+    }
+    '/api/import/upload': {
+      id: '/api/import/upload'
+      path: '/api/import/upload'
+      fullPath: '/api/import/upload'
+      preLoaderRoute: typeof ApiImportUploadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/import/templates': {
+      id: '/api/import/templates'
+      path: '/api/import/templates'
+      fullPath: '/api/import/templates'
+      preLoaderRoute: typeof ApiImportTemplatesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/import/sku-mappings': {
+      id: '/api/import/sku-mappings'
+      path: '/api/import/sku-mappings'
+      fullPath: '/api/import/sku-mappings'
+      preLoaderRoute: typeof ApiImportSkuMappingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/import/sessions': {
+      id: '/api/import/sessions'
+      path: '/api/import/sessions'
+      fullPath: '/api/import/sessions'
+      preLoaderRoute: typeof ApiImportSessionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/import/confirm': {
+      id: '/api/import/confirm'
+      path: '/api/import/confirm'
+      fullPath: '/api/import/confirm'
+      preLoaderRoute: typeof ApiImportConfirmRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/import/cancel': {
+      id: '/api/import/cancel'
+      path: '/api/import/cancel'
+      fullPath: '/api/import/cancel'
+      preLoaderRoute: typeof ApiImportCancelRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/import/active-session': {
+      id: '/api/import/active-session'
+      path: '/api/import/active-session'
+      fullPath: '/api/import/active-session'
+      preLoaderRoute: typeof ApiImportActiveSessionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/dashboard/stats': {
+      id: '/api/dashboard/stats'
+      path: '/api/dashboard/stats'
+      fullPath: '/api/dashboard/stats'
+      preLoaderRoute: typeof ApiDashboardStatsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/users': {
+      id: '/api/auth/users'
+      path: '/api/auth/users'
+      fullPath: '/api/auth/users'
+      preLoaderRoute: typeof ApiAuthUsersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/me': {
+      id: '/api/auth/me'
+      path: '/api/auth/me'
+      fullPath: '/api/auth/me'
+      preLoaderRoute: typeof ApiAuthMeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/logout': {
+      id: '/api/auth/logout'
+      path: '/api/auth/logout'
+      fullPath: '/api/auth/logout'
+      preLoaderRoute: typeof ApiAuthLogoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/login': {
+      id: '/api/auth/login'
+      path: '/api/auth/login'
+      fullPath: '/api/auth/login'
+      preLoaderRoute: typeof ApiAuthLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/stock/opname/$id': {
+      id: '/api/stock/opname/$id'
+      path: '/$id'
+      fullPath: '/api/stock/opname/$id'
+      preLoaderRoute: typeof ApiStockOpnameIdRouteImport
+      parentRoute: typeof ApiStockOpnameRoute
+    }
+    '/api/products/$id/ledger': {
+      id: '/api/products/$id/ledger'
+      path: '/ledger'
+      fullPath: '/api/products/$id/ledger'
+      preLoaderRoute: typeof ApiProductsIdLedgerRouteImport
+      parentRoute: typeof ApiProductsIdRoute
+    }
+    '/api/products/$id/adjust-stock': {
+      id: '/api/products/$id/adjust-stock'
+      path: '/adjust-stock'
+      fullPath: '/api/products/$id/adjust-stock'
+      preLoaderRoute: typeof ApiProductsIdAdjustStockRouteImport
+      parentRoute: typeof ApiProductsIdRoute
+    }
+    '/api/import/templates/$id': {
+      id: '/api/import/templates/$id'
+      path: '/$id'
+      fullPath: '/api/import/templates/$id'
+      preLoaderRoute: typeof ApiImportTemplatesIdRouteImport
+      parentRoute: typeof ApiImportTemplatesRoute
+    }
+    '/api/import/active-session/sync': {
+      id: '/api/import/active-session/sync'
+      path: '/sync'
+      fullPath: '/api/import/active-session/sync'
+      preLoaderRoute: typeof ApiImportActiveSessionSyncRouteImport
+      parentRoute: typeof ApiImportActiveSessionRoute
+    }
+    '/api/auth/users/$id': {
+      id: '/api/auth/users/$id'
+      path: '/$id'
+      fullPath: '/api/auth/users/$id'
+      preLoaderRoute: typeof ApiAuthUsersIdRouteImport
+      parentRoute: typeof ApiAuthUsersRoute
+    }
   }
 }
+
+interface ApiProductsIdRouteChildren {
+  ApiProductsIdAdjustStockRoute: typeof ApiProductsIdAdjustStockRoute
+  ApiProductsIdLedgerRoute: typeof ApiProductsIdLedgerRoute
+}
+
+const ApiProductsIdRouteChildren: ApiProductsIdRouteChildren = {
+  ApiProductsIdAdjustStockRoute: ApiProductsIdAdjustStockRoute,
+  ApiProductsIdLedgerRoute: ApiProductsIdLedgerRoute,
+}
+
+const ApiProductsIdRouteWithChildren = ApiProductsIdRoute._addFileChildren(
+  ApiProductsIdRouteChildren,
+)
+
+interface ApiProductsRouteChildren {
+  ApiProductsIdRoute: typeof ApiProductsIdRouteWithChildren
+  ApiProductsLedgerRoute: typeof ApiProductsLedgerRoute
+}
+
+const ApiProductsRouteChildren: ApiProductsRouteChildren = {
+  ApiProductsIdRoute: ApiProductsIdRouteWithChildren,
+  ApiProductsLedgerRoute: ApiProductsLedgerRoute,
+}
+
+const ApiProductsRouteWithChildren = ApiProductsRoute._addFileChildren(
+  ApiProductsRouteChildren,
+)
+
+interface ApiAuthUsersRouteChildren {
+  ApiAuthUsersIdRoute: typeof ApiAuthUsersIdRoute
+}
+
+const ApiAuthUsersRouteChildren: ApiAuthUsersRouteChildren = {
+  ApiAuthUsersIdRoute: ApiAuthUsersIdRoute,
+}
+
+const ApiAuthUsersRouteWithChildren = ApiAuthUsersRoute._addFileChildren(
+  ApiAuthUsersRouteChildren,
+)
+
+interface ApiImportActiveSessionRouteChildren {
+  ApiImportActiveSessionSyncRoute: typeof ApiImportActiveSessionSyncRoute
+}
+
+const ApiImportActiveSessionRouteChildren: ApiImportActiveSessionRouteChildren =
+  {
+    ApiImportActiveSessionSyncRoute: ApiImportActiveSessionSyncRoute,
+  }
+
+const ApiImportActiveSessionRouteWithChildren =
+  ApiImportActiveSessionRoute._addFileChildren(
+    ApiImportActiveSessionRouteChildren,
+  )
+
+interface ApiImportTemplatesRouteChildren {
+  ApiImportTemplatesIdRoute: typeof ApiImportTemplatesIdRoute
+}
+
+const ApiImportTemplatesRouteChildren: ApiImportTemplatesRouteChildren = {
+  ApiImportTemplatesIdRoute: ApiImportTemplatesIdRoute,
+}
+
+const ApiImportTemplatesRouteWithChildren =
+  ApiImportTemplatesRoute._addFileChildren(ApiImportTemplatesRouteChildren)
+
+interface ApiStockOpnameRouteChildren {
+  ApiStockOpnameIdRoute: typeof ApiStockOpnameIdRoute
+}
+
+const ApiStockOpnameRouteChildren: ApiStockOpnameRouteChildren = {
+  ApiStockOpnameIdRoute: ApiStockOpnameIdRoute,
+}
+
+const ApiStockOpnameRouteWithChildren = ApiStockOpnameRoute._addFileChildren(
+  ApiStockOpnameRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
@@ -225,6 +856,26 @@ const rootRouteChildren: RootRouteChildren = {
   SignUpRoute: SignUpRoute,
   StockHistoryRoute: StockHistoryRoute,
   ApiSplatRoute: ApiSplatRoute,
+  ApiHealthRoute: ApiHealthRoute,
+  ApiProductsRoute: ApiProductsRouteWithChildren,
+  ApiAuthLoginRoute: ApiAuthLoginRoute,
+  ApiAuthLogoutRoute: ApiAuthLogoutRoute,
+  ApiAuthMeRoute: ApiAuthMeRoute,
+  ApiAuthUsersRoute: ApiAuthUsersRouteWithChildren,
+  ApiDashboardStatsRoute: ApiDashboardStatsRoute,
+  ApiImportActiveSessionRoute: ApiImportActiveSessionRouteWithChildren,
+  ApiImportCancelRoute: ApiImportCancelRoute,
+  ApiImportConfirmRoute: ApiImportConfirmRoute,
+  ApiImportSessionsRoute: ApiImportSessionsRoute,
+  ApiImportSkuMappingsRoute: ApiImportSkuMappingsRoute,
+  ApiImportTemplatesRoute: ApiImportTemplatesRouteWithChildren,
+  ApiImportUploadRoute: ApiImportUploadRoute,
+  ApiReviewAmbiguousRoute: ApiReviewAmbiguousRoute,
+  ApiReviewConfirmSplitRoute: ApiReviewConfirmSplitRoute,
+  ApiReviewOrdersRoute: ApiReviewOrdersRoute,
+  ApiReviewResolveRoute: ApiReviewResolveRoute,
+  ApiStockHistoryRoute: ApiStockHistoryRoute,
+  ApiStockOpnameRoute: ApiStockOpnameRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

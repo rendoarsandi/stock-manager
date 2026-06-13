@@ -1386,109 +1386,74 @@ async function handleCreateOpname(req) {
   }
 }
 
-// Router routes list mapping Method + Pattern to Handler
-const routes = [
-  // Health & WS
-  { method: 'GET', pattern: /^\/api\/health$/, handler: handleHealth },
-  { method: 'GET', pattern: /^\/ws$/, handler: handleWsPlaceholder },
-
-  // Auth routes
-  { method: 'POST', pattern: /^\/api\/auth\/login$/, handler: handleLogin },
-  { method: 'POST', pattern: /^\/api\/auth\/logout$/, handler: handleLogout },
-  { method: 'GET', pattern: /^\/api\/auth\/me$/, handler: handleMe },
-  { method: 'GET', pattern: /^\/api\/auth\/users$/, role: 'admin', handler: handleListUsers },
-  { method: 'POST', pattern: /^\/api\/auth\/users$/, role: 'admin', handler: handleCreateUser },
-  { method: 'DELETE', pattern: /^\/api\/auth\/users\/([^/]+)$/, role: 'admin', handler: handleDeleteUser },
-
-  // Products routes
-  { method: 'GET', pattern: /^\/api\/products$/, auth: true, handler: handleListProducts },
-  { method: 'GET', pattern: /^\/api\/products\/ledger$/, auth: true, handler: handleListLedger },
-  { method: 'POST', pattern: /^\/api\/products$/, role: 'admin', handler: handleCreateProduct },
-  { method: 'GET', pattern: /^\/api\/products\/([^/]+)\/ledger$/, auth: true, handler: handleProductLedger },
-  { method: 'POST', pattern: /^\/api\/products\/([^/]+)\/adjust-stock$/, auth: true, handler: handleAdjustStock },
-  { method: 'PUT', pattern: /^\/api\/products\/([^/]+)$/, role: 'admin', handler: handleUpdateProduct },
-  { method: 'DELETE', pattern: /^\/api\/products\/([^/]+)$/, role: 'admin', handler: handleDeleteProduct },
-
-  // Import routes
-  { method: 'GET', pattern: /^\/api\/import\/templates$/, auth: true, handler: handleListTemplates },
-  { method: 'POST', pattern: /^\/api\/import\/templates$/, role: 'admin', handler: handleSaveTemplate },
-  { method: 'DELETE', pattern: /^\/api\/import\/templates\/([^/]+)$/, role: 'admin', handler: handleDeleteTemplate },
-  { method: 'POST', pattern: /^\/api\/import\/upload$/, auth: true, handler: handleUploadExcel },
-  { method: 'POST', pattern: /^\/api\/import\/confirm$/, auth: true, handler: handleConfirmImport },
-  { method: 'POST', pattern: /^\/api\/import\/cancel$/, auth: true, handler: handleCancelImport },
-  { method: 'GET', pattern: /^\/api\/import\/active-session$/, auth: true, handler: handleGetActiveSession },
-  { method: 'POST', pattern: /^\/api\/import\/active-session\/sync$/, auth: true, handler: handleSyncActiveSession },
-  { method: 'GET', pattern: /^\/api\/import\/sessions$/, auth: true, handler: handleGetSessions },
-  { method: 'GET', pattern: /^\/api\/import\/sku-mappings$/, auth: true, handler: handleListSkuMappings },
-  { method: 'POST', pattern: /^\/api\/import\/sku-mappings$/, role: 'admin', handler: handleSaveSkuMapping },
-  { method: 'DELETE', pattern: /^\/api\/import\/sku-mappings$/, role: 'admin', handler: handleDeleteSkuMapping },
-
-  // Review routes
-  { method: 'GET', pattern: /^\/api\/review\/orders$/, auth: true, handler: handleReviewOrders },
-  { method: 'POST', pattern: /^\/api\/review\/resolve$/, auth: true, handler: handleResolveReviewOrder },
-  { method: 'GET', pattern: /^\/api\/review\/ambiguous$/, auth: true, handler: handleReviewAmbiguous },
-  { method: 'POST', pattern: /^\/api\/review\/confirm-split$/, auth: true, handler: handleConfirmSplit },
-
-  // Dashboard routes
-  { method: 'GET', pattern: /^\/api\/dashboard\/stats$/, auth: true, handler: handleDashboardStats },
-
-  // Opname routes
-  { method: 'GET', pattern: /^\/api\/stock\/opname$/, auth: true, handler: handleListOpname },
-  { method: 'GET', pattern: /^\/api\/stock\/opname\/([^/]+)$/, auth: true, handler: handleGetOpnameDetails },
-  { method: 'POST', pattern: /^\/api\/stock\/opname$/, auth: true, handler: handleCreateOpname }
-];
-
-export async function handleRequest(request, env) {
-  const url = new URL(request.url);
-  const path = url.pathname;
-  const method = request.method.toUpperCase();
-
-  if (path === '/ws' && env && env.STOCK_ROOM) {
-    const id = env.STOCK_ROOM.idFromName('global');
-    const stub = env.STOCK_ROOM.get(id);
-    return stub.fetch(request);
-  }
-
-  for (const route of routes) {
-    if (route.method === method) {
-      const match = path.match(route.pattern);
-      if (match) {
-        const params = match.slice(1);
-
-        // Auth & Role check
-        let user = null;
-        if (route.auth || route.role) {
-          user = await getAuthUser(request);
-          if (!user) {
-            return json({ message: 'Unauthorized. Please log in.' }, 401);
-          }
-
-          if (route.role && user.role !== route.role) {
-            return json({ message: 'Forbidden. Insufficient permissions.' }, 403);
-          }
-        }
-
-        // We wrap request to be able to attach properties dynamically (e.g. user)
-        const reqProxy = new Proxy(request, {
-          get(target, prop) {
-            if (prop === 'user') {
-              return user;
-            }
-            const val = Reflect.get(target, prop);
-            if (typeof val === 'function') {
-              return val.bind(target);
-            }
-            return val;
-          }
-        });
-
-        return await route.handler(reqProxy, params);
+export function withAuthOrRole(handler, options = {}) {
+  return async ({ request, params }) => {
+    let reqObj = request;
+    if (options.auth || options.role) {
+      const user = await getAuthUser(request);
+      if (!user) {
+        return json({ message: 'Unauthorized. Please log in.' }, 401);
       }
-    }
-  }
 
-  return new Response(JSON.stringify({ message: 'Not Found' }), {
-    status: 404,
-    headers: { 'Content-Type': 'application/json' }
-  });
+      if (options.role && user.role !== options.role) {
+        return json({ message: 'Forbidden. Insufficient permissions.' }, 403);
+      }
+
+      // We wrap request to be able to attach properties dynamically (e.g. user)
+      const reqProxy = new Proxy(request, {
+        get(target, prop) {
+          if (prop === 'user') {
+            return user;
+          }
+          const val = Reflect.get(target, prop);
+          if (typeof val === 'function') {
+            return val.bind(target);
+          }
+          return val;
+        }
+      });
+      reqObj = reqProxy;
+    }
+
+    const paramArray = params && params.id ? [params.id] : [];
+    return handler(reqObj, paramArray);
+  };
 }
+
+export {
+  handleHealth,
+  handleWsPlaceholder,
+  handleLogin,
+  handleLogout,
+  handleMe,
+  handleListUsers,
+  handleCreateUser,
+  handleDeleteUser,
+  handleListProducts,
+  handleListLedger,
+  handleCreateProduct,
+  handleProductLedger,
+  handleAdjustStock,
+  handleUpdateProduct,
+  handleDeleteProduct,
+  handleListTemplates,
+  handleSaveTemplate,
+  handleDeleteTemplate,
+  handleUploadExcel,
+  handleConfirmImport,
+  handleCancelImport,
+  handleGetActiveSession,
+  handleSyncActiveSession,
+  handleGetSessions,
+  handleListSkuMappings,
+  handleSaveSkuMapping,
+  handleDeleteSkuMapping,
+  handleReviewOrders,
+  handleResolveReviewOrder,
+  handleReviewAmbiguous,
+  handleConfirmSplit,
+  handleDashboardStats,
+  handleListOpname,
+  handleGetOpnameDetails,
+  handleCreateOpname
+};
