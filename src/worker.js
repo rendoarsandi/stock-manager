@@ -17,31 +17,34 @@ app.get('/ws', async (c) => {
 import server_default from '../dist/server/server.js';
 
 // Fallback for Worker static assets or SSR routes
-app.get('/*', async (c, next) => {
-  const pathUrl = c.req.path;
-  if (pathUrl.startsWith('/api') || pathUrl.startsWith('/ws')) {
-    return next();
-  }
-  
-  // Serve static assets via Cloudflare Assets
-  const hasFileExtension = /\.[a-zA-Z0-9]+$/.test(pathUrl);
-  if (hasFileExtension) {
-    if (c.env && c.env.ASSETS) {
-      return await c.env.ASSETS.fetch(c.req.raw);
+export default {
+  async fetch(request, env, ctx) {
+    const url = new URL(request.url);
+    
+    // 1. Handle WebSocket handshake via Hono app
+    if (url.pathname === '/ws') {
+      return app.fetch(request, env, ctx);
     }
-    return next();
+    
+    // 2. Serve static assets via Cloudflare Assets
+    const hasFileExtension = /\.[a-zA-Z0-9]+$/.test(url.pathname);
+    if (hasFileExtension && env.ASSETS) {
+      try {
+        return await env.ASSETS.fetch(request);
+      } catch (err) {
+        console.error("Failed to serve static asset:", err);
+      }
+    }
+    
+    // 3. Run TanStack Start SSR handler for API and Page requests
+    try {
+      return await server_default.fetch(request, env, ctx);
+    } catch (err) {
+      console.error("SSR Handler failed:", err);
+      return new Response("Internal Server Error", { status: 500 });
+    }
   }
-  
-  // Run TanStack Start SSR handler for page requests
-  try {
-    return await server_default.fetch(c.req.raw);
-  } catch (err) {
-    console.error("SSR Handler failed:", err);
-    return c.text("Internal Server Error", 500);
-  }
-});
-
-export default app;
+};
 
 // Durable Object Class for SQL Storage and WebSockets
 export class StockRoom extends DurableObject {
