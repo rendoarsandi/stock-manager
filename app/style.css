@@ -1297,6 +1297,7 @@ tr:hover td {
   color: var(--text-primary) !important;
 }
 
+
 .sort-icon {
   display: inline-block;
   margin-left: 0.25rem;
@@ -1305,5 +1306,9 @@ tr:hover td {
   vertical-align: middle;
 }
 
-
-
+@media (max-width: 768px) {
+  .hover-ledger-card {
+    pointer-events: auto !important;
+    overflow: auto !important;
+  }
+}
