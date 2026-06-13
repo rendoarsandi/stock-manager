@@ -34,8 +34,8 @@ export async function seedIfNeeded(storage) {
   const hasProducts = existingProducts && existingProducts.length > 0;
 
   if (!hasProducts) {
-    // Only seed products on a completely fresh database (users were just created)
-    if (wasEmpty) {
+    // Seed products whenever the products table is empty (independent of user seeding)
+    {
       console.log("Database empty. Seeding initial data...");
 
       // Helper function to clean up and structure product names
