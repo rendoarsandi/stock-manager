@@ -188,10 +188,16 @@ export default function Review() {
       return;
     }
 
+    const qtyVal = parseInt(quantity, 10);
+    if (isNaN(qtyVal) || qtyVal <= 0) {
+      showToast('Warning', 'Quantity must be a positive number', 'warning');
+      return;
+    }
+
     confirmSplitMutation.mutate({
       item_id: item.id,
       product_id: parseInt(productId, 10),
-      quantity: parseInt(quantity, 10) || 1,
+      quantity: qtyVal,
     });
   };
 
