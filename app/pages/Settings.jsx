@@ -82,7 +82,7 @@ export default function Settings() {
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        const err = await res.json();
+        const err = await res.json().catch(() => ({}));
         throw new Error(err.message || 'Failed to save template');
       }
       return res.json();
@@ -103,7 +103,7 @@ export default function Settings() {
         method: 'DELETE',
       });
       if (!res.ok) {
-        const err = await res.json();
+        const err = await res.json().catch(() => ({}));
         throw new Error(err.message || 'Failed to delete template');
       }
       return res.json();
@@ -126,7 +126,7 @@ export default function Settings() {
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        const err = await res.json();
+        const err = await res.json().catch(() => ({}));
         throw new Error(err.message || 'Failed to create user account');
       }
       return res.json();
@@ -147,7 +147,7 @@ export default function Settings() {
         method: 'DELETE',
       });
       if (!res.ok) {
-        const err = await res.json();
+        const err = await res.json().catch(() => ({}));
         throw new Error(err.message || 'Failed to delete user account');
       }
       return res.json();
@@ -170,7 +170,7 @@ export default function Settings() {
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        const err = await res.json();
+        const err = await res.json().catch(() => ({}));
         throw new Error(err.message || 'Failed to save SKU mapping');
       }
       return res.json();
@@ -193,7 +193,7 @@ export default function Settings() {
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        const err = await res.json();
+        const err = await res.json().catch(() => ({}));
         throw new Error(err.message || 'Failed to delete SKU mapping');
       }
       return res.json();
@@ -297,6 +297,10 @@ export default function Settings() {
 
   const handleSkuSubmit = (e) => {
     e.preventDefault();
+    if (!skuProductId) {
+      showToast('Warning', 'Please select a target product', 'warning');
+      return;
+    }
     saveSkuMappingMutation.mutate({
       sku_code: skuCode.trim(),
       product_id: parseInt(skuProductId, 10),

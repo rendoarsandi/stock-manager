@@ -94,7 +94,7 @@ export default function Review() {
         body: JSON.stringify({ order_id, resolution, resolution_notes }),
       });
       if (!res.ok) {
-        const err = await res.json();
+        const err = await res.json().catch(() => ({}));
         throw new Error(err.message || 'Failed to resolve order');
       }
       return res.json();
@@ -117,7 +117,7 @@ export default function Review() {
         body: JSON.stringify({ item_id, product_id, quantity }),
       });
       if (!res.ok) {
-        const err = await res.json();
+        const err = await res.json().catch(() => ({}));
         throw new Error(err.message || 'Mapping failed');
       }
       return res.json();

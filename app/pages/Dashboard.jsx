@@ -241,7 +241,7 @@ export default function Dashboard() {
                     if (s.status === 'cancelled') statusTag = 'danger';
 
                     const dateStr = s.created_at
-                      ? new Date(s.created_at.replace(/-/g, '/')).toLocaleDateString('en-US', {
+                      ? new Date(typeof s.created_at === 'string' ? s.created_at.replace(/-/g, '/') : s.created_at).toLocaleDateString('en-US', {
                           month: 'short',
                           day: 'numeric',
                           hour: '2-digit',

@@ -103,7 +103,7 @@ export default function Products() {
         body: JSON.stringify(newProduct),
       });
       if (!res.ok) {
-        const err = await res.json();
+        const err = await res.json().catch(() => ({}));
         throw new Error(err.message || 'Failed to create product');
       }
       return res.json();
@@ -126,7 +126,7 @@ export default function Products() {
         body: JSON.stringify(updatedProduct),
       });
       if (!res.ok) {
-        const err = await res.json();
+        const err = await res.json().catch(() => ({}));
         throw new Error(err.message || 'Failed to update product');
       }
       return res.json();
@@ -147,7 +147,7 @@ export default function Products() {
         method: 'DELETE',
       });
       if (!res.ok) {
-        const err = await res.json();
+        const err = await res.json().catch(() => ({}));
         throw new Error(err.message || 'Failed to delete product');
       }
     },
@@ -169,7 +169,7 @@ export default function Products() {
         body: JSON.stringify(adjustment),
       });
       if (!res.ok) {
-        const err = await res.json();
+        const err = await res.json().catch(() => ({}));
         throw new Error(err.message || 'Failed to adjust stock');
       }
       return res.json();

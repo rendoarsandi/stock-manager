@@ -98,7 +98,7 @@ export default function Opname() {
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        const err = await res.json();
+        const err = await res.json().catch(() => ({}));
         throw new Error(err.message || 'Failed to save stock opname');
       }
       return res.json();

@@ -37,6 +37,18 @@ function RootComponent() {
     );
   }
 
+  const isSpaMode = typeof window !== 'undefined' && !!document.getElementById('root');
+
+  if (isSpaMode) {
+    return (
+      <>
+        {bodyContent}
+        <ScrollRestoration />
+        <Scripts />
+      </>
+    );
+  }
+
   return (
     <html lang="en">
       <head>

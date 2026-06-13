@@ -18,9 +18,12 @@ export default function Layout({ children }) {
   const { onlineCount, isConnected, addWsListener } = useWebSocket();
   const location = useLocation();
 
-  const [isCollapsed, setIsCollapsed] = useState(
-    () => localStorage.getItem('sidebar-collapsed') === 'true'
-  );
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('sidebar-collapsed') === 'true';
+    }
+    return false;
+  });
   const [isMobileVisible, setIsMobileVisible] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
 

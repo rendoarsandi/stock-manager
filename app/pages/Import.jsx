@@ -23,8 +23,8 @@ function SearchableSelect({ selectedId, products, onChange, id, name }) {
   }, []);
 
   const filtered = products.filter(p =>
-    p.name.toLowerCase().includes(filterText.toLowerCase()) ||
-    p.model.toLowerCase().includes(filterText.toLowerCase())
+    (p.name || '').toLowerCase().includes(filterText.toLowerCase()) ||
+    (p.model || '').toLowerCase().includes(filterText.toLowerCase())
   );
 
   return (
@@ -182,7 +182,7 @@ export default function Import() {
       });
 
       if (!res.ok) {
-        const err = await res.json();
+        const err = await res.json().catch(() => ({}));
         throw new Error(err.message || 'Failed to parse file');
       }
 
@@ -297,7 +297,7 @@ export default function Import() {
           navigate({ to: '/' });
         }
       } else {
-        const err = await res.json();
+        const err = await res.json().catch(() => ({}));
         showToast('Import Failed', err.message, 'error');
       }
     } catch (err) {
