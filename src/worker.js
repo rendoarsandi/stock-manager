@@ -14,31 +14,31 @@ app.get('/ws', async (c) => {
   return c.text('WebSocket not configured', 400);
 });
 
-// SPA fallback for Worker static assets or general routes
+import server_default from '../dist/server/server.js';
+
+// Fallback for Worker static assets or SSR routes
 app.get('/*', async (c, next) => {
   const pathUrl = c.req.path;
-  console.log("Worker fallback route hit:", pathUrl);
   if (pathUrl.startsWith('/api') || pathUrl.startsWith('/ws')) {
     return next();
   }
   
-  // Cloudflare Workers Assets serving fallback
-  if (c.env && c.env.ASSETS) {
-    console.log("c.env.ASSETS is defined. Fetching...");
-    const hasFileExtension = /\.[a-zA-Z0-9]+$/.test(pathUrl);
-    if (hasFileExtension) {
+  // Serve static assets via Cloudflare Assets
+  const hasFileExtension = /\.[a-zA-Z0-9]+$/.test(pathUrl);
+  if (hasFileExtension) {
+    if (c.env && c.env.ASSETS) {
       return await c.env.ASSETS.fetch(c.req.raw);
-    } else {
-      const url = new URL(c.req.url);
-      url.pathname = '/';
-      console.log("Rewriting to index.html:", url.toString());
-      return await c.env.ASSETS.fetch(new Request(url.toString(), c.req.raw));
     }
-  } else {
-    console.log("c.env.ASSETS is UNDEFINED!");
+    return next();
   }
   
-  return next();
+  // Run TanStack Start SSR handler for page requests
+  try {
+    return await server_default.fetch(c.req.raw);
+  } catch (err) {
+    console.error("SSR Handler failed:", err);
+    return c.text("Internal Server Error", 500);
+  }
 });
 
 export default app;
