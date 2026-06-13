@@ -5,7 +5,7 @@ const serve = async ({ request }) => {
   let env = undefined;
   let ctx = undefined;
   try {
-    const { getEvent } = await import('vinxi/http');
+    const { getEvent } = await import(/* @vite-ignore */ 'vinxi/http');
     const event = getEvent();
     const cloudflare = event?.context?.cloudflare || event?.nativeEvent?.context?.cloudflare || {};
     env = cloudflare.env;

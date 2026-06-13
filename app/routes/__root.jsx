@@ -20,6 +20,7 @@ const queryClient = new QueryClient({
 
 function RootComponent() {
   const { currentUser, loading } = useAuth();
+  const { clerkPublishableKey } = Route.useRouteContext();
 
   let bodyContent;
   if (loading) {
@@ -56,6 +57,9 @@ function RootComponent() {
         <link rel="icon" type="image/svg+xml" href="/assets/favicon.ico" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Stock Manager</title>
+        <script dangerouslySetInnerHTML={{
+          __html: `window.__CLERK_PUBLISHABLE_KEY = "${clerkPublishableKey || ''}";`
+        }} />
         <HeadContent />
       </head>
       <body>
@@ -67,8 +71,9 @@ function RootComponent() {
 }
 
 function AppWithProviders() {
+  const { clerkPublishableKey } = Route.useRouteContext();
   return (
-    <ClerkProvider publishableKey={import.meta.env.VITE_CLERK_PUBLISHABLE_KEY}>
+    <ClerkProvider publishableKey={clerkPublishableKey}>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <WebSocketProvider>
@@ -81,5 +86,29 @@ function AppWithProviders() {
 }
 
 export const Route = createRootRoute({
+  beforeLoad: async () => {
+    let publishableKey = undefined;
+    if (typeof window === 'undefined') {
+      try {
+        const { getEvent } = await import(/* @vite-ignore */ 'vinxi/http');
+        const event = getEvent();
+        const cloudflare = event?.context?.cloudflare || event?.nativeEvent?.context?.cloudflare || {};
+        const env = cloudflare.env || process.env;
+        publishableKey = env?.CLERK_PUBLISHABLE_KEY || env?.VITE_CLERK_PUBLISHABLE_KEY;
+      } catch (e) {
+        console.error("Failed to get CLERK_PUBLISHABLE_KEY in beforeLoad:", e);
+      }
+    } else {
+      publishableKey = window.__CLERK_PUBLISHABLE_KEY || import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+    }
+    
+    if (!publishableKey) {
+      publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+    }
+    
+    return {
+      clerkPublishableKey: publishableKey
+    };
+  },
   component: AppWithProviders,
 });

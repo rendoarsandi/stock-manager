@@ -73,6 +73,7 @@ export function AuthProvider({ children }) {
           <h3 style={{ color: '#a6e3a1', marginTop: 0 }}>Debug Information:</h3>
           <ul style={{ margin: 0, paddingLeft: '20px' }}>
             <li><strong>VITE_CLERK_PUBLISHABLE_KEY:</strong> {import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || 'undefined/empty'}</li>
+            <li><strong>window.__CLERK_PUBLISHABLE_KEY:</strong> {typeof window !== 'undefined' ? (window.__CLERK_PUBLISHABLE_KEY || 'undefined/empty') : 'SSR'}</li>
             <li><strong>Clerk Auth Loaded:</strong> {String(isAuthLoaded)}</li>
             <li><strong>Clerk User Loaded:</strong> {String(isUserLoaded)}</li>
             <li><strong>Clerk User ID:</strong> {String(userId)}</li>
