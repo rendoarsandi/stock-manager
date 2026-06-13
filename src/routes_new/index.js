@@ -1,10 +1,11 @@
 import { createClerkClient } from '@clerk/backend';
 import crypto from 'crypto';
-import { db } from '../db/connection.js';
+import { db, seedIfNeeded } from '../db/connection.js';
 import { verifyPassword, hashPassword } from '../utils/crypto.js';
 import { parseExcel } from '../services/excel-parser.js';
 import { parseAmbiguousDescription, extractSameProductPromo, extractPackMultiplier, resolvePromoProductToBaseItems } from '../services/ambiguous-parser.js';
-import { getActiveStorage, getActiveEnv } from '../db/context.js';
+import { getActiveStorage, getActiveEnv, storageContext } from '../db/context.js';
+import { getLocalStore } from '../db/local_sqlite.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret_key';
 
@@ -139,16 +140,32 @@ async function getAuthUser(request) {
     const authData = requestState.toAuth();
     if (!authData || !authData.userId) return null;
 
-    const id = authData.userId;
     let username = authData.sessionClaims?.username;
-    let role = 'staff';
-
     if (!username) {
-      username = 'user';
+      username = authData.userId;
     }
-    role = authData.sessionClaims?.metadata?.role || authData.sessionClaims?.publicMetadata?.role || 'staff';
+    const role = authData.sessionClaims?.metadata?.role || authData.sessionClaims?.publicMetadata?.role || 'staff';
 
-    return { id, username, role };
+    let localId;
+    try {
+      const storage = getActiveStorage();
+      const existing = await storage.query("SELECT id FROM users WHERE username = ?", [username]);
+      if (existing && existing.length > 0) {
+        localId = existing[0].id;
+        await storage.execute("UPDATE users SET role = ? WHERE id = ?", [role, localId]);
+      } else {
+        const result = await storage.execute(
+          "INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, datetime('now', 'localtime'))",
+          [username, 'clerk_external', role]
+        );
+        localId = result.lastInsertRowid;
+      }
+    } catch (dbErr) {
+      console.error("Failed to sync Clerk user to local DB:", dbErr);
+      localId = Math.abs(authData.userId.split('').reduce((acc, char) => (acc << 5) - acc + char.charCodeAt(0), 0)) % 1000000;
+    }
+
+    return { id: localId, username, role };
   } catch (e) {
     console.error("Clerk auth failed with error:", e);
     return null;
@@ -1388,35 +1405,85 @@ async function handleCreateOpname(req) {
 
 export function withAuthOrRole(handler, options = {}) {
   return async ({ request, params }) => {
-    let reqObj = request;
-    if (options.auth || options.role) {
-      const user = await getAuthUser(request);
-      if (!user) {
-        return json({ message: 'Unauthorized. Please log in.' }, 401);
-      }
-
-      if (options.role && user.role !== options.role) {
-        return json({ message: 'Forbidden. Insufficient permissions.' }, 403);
-      }
-
-      // We wrap request to be able to attach properties dynamically (e.g. user)
-      const reqProxy = new Proxy(request, {
-        get(target, prop) {
-          if (prop === 'user') {
-            return user;
-          }
-          const val = Reflect.get(target, prop);
-          if (typeof val === 'function') {
-            return val.bind(target);
-          }
-          return val;
+    const runHandler = async () => {
+      let reqObj = request;
+      if (options.auth || options.role) {
+        const user = await getAuthUser(request);
+        if (!user) {
+          return json({ message: 'Unauthorized. Please log in.' }, 401);
         }
-      });
-      reqObj = reqProxy;
+
+        if (options.role && user.role !== options.role) {
+          return json({ message: 'Forbidden. Insufficient permissions.' }, 403);
+        }
+
+        // We wrap request to be able to attach properties dynamically (e.g. user)
+        const reqProxy = new Proxy(request, {
+          get(target, prop) {
+            if (prop === 'user') {
+              return user;
+            }
+            const val = Reflect.get(target, prop);
+            if (typeof val === 'function') {
+              return val.bind(target);
+            }
+            return val;
+          }
+        });
+        reqObj = reqProxy;
+      }
+
+      const paramArray = params && params.id ? [params.id] : [];
+      return handler(reqObj, paramArray);
+    };
+
+    if (storageContext.getStore()) {
+      return runHandler();
     }
 
-    const paramArray = params && params.id ? [params.id] : [];
-    return handler(reqObj, paramArray);
+    const env = globalThis.MINIMAL_CLOUDFLARE_ENV || process.env;
+    let store;
+    let isCloudflare = false;
+    try {
+      if (env && env.STOCK_ROOM) {
+        isCloudflare = true;
+      }
+    } catch (e) {}
+
+    if (isCloudflare) {
+      const id = env.STOCK_ROOM.idFromName('global');
+      const stub = env.STOCK_ROOM.get(id);
+      store = {
+        type: 'cloudflare',
+        storage: {
+          async query(sql, params) { return await stub.query(sql, params); },
+          async execute(sql, params) { return await stub.execute(sql, params); },
+          async executeTransaction(queries) { return await stub.executeTransaction(queries); }
+        },
+        env: env
+      };
+    } else {
+      store = {
+        type: 'local',
+        storage: getLocalStore(),
+        env: env
+      };
+    }
+
+    return storageContext.run(store, async () => {
+      if (process.env.NODE_ENV === 'test') {
+        await seedIfNeeded(store.storage);
+      } else {
+        if (!globalThis.seedingPromise) {
+          globalThis.seedingPromise = seedIfNeeded(store.storage).catch(err => {
+            globalThis.seedingPromise = null;
+            throw err;
+          });
+        }
+        await globalThis.seedingPromise;
+      }
+      return runHandler();
+    });
   };
 }
 
