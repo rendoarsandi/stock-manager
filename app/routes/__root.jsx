@@ -1,4 +1,4 @@
-import { createRootRoute, Outlet, HeadContent, Scripts } from '@tanstack/react-router';
+import { createRootRoute, Outlet, HeadContent, Scripts, useRouterState } from '@tanstack/react-router';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ClerkProvider } from '@clerk/tanstack-react-start';
@@ -49,7 +49,7 @@ import SignUpPage from '../components/SignUp';
 function RootComponent() {
   const { currentUser, loading } = useAuth();
   const { clerkPublishableKey } = Route.useRouteContext();
-  const routerState = Route.useRouterState();
+  const routerState = useRouterState();
   const isSignUpPage = routerState.location.pathname === '/sign-up';
 
   let bodyContent;
