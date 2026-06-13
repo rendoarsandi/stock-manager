@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as StockHistoryRouteImport } from './routes/stock-history'
+import { Route as SignUpRouteImport } from './routes/sign-up'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ReviewRouteImport } from './routes/review'
 import { Route as ProductsRouteImport } from './routes/products'
@@ -21,6 +22,11 @@ import { Route as ApiSplatRouteImport } from './routes/api/$'
 const StockHistoryRoute = StockHistoryRouteImport.update({
   id: '/stock-history',
   path: '/stock-history',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignUpRoute = SignUpRouteImport.update({
+  id: '/sign-up',
+  path: '/sign-up',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsRoute = SettingsRouteImport.update({
@@ -66,6 +72,7 @@ export interface FileRoutesByFullPath {
   '/products': typeof ProductsRoute
   '/review': typeof ReviewRoute
   '/settings': typeof SettingsRoute
+  '/sign-up': typeof SignUpRoute
   '/stock-history': typeof StockHistoryRoute
   '/api/$': typeof ApiSplatRoute
 }
@@ -76,6 +83,7 @@ export interface FileRoutesByTo {
   '/products': typeof ProductsRoute
   '/review': typeof ReviewRoute
   '/settings': typeof SettingsRoute
+  '/sign-up': typeof SignUpRoute
   '/stock-history': typeof StockHistoryRoute
   '/api/$': typeof ApiSplatRoute
 }
@@ -87,6 +95,7 @@ export interface FileRoutesById {
   '/products': typeof ProductsRoute
   '/review': typeof ReviewRoute
   '/settings': typeof SettingsRoute
+  '/sign-up': typeof SignUpRoute
   '/stock-history': typeof StockHistoryRoute
   '/api/$': typeof ApiSplatRoute
 }
@@ -99,6 +108,7 @@ export interface FileRouteTypes {
     | '/products'
     | '/review'
     | '/settings'
+    | '/sign-up'
     | '/stock-history'
     | '/api/$'
   fileRoutesByTo: FileRoutesByTo
@@ -109,6 +119,7 @@ export interface FileRouteTypes {
     | '/products'
     | '/review'
     | '/settings'
+    | '/sign-up'
     | '/stock-history'
     | '/api/$'
   id:
@@ -119,6 +130,7 @@ export interface FileRouteTypes {
     | '/products'
     | '/review'
     | '/settings'
+    | '/sign-up'
     | '/stock-history'
     | '/api/$'
   fileRoutesById: FileRoutesById
@@ -130,6 +142,7 @@ export interface RootRouteChildren {
   ProductsRoute: typeof ProductsRoute
   ReviewRoute: typeof ReviewRoute
   SettingsRoute: typeof SettingsRoute
+  SignUpRoute: typeof SignUpRoute
   StockHistoryRoute: typeof StockHistoryRoute
   ApiSplatRoute: typeof ApiSplatRoute
 }
@@ -141,6 +154,13 @@ declare module '@tanstack/react-router' {
       path: '/stock-history'
       fullPath: '/stock-history'
       preLoaderRoute: typeof StockHistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sign-up': {
+      id: '/sign-up'
+      path: '/sign-up'
+      fullPath: '/sign-up'
+      preLoaderRoute: typeof SignUpRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings': {
@@ -202,6 +222,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProductsRoute: ProductsRoute,
   ReviewRoute: ReviewRoute,
   SettingsRoute: SettingsRoute,
+  SignUpRoute: SignUpRoute,
   StockHistoryRoute: StockHistoryRoute,
   ApiSplatRoute: ApiSplatRoute,
 }
