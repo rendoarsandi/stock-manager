@@ -2,17 +2,8 @@ import { createFileRoute } from '@tanstack/react-router';
 import { app } from '../../../src/app.js';
 
 const serve = async ({ request }) => {
-  let env = undefined;
-  let ctx = undefined;
-  try {
-    const { getEvent } = await import(/* @vite-ignore */ 'vinxi/http');
-    const event = getEvent();
-    const cloudflare = event?.context?.cloudflare || event?.nativeEvent?.context?.cloudflare || {};
-    env = cloudflare.env;
-    ctx = cloudflare;
-  } catch (e) {
-    console.error("Failed to retrieve Cloudflare context in API route:", e);
-  }
+  const env = globalThis.MINIMAL_CLOUDFLARE_ENV;
+  const ctx = globalThis.MINIMAL_CLOUDFLARE_CTX;
   return app.fetch(request, env, ctx);
 };
 

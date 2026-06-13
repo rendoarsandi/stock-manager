@@ -89,15 +89,8 @@ export const Route = createRootRoute({
   beforeLoad: async () => {
     let publishableKey = undefined;
     if (typeof window === 'undefined') {
-      try {
-        const { getEvent } = await import(/* @vite-ignore */ 'vinxi/http');
-        const event = getEvent();
-        const cloudflare = event?.context?.cloudflare || event?.nativeEvent?.context?.cloudflare || {};
-        const env = cloudflare.env || process.env;
-        publishableKey = env?.CLERK_PUBLISHABLE_KEY || env?.VITE_CLERK_PUBLISHABLE_KEY;
-      } catch (e) {
-        console.error("Failed to get CLERK_PUBLISHABLE_KEY in beforeLoad:", e);
-      }
+      const env = globalThis.MINIMAL_CLOUDFLARE_ENV || process.env;
+      publishableKey = env?.CLERK_PUBLISHABLE_KEY || env?.VITE_CLERK_PUBLISHABLE_KEY;
     } else {
       publishableKey = window.__CLERK_PUBLISHABLE_KEY || import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
     }

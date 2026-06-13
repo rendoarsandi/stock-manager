@@ -38,6 +38,8 @@ export default {
     
     // 3. Run TanStack Start SSR handler for API and Page requests
     try {
+      globalThis.MINIMAL_CLOUDFLARE_ENV = env;
+      globalThis.MINIMAL_CLOUDFLARE_CTX = ctx;
       return await server_default.fetch(request, env, ctx);
     } catch (err) {
       console.error("SSR Handler failed:", err);
