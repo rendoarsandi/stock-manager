@@ -1,10 +1,10 @@
-import { auth as clerkAuth } from '@clerk/tanstack-react-start/server';
+import { createClerkClient } from '@clerk/backend';
 import crypto from 'crypto';
 import { db } from '../db/connection.js';
 import { verifyPassword, hashPassword } from '../utils/crypto.js';
 import { parseExcel } from '../services/excel-parser.js';
 import { parseAmbiguousDescription, extractSameProductPromo, extractPackMultiplier, resolvePromoProductToBaseItems } from '../services/ambiguous-parser.js';
-import { getActiveStorage } from '../db/context.js';
+import { getActiveStorage, getActiveEnv } from '../db/context.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret_key';
 
@@ -64,6 +64,34 @@ export async function readJson(request) {
   }
 }
 
+let clerkClientInstance = null;
+function getClerkClient() {
+  if (clerkClientInstance) return clerkClientInstance;
+
+  const env = getActiveEnv();
+  let publishableKey = process.env.CLERK_PUBLISHABLE_KEY || process.env.VITE_CLERK_PUBLISHABLE_KEY;
+  if (!publishableKey && env) {
+    publishableKey = env.CLERK_PUBLISHABLE_KEY || env.VITE_CLERK_PUBLISHABLE_KEY;
+  }
+  if (!publishableKey) {
+    publishableKey = 'pk_test_ZmFzdC1oZXJyaW5nLTE5LmNsZXJrLmFjY291bnRzLmRldiQ';
+  }
+
+  let secretKey = process.env.CLERK_SECRET_KEY;
+  if (!secretKey && env) {
+    secretKey = env.CLERK_SECRET_KEY;
+  }
+  if (!secretKey) {
+    secretKey = 'sk_test_' + 'abcde12345'.repeat(8);
+  }
+
+  clerkClientInstance = createClerkClient({
+    publishableKey,
+    secretKey
+  });
+  return clerkClientInstance;
+}
+
 // Authentication check
 async function getAuthUser(request) {
   if (process.env.NODE_ENV === 'test') {
@@ -73,7 +101,13 @@ async function getAuthUser(request) {
   }
 
   try {
-    const authData = await clerkAuth();
+    const clerk = getClerkClient();
+    const requestState = await clerk.authenticateRequest(request);
+    if (requestState.status === 'unknown' || requestState.status === 'signed-out') {
+      return null;
+    }
+
+    const authData = requestState.toAuth();
     if (!authData || !authData.userId) return null;
 
     const id = authData.userId;
@@ -87,7 +121,7 @@ async function getAuthUser(request) {
 
     return { id, username, role };
   } catch (e) {
-    // Suppress logs for missing dev/production context errors outside Vinxi request thread
+    console.error("Clerk auth failed with error:", e);
     return null;
   }
 }
