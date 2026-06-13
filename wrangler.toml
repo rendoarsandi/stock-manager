@@ -14,3 +14,10 @@ new_sqlite_classes = ["StockRoom"]
 [assets]
 binding = "ASSETS"
 directory = "./src/public"
+
+[observability]
+enabled = true
+
+[observability.logs]
+enabled = true
+invocation_logs = true
