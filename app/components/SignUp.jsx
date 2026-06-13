@@ -1,11 +1,11 @@
 import React from 'react';
-import { SignIn } from '@clerk/tanstack-react-start';
+import { SignUp } from '@clerk/tanstack-react-start';
 
-export default function Login() {
+export default function SignUpPage() {
   return (
     <div className="login-layout">
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', width: '100%' }}>
-        <SignIn signUpUrl="/sign-up" />
+        <SignUp signInUrl="/" />
       </div>
     </div>
   );

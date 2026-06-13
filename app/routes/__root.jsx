@@ -44,9 +44,13 @@ const queryClient = new QueryClient({
   },
 });
 
+import SignUpPage from '../components/SignUp';
+
 function RootComponent() {
   const { currentUser, loading } = useAuth();
   const { clerkPublishableKey } = Route.useRouteContext();
+  const routerState = Route.useRouterState();
+  const isSignUpPage = routerState.location.pathname === '/sign-up';
 
   let bodyContent;
   if (loading) {
@@ -56,7 +60,7 @@ function RootComponent() {
       </div>
     );
   } else if (!currentUser) {
-    bodyContent = <Login />;
+    bodyContent = isSignUpPage ? <SignUpPage /> : <Login />;
   } else {
     bodyContent = (
       <Layout>
