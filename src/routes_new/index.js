@@ -138,12 +138,26 @@ async function getAuthUser(request) {
             counter++;
           }
 
-          const result = await storage.execute(
-            "INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, datetime('now', 'localtime'))",
-            [finalUsername, authData.userId, role]
-          );
-          localId = result.lastInsertRowid;
-          localUsername = finalUsername;
+          try {
+            const result = await storage.execute(
+              "INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, datetime('now', 'localtime'))",
+              [finalUsername, authData.userId, role]
+            );
+            localId = result.lastInsertRowid;
+            localUsername = finalUsername;
+          } catch (insertErr) {
+            if (insertErr.message && insertErr.message.includes('UNIQUE constraint')) {
+              let existingUser = await storage.query("SELECT id, username FROM users WHERE password_hash = ?", [authData.userId]);
+              if (existingUser && existingUser.length > 0) {
+                localId = existingUser[0].id;
+                localUsername = existingUser[0].username;
+              } else {
+                throw insertErr;
+              }
+            } else {
+              throw insertErr;
+            }
+          }
         }
       } else {
         localId = existing[0].id;
@@ -268,10 +282,18 @@ async function handleListUsers(req) {
               }
 
               const role = cu.publicMetadata?.role || cu.metadata?.role || 'staff';
-              await storage.execute(
-                "INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, datetime('now', 'localtime'))",
-                [finalUsername, cu.id, role]
-              );
+              try {
+                await storage.execute(
+                  "INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, datetime('now', 'localtime'))",
+                  [finalUsername, cu.id, role]
+                );
+              } catch (insertErr) {
+                if (insertErr.message && insertErr.message.includes('UNIQUE constraint')) {
+                  console.log(`User ${finalUsername} already concurrently registered, skipping.`);
+                } else {
+                  throw insertErr;
+                }
+              }
             }
           }
         }
