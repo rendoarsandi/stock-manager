@@ -147,12 +147,14 @@ async function getAuthUser(request) {
     const role = authData.sessionClaims?.metadata?.role || authData.sessionClaims?.publicMetadata?.role || 'staff';
 
     let localId = null;
+    let localUsername = username;
     let needsRegistration = false;
     try {
       const storage = getActiveStorage();
-      const existing = await storage.query("SELECT id FROM users WHERE username = ?", [username]);
+      const existing = await storage.query("SELECT id, username FROM users WHERE password_hash = ? OR username = ?", [authData.userId, username]);
       if (existing && existing.length > 0) {
         localId = existing[0].id;
+        localUsername = existing[0].username;
         await storage.execute("UPDATE users SET role = ? WHERE id = ?", [role, localId]);
       } else {
         needsRegistration = true;
@@ -163,10 +165,10 @@ async function getAuthUser(request) {
     }
 
     if (needsRegistration) {
-      return { id: null, username, role, needsRegistration: true };
+      return { id: null, username: localUsername, role, needsRegistration: true, clerkId: authData.userId };
     }
 
-    return { id: localId, username, role };
+    return { id: localId, username: localUsername, role };
   } catch (e) {
     console.error("Clerk auth failed with error:", e);
     return null;
@@ -255,8 +257,7 @@ async function handleRegister(req) {
     }
 
     const body = await readJson(req).catch(() => ({}));
-    const username = body.username?.trim() || user.username;
-    const role = 'staff'; // default role for self-registration
+    const username = body.username?.trim();
 
     if (!username) {
       return json({ message: 'Username is required' }, 400);
@@ -268,9 +269,12 @@ async function handleRegister(req) {
       return json({ message: 'Username is already taken' }, 400);
     }
 
+    const clerkId = user.clerkId || user.username || 'clerk_external';
+    const role = user.role || 'staff';
+
     const result = await storage.execute(
       "INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, datetime('now', 'localtime'))",
-      [username, 'clerk_external', role]
+      [username, clerkId, role]
     );
 
     return json({ success: true, id: result.lastInsertRowid, username, role }, 201);

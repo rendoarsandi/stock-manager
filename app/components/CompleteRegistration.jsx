@@ -36,11 +36,9 @@ export default function CompleteRegistration() {
     <div className="login-layout">
       <div className="login-card" style={{ maxWidth: '450px' }}>
         <div className="login-header">
-          <span className="login-logo" role="img" aria-label="party popper" style={{ fontSize: '3rem', display: 'block', marginBottom: '1rem' }}>🎉</span>
-          <h2 style={{ color: 'var(--success)', marginBottom: '0.5rem' }}>Account Created!</h2>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.4' }}>
-            Your authentication details are verified.
-            To complete your registration for <strong>StockManager</strong>, please choose a workspace username.
+          <h2>Complete Registration</h2>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.4', marginTop: '0.5rem' }}>
+            To finish setting up your account for <strong>StockManager</strong>, please choose a workspace username.
           </p>
         </div>
 
@@ -48,7 +46,7 @@ export default function CompleteRegistration() {
           {error && <div className="login-error-message">{error}</div>}
           {success && (
             <div style={{ backgroundColor: 'var(--success-light)', color: 'var(--success)', padding: '0.75rem 1rem', borderRadius: 'var(--border-radius-md)', fontSize: '0.85rem', fontWeight: 500, border: '1px solid rgba(16, 185, 129, 0.2)' }}>
-              Registration successful! Redirecting to dashboard...
+              Registration complete. Loading workspace...
             </div>
           )}
 
