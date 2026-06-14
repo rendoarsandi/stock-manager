@@ -323,8 +323,14 @@ export const db = {
       if (updates.model !== undefined) setValues.model = updates.model;
       if (updates.master_sku !== undefined) setValues.master_sku = updates.master_sku;
       if (updates.description !== undefined) setValues.description = updates.description;
-      if (updates.current_stock !== undefined) setValues.current_stock = parseInt(updates.current_stock, 10);
-      if (updates.low_stock_threshold !== undefined) setValues.low_stock_threshold = parseInt(updates.low_stock_threshold, 10);
+      if (updates.current_stock !== undefined) {
+        const parsed = parseInt(updates.current_stock, 10);
+        setValues.current_stock = isNaN(parsed) ? 0 : parsed;
+      }
+      if (updates.low_stock_threshold !== undefined) {
+        const parsed = parseInt(updates.low_stock_threshold, 10);
+        setValues.low_stock_threshold = isNaN(parsed) ? 10 : parsed;
+      }
 
       const rows = await db.update(products)
         .set({
@@ -342,11 +348,11 @@ export const db = {
     async delete(id) {
       const db = getActiveDb();
       await db.transaction(async (tx) => {
-        // Clean up child tables to prevent foreign key violations or data inconsistency
         await tx.delete(orderItems).where(eq(orderItems.product_id, parseInt(id, 10)));
         await tx.delete(stockMovements).where(eq(stockMovements.product_id, parseInt(id, 10)));
         await tx.delete(productAliases).where(eq(productAliases.product_id, parseInt(id, 10)));
         await tx.delete(stockOpnameItems).where(eq(stockOpnameItems.product_id, parseInt(id, 10)));
+        await tx.delete(skuMappings).where(eq(skuMappings.product_id, parseInt(id, 10)));
         await tx.delete(products).where(eq(products.id, parseInt(id, 10)));
       });
       broadcast({ type: 'PRODUCT_DELETED', payload: { id } });
@@ -522,7 +528,10 @@ export const db = {
       if (updates.customer_name !== undefined) setValues.customer_name = updates.customer_name;
       if (updates.expedition !== undefined) setValues.expedition = updates.expedition;
       if (updates.order_date !== undefined) setValues.order_date = updates.order_date;
-      if (updates.price !== undefined) setValues.price = parseFloat(updates.price);
+      if (updates.price !== undefined) {
+        const parsed = parseFloat(updates.price);
+        setValues.price = isNaN(parsed) ? 0 : parsed;
+      }
       if (updates.system_status !== undefined) setValues.system_status = updates.system_status;
       if (updates.resolution !== undefined) setValues.resolution = updates.resolution;
       if (updates.resolution_notes !== undefined) setValues.resolution_notes = updates.resolution_notes;

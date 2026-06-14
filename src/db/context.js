@@ -26,8 +26,8 @@ export function getActiveDb() {
     store.drizzle = drizzle(async (sql, params, method) => {
       try {
         if (method === 'run') {
-          await store.storage.execute(sql, params);
-          return { rows: [] };
+          const result = await store.storage.execute(sql, params);
+          return { rows: [], lastInsertRowid: result?.lastInsertRowid };
         } else {
           const rows = await store.storage.queryValues(sql, params);
           if (method === 'get') {

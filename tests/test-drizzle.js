@@ -1,6 +1,6 @@
 import { initDatabase, seedIfNeeded } from '../src/db/connection.js';
 import { storageContext, getActiveDb } from '../src/db/context.js';
-import { getLocalStore } from '../src/db/local_kv.js';
+import { getLocalStore } from '../src/db/local_sqlite.js';
 import { users, products } from '../src/db/schema.js';
 import { eq } from 'drizzle-orm';
 

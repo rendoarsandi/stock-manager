@@ -74,7 +74,8 @@ export const orders = sqliteTable('orders', {
   created_at: text('created_at').default(sql`(datetime('now', 'localtime'))`),
 }, (t) => {
   return [
-    index('orders_import_session_id_idx').on(t.import_session_id)
+    index('orders_import_session_id_idx').on(t.import_session_id),
+    index('orders_order_id_idx').on(t.order_id)
   ];
 });
 
