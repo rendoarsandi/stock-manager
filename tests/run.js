@@ -19,6 +19,7 @@ const tests = [
   'test-api.js',
   'test-registration.js',
   'test-tanstack-start-entry.js',
+  'test-cloudflare-drizzle.js',
   'test-products.js',
   'test-services.js',
   'test-fuzzy-matching.js',

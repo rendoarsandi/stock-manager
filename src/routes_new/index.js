@@ -1495,6 +1495,7 @@ export function withAuthOrRole(handler, options = {}) {
         type: 'cloudflare',
         storage: {
           async query(sql, params) { return await stub.query(sql, params); },
+          async queryValues(sql, params) { return await stub.queryValues(sql, params); },
           async execute(sql, params) { return await stub.execute(sql, params); },
           async executeTransaction(queries) { return await stub.executeTransaction(queries); }
         },
