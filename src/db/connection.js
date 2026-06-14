@@ -1,4 +1,18 @@
-import { getActiveStorage } from './context.js';
+import { getActiveStorage, getActiveDb } from './context.js';
+import { eq, and, sql } from 'drizzle-orm';
+import {
+  users,
+  products,
+  productAliases,
+  importTemplates,
+  importSessions,
+  orders,
+  orderItems,
+  stockMovements,
+  stockOpnames,
+  stockOpnameItems,
+  skuMappings
+} from './schema.js';
 import { hashPassword } from '../utils/crypto.js';
 import { broadcast } from '../ws/broker.js';
 import productsSeed from './products_seed.json' with { type: 'json' };
@@ -167,127 +181,174 @@ export async function initDatabase() {
 export const db = {
   aliases: {
     async get(cleanText) {
-      const storage = getActiveStorage();
-      const rows = await storage.query("SELECT product_id FROM product_aliases WHERE clean_text = ?", [cleanText.toLowerCase()]);
-      return rows[0] ? rows[0].product_id : undefined;
+      const db = getActiveDb();
+      const rows = await db.select({ productId: productAliases.product_id })
+        .from(productAliases)
+        .where(eq(productAliases.clean_text, cleanText.toLowerCase()));
+      return rows[0] ? rows[0].productId : undefined;
     },
     async set(cleanText, productId) {
-      const storage = getActiveStorage();
-      await storage.execute(
-        "INSERT OR REPLACE INTO product_aliases (clean_text, product_id) VALUES (?, ?)",
-        [cleanText.toLowerCase(), parseInt(productId, 10)]
-      );
+      const db = getActiveDb();
+      await db.insert(productAliases)
+        .values({
+          clean_text: cleanText.toLowerCase(),
+          product_id: parseInt(productId, 10)
+        })
+        .onConflictDoUpdate({
+          target: productAliases.clean_text,
+          set: { product_id: parseInt(productId, 10) }
+        });
     }
   },
 
   skuMappings: {
     async list() {
-      const storage = getActiveStorage();
-      return await storage.query(
-        "SELECT sm.*, p.name as product_name, p.model as product_model FROM sku_mappings sm JOIN products p ON sm.product_id = p.id"
-      );
+      const db = getActiveDb();
+      return await db.select({
+        sku_code: skuMappings.sku_code,
+        product_id: skuMappings.product_id,
+        quantity: skuMappings.quantity,
+        product_name: products.name,
+        product_model: products.model
+      })
+      .from(skuMappings)
+      .innerJoin(products, eq(skuMappings.product_id, products.id));
     },
     async getBySku(skuCode) {
-      const storage = getActiveStorage();
-      return await storage.query(
-        "SELECT sm.*, p.name as product_name, p.model as product_model FROM sku_mappings sm JOIN products p ON sm.product_id = p.id WHERE LOWER(sm.sku_code) = LOWER(?)",
-        [skuCode]
-      );
+      const db = getActiveDb();
+      return await db.select({
+        sku_code: skuMappings.sku_code,
+        product_id: skuMappings.product_id,
+        quantity: skuMappings.quantity,
+        product_name: products.name,
+        product_model: products.model
+      })
+      .from(skuMappings)
+      .innerJoin(products, eq(skuMappings.product_id, products.id))
+      .where(eq(sql`lower(${skuMappings.sku_code})`, skuCode.toLowerCase()));
     },
     async insert(mapping) {
-      const storage = getActiveStorage();
-      await storage.execute(
-        "INSERT OR REPLACE INTO sku_mappings (sku_code, product_id, quantity) VALUES (?, ?, ?)",
-        [mapping.sku_code.toLowerCase(), parseInt(mapping.product_id, 10), parseInt(mapping.quantity, 10)]
-      );
+      const db = getActiveDb();
+      await db.insert(skuMappings)
+        .values({
+          sku_code: mapping.sku_code.toLowerCase(),
+          product_id: parseInt(mapping.product_id, 10),
+          quantity: parseInt(mapping.quantity, 10)
+        })
+        .onConflictDoUpdate({
+          target: [skuMappings.sku_code, skuMappings.product_id],
+          set: { quantity: parseInt(mapping.quantity, 10) }
+        });
       return true;
     },
     async delete(skuCode, productId) {
-      const storage = getActiveStorage();
-      await storage.execute(
-        "DELETE FROM sku_mappings WHERE LOWER(sku_code) = LOWER(?) AND product_id = ?",
-        [skuCode, parseInt(productId, 10)]
-      );
+      const db = getActiveDb();
+      await db.delete(skuMappings)
+        .where(
+          and(
+            eq(sql`lower(${skuMappings.sku_code})`, skuCode.toLowerCase()),
+            eq(skuMappings.product_id, parseInt(productId, 10))
+          )
+        );
       return true;
     }
   },
 
   users: {
     async list() {
-      const storage = getActiveStorage();
-      return await storage.query("SELECT * FROM users");
+      const db = getActiveDb();
+      return await db.select().from(users);
     },
     async get(id) {
-      const storage = getActiveStorage();
-      const rows = await storage.query("SELECT * FROM users WHERE id = ?", [id]);
+      const db = getActiveDb();
+      const rows = await db.select().from(users).where(eq(users.id, parseInt(id, 10)));
       return rows[0] || null;
     },
     async getByUsername(username) {
-      const storage = getActiveStorage();
-      const rows = await storage.query("SELECT * FROM users WHERE username = ?", [username]);
+      const db = getActiveDb();
+      const rows = await db.select().from(users).where(eq(users.username, username));
       return rows[0] || null;
     },
     async insert(user) {
-      const storage = getActiveStorage();
-      const result = await storage.execute(
-        "INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, datetime('now', 'localtime'))",
-        [user.username, user.password_hash, user.role]
-      );
-      return await this.get(result.lastInsertRowid);
+      const db = getActiveDb();
+      const rows = await db.insert(users).values({
+        username: user.username,
+        password_hash: user.password_hash,
+        role: user.role
+      }).returning();
+      return rows[0] || null;
     },
     async delete(id) {
-      const storage = getActiveStorage();
-      await storage.execute("DELETE FROM users WHERE id = ?", [id]);
+      const db = getActiveDb();
+      await db.delete(users).where(eq(users.id, parseInt(id, 10)));
       return true;
     }
   },
 
   products: {
     async list() {
-      const storage = getActiveStorage();
-      return await storage.query("SELECT * FROM products");
+      const db = getActiveDb();
+      return await db.select().from(products);
     },
     async get(id) {
-      const storage = getActiveStorage();
-      const rows = await storage.query("SELECT * FROM products WHERE id = ?", [id]);
+      const db = getActiveDb();
+      const rows = await db.select().from(products).where(eq(products.id, parseInt(id, 10)));
       return rows[0] || null;
     },
     async getByName(name) {
-      const storage = getActiveStorage();
-      const rows = await storage.query("SELECT * FROM products WHERE LOWER(name) = LOWER(?)", [name]);
+      const db = getActiveDb();
+      const rows = await db.select().from(products).where(eq(sql`lower(${products.name})`, name.toLowerCase()));
       return rows[0] || null;
     },
     async insert(product) {
-      const storage = getActiveStorage();
-      const result = await storage.execute(
-        "INSERT INTO products (name, model, master_sku, description, current_stock, low_stock_threshold, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now', 'localtime'), datetime('now', 'localtime'))",
-        [product.name, product.model, product.master_sku || null, product.description || null, product.current_stock || 0, product.low_stock_threshold || 10]
-      );
-      const newProduct = await this.get(result.lastInsertRowid);
-      broadcast({ type: 'PRODUCT_CREATED', payload: newProduct });
+      const db = getActiveDb();
+      const rows = await db.insert(products).values({
+        name: product.name,
+        model: product.model,
+        master_sku: product.master_sku || null,
+        description: product.description || null,
+        current_stock: product.current_stock || 0,
+        low_stock_threshold: product.low_stock_threshold || 10
+      }).returning();
+      const newProduct = rows[0] || null;
+      if (newProduct) {
+        broadcast({ type: 'PRODUCT_CREATED', payload: newProduct });
+      }
       return newProduct;
     },
     async update(id, updates) {
-      const storage = getActiveStorage();
-      const existing = await this.get(id);
-      if (!existing) return null;
-      
-      const merged = { ...existing, ...updates };
-      await storage.execute(
-        "UPDATE products SET name = ?, model = ?, master_sku = ?, description = ?, current_stock = ?, low_stock_threshold = ?, updated_at = datetime('now', 'localtime') WHERE id = ?",
-        [merged.name, merged.model, merged.master_sku, merged.description, merged.current_stock, merged.low_stock_threshold, id]
-      );
-      const updated = await this.get(id);
-      broadcast({ type: 'PRODUCT_UPDATED', payload: updated });
+      const db = getActiveDb();
+      const setValues = {};
+      if (updates.name !== undefined) setValues.name = updates.name;
+      if (updates.model !== undefined) setValues.model = updates.model;
+      if (updates.master_sku !== undefined) setValues.master_sku = updates.master_sku;
+      if (updates.description !== undefined) setValues.description = updates.description;
+      if (updates.current_stock !== undefined) setValues.current_stock = parseInt(updates.current_stock, 10);
+      if (updates.low_stock_threshold !== undefined) setValues.low_stock_threshold = parseInt(updates.low_stock_threshold, 10);
+
+      const rows = await db.update(products)
+        .set({
+          ...setValues,
+          updated_at: sql`datetime('now', 'localtime')`
+        })
+        .where(eq(products.id, parseInt(id, 10)))
+        .returning();
+      const updated = rows[0] || null;
+      if (updated) {
+        broadcast({ type: 'PRODUCT_UPDATED', payload: updated });
+      }
       return updated;
     },
     async delete(id) {
-      const storage = getActiveStorage();
-      // Clean up child tables to prevent foreign key violations or data inconsistency
-      await storage.execute("DELETE FROM order_items WHERE product_id = ?", [id]);
-      await storage.execute("DELETE FROM stock_movements WHERE product_id = ?", [id]);
-      await storage.execute("DELETE FROM product_aliases WHERE product_id = ?", [id]);
-      await storage.execute("DELETE FROM products WHERE id = ?", [id]);
+      const db = getActiveDb();
+      await db.transaction(async (tx) => {
+        // Clean up child tables to prevent foreign key violations or data inconsistency
+        await tx.delete(orderItems).where(eq(orderItems.product_id, parseInt(id, 10)));
+        await tx.delete(stockMovements).where(eq(stockMovements.product_id, parseInt(id, 10)));
+        await tx.delete(productAliases).where(eq(productAliases.product_id, parseInt(id, 10)));
+        await tx.delete(stockOpnameItems).where(eq(stockOpnameItems.product_id, parseInt(id, 10)));
+        await tx.delete(products).where(eq(products.id, parseInt(id, 10)));
+      });
       broadcast({ type: 'PRODUCT_DELETED', payload: { id } });
       return true;
     }
@@ -295,286 +356,280 @@ export const db = {
 
   movements: {
     async list() {
-      const storage = getActiveStorage();
-      return await storage.query("SELECT * FROM stock_movements");
+      const db = getActiveDb();
+      return await db.select().from(stockMovements);
     },
     async get(id) {
-      const storage = getActiveStorage();
-      const rows = await storage.query("SELECT * FROM stock_movements WHERE id = ?", [id]);
+      const db = getActiveDb();
+      const rows = await db.select().from(stockMovements).where(eq(stockMovements.id, parseInt(id, 10)));
       return rows[0] || null;
     },
     async insert(movement) {
-      const storage = getActiveStorage();
-      const result = await storage.execute(
-        "INSERT INTO stock_movements (product_id, quantity_change, movement_type, reference, user_id, created_at) VALUES (?, ?, ?, ?, ?, datetime('now', 'localtime'))",
-        [parseInt(movement.product_id, 10), parseInt(movement.quantity_change, 10), movement.movement_type, movement.reference || null, movement.user_id ? parseInt(movement.user_id, 10) : null]
-      );
-      const newMovement = await this.get(result.lastInsertRowid);
-      broadcast({ type: 'MOVEMENT_CREATED', payload: newMovement });
+      const db = getActiveDb();
+      const rows = await db.insert(stockMovements).values({
+        product_id: parseInt(movement.product_id, 10),
+        quantity_change: parseInt(movement.quantity_change, 10),
+        movement_type: movement.movement_type,
+        reference: movement.reference || null,
+        user_id: movement.user_id ? parseInt(movement.user_id, 10) : null
+      }).returning();
+      const newMovement = rows[0] || null;
+      if (newMovement) {
+        broadcast({ type: 'MOVEMENT_CREATED', payload: newMovement });
+      }
       return newMovement;
     }
   },
 
   templates: {
     async list() {
-      const storage = getActiveStorage();
-      return await storage.query("SELECT * FROM import_templates");
+      const db = getActiveDb();
+      return await db.select().from(importTemplates);
     },
     async get(id) {
-      const storage = getActiveStorage();
-      const rows = await storage.query("SELECT * FROM import_templates WHERE id = ?", [id]);
+      const db = getActiveDb();
+      const rows = await db.select().from(importTemplates).where(eq(importTemplates.id, parseInt(id, 10)));
       return rows[0] || null;
     },
     async getByName(name) {
-      const storage = getActiveStorage();
-      const rows = await storage.query("SELECT * FROM import_templates WHERE LOWER(name) = LOWER(?)", [name]);
+      const db = getActiveDb();
+      const rows = await db.select().from(importTemplates).where(eq(sql`lower(${importTemplates.name})`, name.toLowerCase()));
       return rows[0] || null;
     },
     async insert(template) {
-      const storage = getActiveStorage();
-      const result = await storage.execute(
-        "INSERT INTO import_templates (name, column_mapping, created_at) VALUES (?, ?, datetime('now', 'localtime'))",
-        [template.name, template.column_mapping]
-      );
-      return await this.get(result.lastInsertRowid);
+      const db = getActiveDb();
+      const rows = await db.insert(importTemplates).values({
+        name: template.name,
+        column_mapping: template.column_mapping
+      }).returning();
+      return rows[0] || null;
     },
     async update(id, updates) {
-      const storage = getActiveStorage();
-      const existing = await this.get(id);
-      if (!existing) return null;
-      const merged = { ...existing, ...updates };
-      await storage.execute(
-        "UPDATE import_templates SET name = ?, column_mapping = ? WHERE id = ?",
-        [merged.name, merged.column_mapping, id]
-      );
-      return await this.get(id);
+      const db = getActiveDb();
+      const setValues = {};
+      if (updates.name !== undefined) setValues.name = updates.name;
+      if (updates.column_mapping !== undefined) setValues.column_mapping = updates.column_mapping;
+
+      const rows = await db.update(importTemplates)
+        .set(setValues)
+        .where(eq(importTemplates.id, parseInt(id, 10)))
+        .returning();
+      return rows[0] || null;
     },
     async delete(id) {
-      const storage = getActiveStorage();
-      await storage.execute("DELETE FROM import_templates WHERE id = ?", [id]);
+      const db = getActiveDb();
+      await db.delete(importTemplates).where(eq(importTemplates.id, parseInt(id, 10)));
       return true;
     }
   },
 
   sessions: {
     async list() {
-      const storage = getActiveStorage();
-      return await storage.query("SELECT * FROM import_sessions");
+      const db = getActiveDb();
+      return await db.select().from(importSessions);
     },
     async get(id) {
-      const storage = getActiveStorage();
-      const rows = await storage.query("SELECT * FROM import_sessions WHERE id = ?", [id]);
+      const db = getActiveDb();
+      const rows = await db.select().from(importSessions).where(eq(importSessions.id, parseInt(id, 10)));
       return rows[0] || null;
     },
     async insert(session) {
-      const storage = getActiveStorage();
-      const result = await storage.execute(
-        "INSERT INTO import_sessions (template_id, user_id, filename, status, total_rows, applied_rows, flagged_rows, orders_data, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))",
-        [
-          session.template_id ? parseInt(session.template_id, 10) : null,
-          session.user_id ? parseInt(session.user_id, 10) : null,
-          session.filename,
-          session.status || 'pending',
-          parseInt(session.total_rows, 10) || 0,
-          parseInt(session.applied_rows, 10) || 0,
-          parseInt(session.flagged_rows, 10) || 0,
-          session.orders_data || null
-        ]
-      );
-      return await this.get(result.lastInsertRowid);
+      const db = getActiveDb();
+      const rows = await db.insert(importSessions).values({
+        template_id: session.template_id ? parseInt(session.template_id, 10) : null,
+        user_id: session.user_id ? parseInt(session.user_id, 10) : null,
+        filename: session.filename,
+        status: session.status || 'pending',
+        total_rows: parseInt(session.total_rows, 10) || 0,
+        applied_rows: parseInt(session.applied_rows, 10) || 0,
+        flagged_rows: parseInt(session.flagged_rows, 10) || 0,
+        orders_data: session.orders_data || null
+      }).returning();
+      return rows[0] || null;
     },
     async update(id, updates) {
-      const storage = getActiveStorage();
-      const existing = await this.get(id);
-      if (!existing) return null;
-      const merged = { ...existing, ...updates };
-      await storage.execute(
-        "UPDATE import_sessions SET template_id = ?, user_id = ?, filename = ?, status = ?, total_rows = ?, applied_rows = ?, flagged_rows = ?, orders_data = ? WHERE id = ?",
-        [
-          merged.template_id ? parseInt(merged.template_id, 10) : null,
-          merged.user_id ? parseInt(merged.user_id, 10) : null,
-          merged.filename,
-          merged.status,
-          parseInt(merged.total_rows, 10) || 0,
-          parseInt(merged.applied_rows, 10) || 0,
-          parseInt(merged.flagged_rows, 10) || 0,
-          merged.orders_data || null,
-          id
-        ]
-      );
-      const updated = await this.get(id);
-      broadcast({ type: 'SESSION_UPDATED', payload: updated });
+      const db = getActiveDb();
+      const setValues = {};
+      if (updates.template_id !== undefined) setValues.template_id = updates.template_id ? parseInt(updates.template_id, 10) : null;
+      if (updates.user_id !== undefined) setValues.user_id = updates.user_id ? parseInt(updates.user_id, 10) : null;
+      if (updates.filename !== undefined) setValues.filename = updates.filename;
+      if (updates.status !== undefined) setValues.status = updates.status;
+      if (updates.total_rows !== undefined) setValues.total_rows = parseInt(updates.total_rows, 10);
+      if (updates.applied_rows !== undefined) setValues.applied_rows = parseInt(updates.applied_rows, 10);
+      if (updates.flagged_rows !== undefined) setValues.flagged_rows = parseInt(updates.flagged_rows, 10);
+      if (updates.orders_data !== undefined) setValues.orders_data = updates.orders_data;
+
+      const rows = await db.update(importSessions)
+        .set(setValues)
+        .where(eq(importSessions.id, parseInt(id, 10)))
+        .returning();
+      const updated = rows[0] || null;
+      if (updated) {
+        broadcast({ type: 'SESSION_UPDATED', payload: updated });
+      }
       return updated;
     }
   },
 
   orders: {
     async list() {
-      const storage = getActiveStorage();
-      return await storage.query("SELECT * FROM orders");
+      const db = getActiveDb();
+      return await db.select().from(orders);
     },
     async get(id) {
-      const storage = getActiveStorage();
-      const rows = await storage.query("SELECT * FROM orders WHERE id = ?", [id]);
+      const db = getActiveDb();
+      const rows = await db.select().from(orders).where(eq(orders.id, parseInt(id, 10)));
       return rows[0] || null;
     },
     async getByOrderId(orderId) {
-      const storage = getActiveStorage();
-      const rows = await storage.query("SELECT * FROM orders WHERE order_id = ?", [orderId]);
+      const db = getActiveDb();
+      const rows = await db.select().from(orders).where(eq(orders.order_id, orderId));
       return rows[0] || null;
     },
     async insert(order) {
-      const storage = getActiveStorage();
-      const result = await storage.execute(
-        "INSERT INTO orders (import_session_id, order_id, resi_number, product_name_raw, quantity, order_status, customer_name, expedition, order_date, price, system_status, resolution, resolution_notes, resolved_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))",
-        [
-          parseInt(order.import_session_id, 10),
-          order.order_id,
-          order.resi_number || null,
-          order.product_name_raw,
-          parseInt(order.quantity, 10),
-          order.order_status,
-          order.customer_name || null,
-          order.expedition || null,
-          order.order_date || null,
-          parseFloat(order.price) || 0,
-          order.system_status || 'normal',
-          order.resolution || null,
-          order.resolution_notes || null,
-          order.resolved_at || null
-        ]
-      );
-      const newOrder = await this.get(result.lastInsertRowid);
-      broadcast({ type: 'ORDER_CREATED', payload: newOrder });
+      const db = getActiveDb();
+      const rows = await db.insert(orders).values({
+        import_session_id: parseInt(order.import_session_id, 10),
+        order_id: order.order_id,
+        resi_number: order.resi_number || null,
+        product_name_raw: order.product_name_raw,
+        quantity: parseInt(order.quantity, 10),
+        order_status: order.order_status,
+        customer_name: order.customer_name || null,
+        expedition: order.expedition || null,
+        order_date: order.order_date || null,
+        price: parseFloat(order.price) || 0,
+        system_status: order.system_status || 'normal',
+        resolution: order.resolution || null,
+        resolution_notes: order.resolution_notes || null,
+        resolved_at: order.resolved_at || null
+      }).returning();
+      const newOrder = rows[0] || null;
+      if (newOrder) {
+        broadcast({ type: 'ORDER_CREATED', payload: newOrder });
+      }
       return newOrder;
     },
     async update(id, updates) {
-      const storage = getActiveStorage();
-      const existing = await this.get(id);
-      if (!existing) return null;
-      const merged = { ...existing, ...updates };
-      await storage.execute(
-        "UPDATE orders SET import_session_id = ?, order_id = ?, resi_number = ?, product_name_raw = ?, quantity = ?, order_status = ?, customer_name = ?, expedition = ?, order_date = ?, price = ?, system_status = ?, resolution = ?, resolution_notes = ?, resolved_at = ? WHERE id = ?",
-        [
-          parseInt(merged.import_session_id, 10),
-          merged.order_id,
-          merged.resi_number || null,
-          merged.product_name_raw,
-          parseInt(merged.quantity, 10),
-          merged.order_status,
-          merged.customer_name || null,
-          merged.expedition || null,
-          merged.order_date || null,
-          parseFloat(merged.price) || 0,
-          merged.system_status,
-          merged.resolution || null,
-          merged.resolution_notes || null,
-          merged.resolved_at || null,
-          id
-        ]
-      );
-      const updated = await this.get(id);
-      broadcast({ type: 'ORDER_UPDATED', payload: updated });
+      const db = getActiveDb();
+      const setValues = {};
+      if (updates.import_session_id !== undefined) setValues.import_session_id = parseInt(updates.import_session_id, 10);
+      if (updates.order_id !== undefined) setValues.order_id = updates.order_id;
+      if (updates.resi_number !== undefined) setValues.resi_number = updates.resi_number;
+      if (updates.product_name_raw !== undefined) setValues.product_name_raw = updates.product_name_raw;
+      if (updates.quantity !== undefined) setValues.quantity = parseInt(updates.quantity, 10);
+      if (updates.order_status !== undefined) setValues.order_status = updates.order_status;
+      if (updates.customer_name !== undefined) setValues.customer_name = updates.customer_name;
+      if (updates.expedition !== undefined) setValues.expedition = updates.expedition;
+      if (updates.order_date !== undefined) setValues.order_date = updates.order_date;
+      if (updates.price !== undefined) setValues.price = parseFloat(updates.price);
+      if (updates.system_status !== undefined) setValues.system_status = updates.system_status;
+      if (updates.resolution !== undefined) setValues.resolution = updates.resolution;
+      if (updates.resolution_notes !== undefined) setValues.resolution_notes = updates.resolution_notes;
+      if (updates.resolved_at !== undefined) setValues.resolved_at = updates.resolved_at;
+
+      const rows = await db.update(orders)
+        .set(setValues)
+        .where(eq(orders.id, parseInt(id, 10)))
+        .returning();
+      const updated = rows[0] || null;
+      if (updated) {
+        broadcast({ type: 'ORDER_UPDATED', payload: updated });
+      }
       return updated;
     }
   },
 
   orderItems: {
     async list() {
-      const storage = getActiveStorage();
-      return await storage.query("SELECT * FROM order_items");
+      const db = getActiveDb();
+      return await db.select().from(orderItems);
     },
     async get(id) {
-      const storage = getActiveStorage();
-      const rows = await storage.query("SELECT * FROM order_items WHERE id = ?", [id]);
+      const db = getActiveDb();
+      const rows = await db.select().from(orderItems).where(eq(orderItems.id, parseInt(id, 10)));
       return rows[0] || null;
     },
     async getByOrderId(orderId) {
-      const storage = getActiveStorage();
-      return await storage.query("SELECT * FROM order_items WHERE order_id = ?", [parseInt(orderId, 10)]);
+      const db = getActiveDb();
+      return await db.select().from(orderItems).where(eq(orderItems.order_id, parseInt(orderId, 10)));
     },
     async insert(item) {
-      const storage = getActiveStorage();
-      const result = await storage.execute(
-        "INSERT INTO order_items (order_id, product_id, quantity, parse_source, original_text, is_confirmed) VALUES (?, ?, ?, ?, ?, ?)",
-        [
-          parseInt(item.order_id, 10),
-          item.product_id ? parseInt(item.product_id, 10) : null,
-          parseInt(item.quantity, 10),
-          item.parse_source || 'direct',
-          item.original_text || null,
-          item.is_confirmed !== undefined ? (item.is_confirmed ? 1 : 0) : 1
-        ]
-      );
-      return await this.get(result.lastInsertRowid);
+      const db = getActiveDb();
+      const rows = await db.insert(orderItems).values({
+        order_id: parseInt(item.order_id, 10),
+        product_id: item.product_id ? parseInt(item.product_id, 10) : null,
+        quantity: parseInt(item.quantity, 10),
+        parse_source: item.parse_source || 'direct',
+        original_text: item.original_text || null,
+        is_confirmed: item.is_confirmed !== undefined ? (item.is_confirmed ? 1 : 0) : 1
+      }).returning();
+      return rows[0] || null;
     },
     async update(id, updates) {
-      const storage = getActiveStorage();
-      const existing = await this.get(id);
-      if (!existing) return null;
-      const merged = { ...existing, ...updates };
-      await storage.execute(
-        "UPDATE order_items SET order_id = ?, product_id = ?, quantity = ?, parse_source = ?, original_text = ?, is_confirmed = ? WHERE id = ?",
-        [
-          parseInt(merged.order_id, 10),
-          merged.product_id ? parseInt(merged.product_id, 10) : null,
-          parseInt(merged.quantity, 10),
-          merged.parse_source,
-          merged.original_text || null,
-          merged.is_confirmed !== undefined ? (merged.is_confirmed ? 1 : 0) : 1,
-          id
-        ]
-      );
-      const updated = await this.get(id);
-      broadcast({ type: 'ORDER_ITEM_UPDATED', payload: updated });
+      const db = getActiveDb();
+      const setValues = {};
+      if (updates.order_id !== undefined) setValues.order_id = parseInt(updates.order_id, 10);
+      if (updates.product_id !== undefined) setValues.product_id = updates.product_id ? parseInt(updates.product_id, 10) : null;
+      if (updates.quantity !== undefined) setValues.quantity = parseInt(updates.quantity, 10);
+      if (updates.parse_source !== undefined) setValues.parse_source = updates.parse_source;
+      if (updates.original_text !== undefined) setValues.original_text = updates.original_text;
+      if (updates.is_confirmed !== undefined) setValues.is_confirmed = updates.is_confirmed ? 1 : 0;
+
+      const rows = await db.update(orderItems)
+        .set(setValues)
+        .where(eq(orderItems.id, parseInt(id, 10)))
+        .returning();
+      const updated = rows[0] || null;
+      if (updated) {
+        broadcast({ type: 'ORDER_ITEM_UPDATED', payload: updated });
+      }
       return updated;
     }
   },
 
   opnames: {
     async list() {
-      const storage = getActiveStorage();
-      return await storage.query("SELECT * FROM stock_opnames");
+      const db = getActiveDb();
+      return await db.select().from(stockOpnames);
     },
     async get(id) {
-      const storage = getActiveStorage();
-      const rows = await storage.query("SELECT * FROM stock_opnames WHERE id = ?", [id]);
+      const db = getActiveDb();
+      const rows = await db.select().from(stockOpnames).where(eq(stockOpnames.id, parseInt(id, 10)));
       return rows[0] || null;
     },
     async insert(opname) {
-      const storage = getActiveStorage();
-      const result = await storage.execute(
-        "INSERT INTO stock_opnames (user_id, notes, created_at) VALUES (?, ?, datetime('now', 'localtime'))",
-        [parseInt(opname.user_id, 10), opname.notes || null]
-      );
-      const newOpname = await this.get(result.lastInsertRowid);
-      broadcast({ type: 'OPNAME_CREATED', payload: newOpname });
+      const db = getActiveDb();
+      const rows = await db.insert(stockOpnames).values({
+        user_id: parseInt(opname.user_id, 10),
+        notes: opname.notes || null
+      }).returning();
+      const newOpname = rows[0] || null;
+      if (newOpname) {
+        broadcast({ type: 'OPNAME_CREATED', payload: newOpname });
+      }
       return newOpname;
     }
   },
 
   opnameItems: {
     async list() {
-      const storage = getActiveStorage();
-      return await storage.query("SELECT * FROM stock_opname_items");
+      const db = getActiveDb();
+      return await db.select().from(stockOpnameItems);
     },
     async getByOpnameId(opnameId) {
-      const storage = getActiveStorage();
-      return await storage.query("SELECT * FROM stock_opname_items WHERE opname_id = ?", [parseInt(opnameId, 10)]);
+      const db = getActiveDb();
+      return await db.select().from(stockOpnameItems).where(eq(stockOpnameItems.opname_id, parseInt(opnameId, 10)));
     },
     async insert(item) {
-      const storage = getActiveStorage();
-      const result = await storage.execute(
-        "INSERT INTO stock_opname_items (opname_id, product_id, system_stock, physical_stock, variance) VALUES (?, ?, ?, ?, ?)",
-        [
-          parseInt(item.opname_id, 10),
-          parseInt(item.product_id, 10),
-          parseInt(item.system_stock, 10),
-          parseInt(item.physical_stock, 10),
-          parseInt(item.variance, 10)
-        ]
-      );
-      const rows = await storage.query("SELECT * FROM stock_opname_items WHERE id = ?", [result.lastInsertRowid]);
+      const db = getActiveDb();
+      const rows = await db.insert(stockOpnameItems).values({
+        opname_id: parseInt(item.opname_id, 10),
+        product_id: parseInt(item.product_id, 10),
+        system_stock: parseInt(item.system_stock, 10),
+        physical_stock: parseInt(item.physical_stock, 10),
+        variance: parseInt(item.variance, 10)
+      }).returning();
       return rows[0] || null;
     }
   }

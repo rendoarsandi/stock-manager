@@ -65,6 +65,16 @@ export class StockRoom extends DurableObject {
     }
   }
 
+  queryValues(sqlStr, params = []) {
+    try {
+      const cursor = this.sql.exec(sqlStr, ...params);
+      return cursor.raw().toArray();
+    } catch (err) {
+      console.error(`DO queryValues failed: ${sqlStr}`, err);
+      throw err;
+    }
+  }
+
   execute(sqlStr, params = []) {
     try {
       this.sql.exec(sqlStr, ...params);

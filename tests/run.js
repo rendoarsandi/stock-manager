@@ -15,6 +15,7 @@ if (fs.existsSync(testDbPath)) {
 
 const tests = [
   'test-db.js',
+  'test-drizzle.js',
   'test-api.js',
   'test-registration.js',
   'test-tanstack-start-entry.js',
