@@ -54,7 +54,7 @@ function RootComponent() {
   const { currentUser, loading, needsRegistration } = useAuth();
   const { clerkPublishableKey } = Route.useRouteContext();
   const routerState = useRouterState();
-  const isSignUpPage = routerState.location.pathname === '/sign-up';
+  const isSignUpPage = routerState.location.pathname.startsWith('/sign-up');
 
   let bodyContent;
   if (loading) {
