@@ -151,13 +151,24 @@ async function getAuthUser(request) {
     let needsRegistration = false;
     try {
       const storage = getActiveStorage();
-      const existing = await storage.query("SELECT id, username FROM users WHERE password_hash = ? OR username = ?", [authData.userId, username]);
-      if (existing && existing.length > 0) {
+      // 1. Search by Clerk ID in password_hash
+      let existing = await storage.query("SELECT id, username FROM users WHERE password_hash = ?", [authData.userId]);
+      
+      // 2. Fallback: Search by Clerk ID in username column (for migrating older accounts)
+      if (!existing || existing.length === 0) {
+        existing = await storage.query("SELECT id, username FROM users WHERE username = ?", [authData.userId]);
+        if (existing && existing.length > 0) {
+          localId = existing[0].id;
+          localUsername = existing[0].username;
+          // Migrate old user row to store Clerk ID in password_hash
+          await storage.execute("UPDATE users SET password_hash = ?, role = ? WHERE id = ?", [authData.userId, role, localId]);
+        } else {
+          needsRegistration = true;
+        }
+      } else {
         localId = existing[0].id;
         localUsername = existing[0].username;
         await storage.execute("UPDATE users SET role = ? WHERE id = ?", [role, localId]);
-      } else {
-        needsRegistration = true;
       }
     } catch (dbErr) {
       console.error("Failed to check Clerk user in local DB:", dbErr);
