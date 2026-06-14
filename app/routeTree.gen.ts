@@ -10,13 +10,13 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as StockHistoryRouteImport } from './routes/stock-history'
-import { Route as SignUpRouteImport } from './routes/sign-up'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ReviewRouteImport } from './routes/review'
 import { Route as ProductsRouteImport } from './routes/products'
 import { Route as OpnameRouteImport } from './routes/opname'
 import { Route as ImportRouteImport } from './routes/import'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SignUpSplatRouteImport } from './routes/sign-up.$'
 import { Route as ApiProductsRouteImport } from './routes/api/products'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiSplatRouteImport } from './routes/api/$'
@@ -53,11 +53,6 @@ const StockHistoryRoute = StockHistoryRouteImport.update({
   path: '/stock-history',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SignUpRoute = SignUpRouteImport.update({
-  id: '/sign-up',
-  path: '/sign-up',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -86,6 +81,11 @@ const ImportRoute = ImportRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignUpSplatRoute = SignUpSplatRouteImport.update({
+  id: '/sign-up/$',
+  path: '/sign-up/$',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiProductsRoute = ApiProductsRouteImport.update({
@@ -248,11 +248,11 @@ export interface FileRoutesByFullPath {
   '/products': typeof ProductsRoute
   '/review': typeof ReviewRoute
   '/settings': typeof SettingsRoute
-  '/sign-up': typeof SignUpRoute
   '/stock-history': typeof StockHistoryRoute
   '/api/$': typeof ApiSplatRoute
   '/api/health': typeof ApiHealthRoute
   '/api/products': typeof ApiProductsRouteWithChildren
+  '/sign-up/$': typeof SignUpSplatRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/auth/me': typeof ApiAuthMeRoute
@@ -288,11 +288,11 @@ export interface FileRoutesByTo {
   '/products': typeof ProductsRoute
   '/review': typeof ReviewRoute
   '/settings': typeof SettingsRoute
-  '/sign-up': typeof SignUpRoute
   '/stock-history': typeof StockHistoryRoute
   '/api/$': typeof ApiSplatRoute
   '/api/health': typeof ApiHealthRoute
   '/api/products': typeof ApiProductsRouteWithChildren
+  '/sign-up/$': typeof SignUpSplatRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/auth/me': typeof ApiAuthMeRoute
@@ -329,11 +329,11 @@ export interface FileRoutesById {
   '/products': typeof ProductsRoute
   '/review': typeof ReviewRoute
   '/settings': typeof SettingsRoute
-  '/sign-up': typeof SignUpRoute
   '/stock-history': typeof StockHistoryRoute
   '/api/$': typeof ApiSplatRoute
   '/api/health': typeof ApiHealthRoute
   '/api/products': typeof ApiProductsRouteWithChildren
+  '/sign-up/$': typeof SignUpSplatRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/auth/me': typeof ApiAuthMeRoute
@@ -371,11 +371,11 @@ export interface FileRouteTypes {
     | '/products'
     | '/review'
     | '/settings'
-    | '/sign-up'
     | '/stock-history'
     | '/api/$'
     | '/api/health'
     | '/api/products'
+    | '/sign-up/$'
     | '/api/auth/login'
     | '/api/auth/logout'
     | '/api/auth/me'
@@ -411,11 +411,11 @@ export interface FileRouteTypes {
     | '/products'
     | '/review'
     | '/settings'
-    | '/sign-up'
     | '/stock-history'
     | '/api/$'
     | '/api/health'
     | '/api/products'
+    | '/sign-up/$'
     | '/api/auth/login'
     | '/api/auth/logout'
     | '/api/auth/me'
@@ -451,11 +451,11 @@ export interface FileRouteTypes {
     | '/products'
     | '/review'
     | '/settings'
-    | '/sign-up'
     | '/stock-history'
     | '/api/$'
     | '/api/health'
     | '/api/products'
+    | '/sign-up/$'
     | '/api/auth/login'
     | '/api/auth/logout'
     | '/api/auth/me'
@@ -492,11 +492,11 @@ export interface RootRouteChildren {
   ProductsRoute: typeof ProductsRoute
   ReviewRoute: typeof ReviewRoute
   SettingsRoute: typeof SettingsRoute
-  SignUpRoute: typeof SignUpRoute
   StockHistoryRoute: typeof StockHistoryRoute
   ApiSplatRoute: typeof ApiSplatRoute
   ApiHealthRoute: typeof ApiHealthRoute
   ApiProductsRoute: typeof ApiProductsRouteWithChildren
+  SignUpSplatRoute: typeof SignUpSplatRoute
   ApiAuthLoginRoute: typeof ApiAuthLoginRoute
   ApiAuthLogoutRoute: typeof ApiAuthLogoutRoute
   ApiAuthMeRoute: typeof ApiAuthMeRoute
@@ -525,13 +525,6 @@ declare module '@tanstack/react-router' {
       path: '/stock-history'
       fullPath: '/stock-history'
       preLoaderRoute: typeof StockHistoryRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/sign-up': {
-      id: '/sign-up'
-      path: '/sign-up'
-      fullPath: '/sign-up'
-      preLoaderRoute: typeof SignUpRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings': {
@@ -574,6 +567,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sign-up/$': {
+      id: '/sign-up/$'
+      path: '/sign-up/$'
+      fullPath: '/sign-up/$'
+      preLoaderRoute: typeof SignUpSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/products': {
@@ -873,11 +873,11 @@ const rootRouteChildren: RootRouteChildren = {
   ProductsRoute: ProductsRoute,
   ReviewRoute: ReviewRoute,
   SettingsRoute: SettingsRoute,
-  SignUpRoute: SignUpRoute,
   StockHistoryRoute: StockHistoryRoute,
   ApiSplatRoute: ApiSplatRoute,
   ApiHealthRoute: ApiHealthRoute,
   ApiProductsRoute: ApiProductsRouteWithChildren,
+  SignUpSplatRoute: SignUpSplatRoute,
   ApiAuthLoginRoute: ApiAuthLoginRoute,
   ApiAuthLogoutRoute: ApiAuthLogoutRoute,
   ApiAuthMeRoute: ApiAuthMeRoute,
