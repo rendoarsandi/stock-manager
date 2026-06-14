@@ -5,7 +5,7 @@ export default function Login() {
   return (
     <div className="login-layout">
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', width: '100%' }}>
-        <SignIn signUpUrl="/sign-up" />
+        <SignIn routing="path" path="/" signUpUrl="/sign-up" />
       </div>
     </div>
   );
