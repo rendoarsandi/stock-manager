@@ -48,9 +48,10 @@ const queryClient = new QueryClient({
 });
 
 import SignUpPage from '../components/SignUp';
+import CompleteRegistration from '../components/CompleteRegistration';
 
 function RootComponent() {
-  const { currentUser, loading } = useAuth();
+  const { currentUser, loading, needsRegistration } = useAuth();
   const { clerkPublishableKey } = Route.useRouteContext();
   const routerState = useRouterState();
   const isSignUpPage = routerState.location.pathname === '/sign-up';
@@ -62,6 +63,8 @@ function RootComponent() {
         <div className="loading-spinner" style={{ width: '2rem', height: '2rem', borderWidth: '3px' }} />
       </div>
     );
+  } else if (needsRegistration) {
+    bodyContent = <CompleteRegistration />;
   } else if (!currentUser) {
     bodyContent = isSignUpPage ? <SignUpPage /> : <Login />;
   } else {

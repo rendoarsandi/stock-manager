@@ -37,6 +37,7 @@ import { Route as ApiImportCancelRouteImport } from './routes/api/import/cancel'
 import { Route as ApiImportActiveSessionRouteImport } from './routes/api/import/active-session'
 import { Route as ApiDashboardStatsRouteImport } from './routes/api/dashboard/stats'
 import { Route as ApiAuthUsersRouteImport } from './routes/api/auth/users'
+import { Route as ApiAuthRegisterRouteImport } from './routes/api/auth/register'
 import { Route as ApiAuthMeRouteImport } from './routes/api/auth/me'
 import { Route as ApiAuthLogoutRouteImport } from './routes/api/auth/logout'
 import { Route as ApiAuthLoginRouteImport } from './routes/api/auth/login'
@@ -187,6 +188,11 @@ const ApiAuthUsersRoute = ApiAuthUsersRouteImport.update({
   path: '/api/auth/users',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAuthRegisterRoute = ApiAuthRegisterRouteImport.update({
+  id: '/api/auth/register',
+  path: '/api/auth/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthMeRoute = ApiAuthMeRouteImport.update({
   id: '/api/auth/me',
   path: '/api/auth/me',
@@ -250,6 +256,7 @@ export interface FileRoutesByFullPath {
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/auth/me': typeof ApiAuthMeRoute
+  '/api/auth/register': typeof ApiAuthRegisterRoute
   '/api/auth/users': typeof ApiAuthUsersRouteWithChildren
   '/api/dashboard/stats': typeof ApiDashboardStatsRoute
   '/api/import/active-session': typeof ApiImportActiveSessionRouteWithChildren
@@ -289,6 +296,7 @@ export interface FileRoutesByTo {
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/auth/me': typeof ApiAuthMeRoute
+  '/api/auth/register': typeof ApiAuthRegisterRoute
   '/api/auth/users': typeof ApiAuthUsersRouteWithChildren
   '/api/dashboard/stats': typeof ApiDashboardStatsRoute
   '/api/import/active-session': typeof ApiImportActiveSessionRouteWithChildren
@@ -329,6 +337,7 @@ export interface FileRoutesById {
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/auth/me': typeof ApiAuthMeRoute
+  '/api/auth/register': typeof ApiAuthRegisterRoute
   '/api/auth/users': typeof ApiAuthUsersRouteWithChildren
   '/api/dashboard/stats': typeof ApiDashboardStatsRoute
   '/api/import/active-session': typeof ApiImportActiveSessionRouteWithChildren
@@ -370,6 +379,7 @@ export interface FileRouteTypes {
     | '/api/auth/login'
     | '/api/auth/logout'
     | '/api/auth/me'
+    | '/api/auth/register'
     | '/api/auth/users'
     | '/api/dashboard/stats'
     | '/api/import/active-session'
@@ -409,6 +419,7 @@ export interface FileRouteTypes {
     | '/api/auth/login'
     | '/api/auth/logout'
     | '/api/auth/me'
+    | '/api/auth/register'
     | '/api/auth/users'
     | '/api/dashboard/stats'
     | '/api/import/active-session'
@@ -448,6 +459,7 @@ export interface FileRouteTypes {
     | '/api/auth/login'
     | '/api/auth/logout'
     | '/api/auth/me'
+    | '/api/auth/register'
     | '/api/auth/users'
     | '/api/dashboard/stats'
     | '/api/import/active-session'
@@ -488,6 +500,7 @@ export interface RootRouteChildren {
   ApiAuthLoginRoute: typeof ApiAuthLoginRoute
   ApiAuthLogoutRoute: typeof ApiAuthLogoutRoute
   ApiAuthMeRoute: typeof ApiAuthMeRoute
+  ApiAuthRegisterRoute: typeof ApiAuthRegisterRoute
   ApiAuthUsersRoute: typeof ApiAuthUsersRouteWithChildren
   ApiDashboardStatsRoute: typeof ApiDashboardStatsRoute
   ApiImportActiveSessionRoute: typeof ApiImportActiveSessionRouteWithChildren
@@ -703,6 +716,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthUsersRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/auth/register': {
+      id: '/api/auth/register'
+      path: '/api/auth/register'
+      fullPath: '/api/auth/register'
+      preLoaderRoute: typeof ApiAuthRegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/me': {
       id: '/api/auth/me'
       path: '/api/auth/me'
@@ -861,6 +881,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthLoginRoute: ApiAuthLoginRoute,
   ApiAuthLogoutRoute: ApiAuthLogoutRoute,
   ApiAuthMeRoute: ApiAuthMeRoute,
+  ApiAuthRegisterRoute: ApiAuthRegisterRoute,
   ApiAuthUsersRoute: ApiAuthUsersRouteWithChildren,
   ApiDashboardStatsRoute: ApiDashboardStatsRoute,
   ApiImportActiveSessionRoute: ApiImportActiveSessionRouteWithChildren,

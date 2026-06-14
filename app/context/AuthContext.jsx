@@ -27,12 +27,93 @@ export function AuthProvider({ children }) {
   const userId = clerkAuth?.userId;
   const user = clerkUser?.user;
 
-  const loading = !isAuthLoaded || !isUserLoaded;
+  const [localUser, setLocalUser] = React.useState(null);
+  const [needsRegistration, setNeedsRegistration] = React.useState(false);
+  const [localLoading, setLocalLoading] = React.useState(true);
 
-  const currentUser = userId && user ? {
-    id: userId,
-    username: user.username || user.firstName || 'user',
-    role: user.publicMetadata?.role || 'staff'
+  React.useEffect(() => {
+    if (!isAuthLoaded || !isUserLoaded) {
+      return;
+    }
+
+    if (!userId) {
+      setLocalUser(null);
+      setNeedsRegistration(false);
+      setLocalLoading(false);
+      return;
+    }
+
+    let isMounted = true;
+    setLocalLoading(true);
+
+    fetch('/api/auth/me')
+      .then(res => {
+        if (res.status === 401) {
+          throw new Error('Unauthorized');
+        }
+        return res.json();
+      })
+      .then(data => {
+        if (!isMounted) return;
+        if (data.needsRegistration) {
+          setNeedsRegistration(true);
+          setLocalUser(null);
+        } else {
+          setLocalUser({
+            id: data.id,
+            username: data.username,
+            role: data.role
+          });
+          setNeedsRegistration(false);
+        }
+        setLocalLoading(false);
+      })
+      .catch(err => {
+        if (!isMounted) return;
+        console.error("Auth fetch failed:", err);
+        setLocalUser(null);
+        setNeedsRegistration(true);
+        setLocalLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isAuthLoaded, isUserLoaded, userId]);
+
+  const registerLocalUser = async (username) => {
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Registration failed');
+      }
+      
+      setLocalUser({
+        id: data.id,
+        username: data.username,
+        role: data.role
+      });
+      setNeedsRegistration(false);
+      return { success: true };
+    } catch (err) {
+      console.error("Local registration failed:", err);
+      return { success: false, message: err.message };
+    }
+  };
+
+  const loading = !isAuthLoaded || !isUserLoaded || localLoading;
+
+  const currentUser = localUser;
+
+  const clerkDetails = user ? {
+    username: user.username || '',
+    firstName: user.firstName || '',
+    lastName: user.lastName || ''
   } : null;
 
   const [showDiagnostics, setShowDiagnostics] = React.useState(false);
@@ -87,7 +168,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ currentUser, loading, login, logout }}>
+    <AuthContext.Provider value={{ currentUser, loading, login, logout, needsRegistration, clerkDetails, registerLocalUser }}>
       {children}
     </AuthContext.Provider>
   );

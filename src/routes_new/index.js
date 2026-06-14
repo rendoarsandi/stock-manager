@@ -146,7 +146,8 @@ async function getAuthUser(request) {
     }
     const role = authData.sessionClaims?.metadata?.role || authData.sessionClaims?.publicMetadata?.role || 'staff';
 
-    let localId;
+    let localId = null;
+    let needsRegistration = false;
     try {
       const storage = getActiveStorage();
       const existing = await storage.query("SELECT id FROM users WHERE username = ?", [username]);
@@ -154,15 +155,15 @@ async function getAuthUser(request) {
         localId = existing[0].id;
         await storage.execute("UPDATE users SET role = ? WHERE id = ?", [role, localId]);
       } else {
-        const result = await storage.execute(
-          "INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, datetime('now', 'localtime'))",
-          [username, 'clerk_external', role]
-        );
-        localId = result.lastInsertRowid;
+        needsRegistration = true;
       }
     } catch (dbErr) {
-      console.error("Failed to sync Clerk user to local DB:", dbErr);
+      console.error("Failed to check Clerk user in local DB:", dbErr);
       localId = Math.abs(authData.userId.split('').reduce((acc, char) => (acc << 5) - acc + char.charCodeAt(0), 0)) % 1000000;
+    }
+
+    if (needsRegistration) {
+      return { id: null, username, role, needsRegistration: true };
     }
 
     return { id: localId, username, role };
@@ -240,7 +241,43 @@ async function handleMe(req) {
   if (!user) {
     return json({ message: 'Not logged in' }, 401);
   }
-  return json({ id: user.id, username: user.username, role: user.role });
+  return json({ id: user.id, username: user.username, role: user.role, needsRegistration: user.needsRegistration || false });
+}
+
+async function handleRegister(req) {
+  try {
+    const user = await getAuthUser(req);
+    if (!user) {
+      return json({ message: 'Unauthorized. Please log in.' }, 401);
+    }
+    if (!user.needsRegistration) {
+      return json({ message: 'Already registered' }, 400);
+    }
+
+    const body = await readJson(req).catch(() => ({}));
+    const username = body.username?.trim() || user.username;
+    const role = 'staff'; // default role for self-registration
+
+    if (!username) {
+      return json({ message: 'Username is required' }, 400);
+    }
+
+    const storage = getActiveStorage();
+    const existing = await storage.query("SELECT id FROM users WHERE username = ?", [username]);
+    if (existing && existing.length > 0) {
+      return json({ message: 'Username is already taken' }, 400);
+    }
+
+    const result = await storage.execute(
+      "INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, datetime('now', 'localtime'))",
+      [username, 'clerk_external', role]
+    );
+
+    return json({ success: true, id: result.lastInsertRowid, username, role }, 201);
+  } catch (err) {
+    console.error("Register error:", err);
+    return json({ message: 'Failed to register' }, 500);
+  }
 }
 
 async function handleListUsers(req) {
@@ -1413,6 +1450,10 @@ export function withAuthOrRole(handler, options = {}) {
           return json({ message: 'Unauthorized. Please log in.' }, 401);
         }
 
+        if (user.needsRegistration && !options.allowUnregistered) {
+          return json({ message: 'Registration required.', needsRegistration: true }, 403);
+        }
+
         if (options.role && user.role !== options.role) {
           return json({ message: 'Forbidden. Insufficient permissions.' }, 403);
         }
@@ -1493,6 +1534,7 @@ export {
   handleLogin,
   handleLogout,
   handleMe,
+  handleRegister,
   handleListUsers,
   handleCreateUser,
   handleDeleteUser,
