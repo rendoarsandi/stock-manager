@@ -137,7 +137,7 @@ export class StockRoom extends DurableObject {
     }
   }
 
-  // Handle incoming DO WebSocket messages (e.g. MOUSE_MOVE cursor events)
+  // Handle incoming DO WebSocket messages
   webSocketMessage(ws, message) {
     try {
       // Broadcast client message directly to all other clients

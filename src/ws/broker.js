@@ -28,7 +28,7 @@ export function setupLocalWebSocket(server) {
         ws.on('message', (msg) => {
           try {
             const parsed = JSON.parse(msg.toString());
-            // Broadcast any client message (like MOUSE_MOVE) to all other clients
+            // Broadcast any client message to all other clients
             broadcast(parsed, ws);
           } catch (e) {
             console.error('Error handling local WS message:', e);

@@ -354,18 +354,6 @@ export default function Products() {
     });
   };
 
-  const handleMouseEnter = (e, product) => {
-    if (window.matchMedia('(hover: hover)').matches) {
-      triggerHoverCard(e, product);
-    }
-  };
-
-  const handleMouseLeave = () => {
-    if (window.matchMedia('(hover: hover)').matches) {
-      setHoverCard((prev) => ({ ...prev, visible: false, productId: null }));
-    }
-  };
-
   const handleCellClick = (e, product) => {
     e.preventDefault();
     e.stopPropagation();
@@ -392,12 +380,10 @@ export default function Products() {
             className="hover-ledger-trigger"
             style={{
               fontWeight: 500,
-              cursor: 'help',
+              cursor: 'pointer',
               textDecoration: 'underline dotted var(--text-muted)',
               textUnderlineOffset: '4px',
             }}
-            onMouseEnter={(e) => handleMouseEnter(e, product)}
-            onMouseLeave={handleMouseLeave}
             onClick={(e) => handleCellClick(e, product)}
           >
             {product.name}

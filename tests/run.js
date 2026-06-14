@@ -30,6 +30,7 @@ const tests = [
   'test-websocket.js',
   'test-sku-mappings.js',
   'test-review-feedback.js',
+  'test-localecompare-robustness.js',
   'test-build.js'
 ];
 

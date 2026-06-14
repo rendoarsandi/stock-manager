@@ -284,7 +284,7 @@ async function handleMe(req) {
 async function handleListUsers(req) {
   try {
     const list = await db.users.list();
-    list.sort((a, b) => a.username.localeCompare(b.username));
+    list.sort((a, b) => (a.username || '').localeCompare(b.username || ''));
     const stripped = list.map(u => ({ id: u.id, username: u.username, role: u.role, created_at: u.created_at }));
     return json(stripped);
   } catch (err) {
@@ -348,7 +348,7 @@ async function handleDeleteUser(req, params) {
 async function handleListProducts(req) {
   try {
     const list = await db.products.list();
-    list.sort((a, b) => a.name.localeCompare(b.name));
+    list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     return json(list);
   } catch (err) {
     console.error("List products error:", err);
@@ -584,7 +584,7 @@ async function handleListTemplates(req) {
       ...t,
       column_mapping: JSON.parse(t.column_mapping)
     }));
-    result.sort((a, b) => a.name.localeCompare(b.name));
+    result.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     return json(result);
   } catch (err) {
     console.error("List templates error:", err);

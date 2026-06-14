@@ -82,9 +82,6 @@ export function WebSocketProvider({ children }) {
     return false;
   }, []);
 
-  // Dummy sendCursorPosition (No-op as cursor tracking is disabled)
-  const sendCursorPosition = useCallback(() => {}, []);
-
   useEffect(() => {
     connect();
 
@@ -116,18 +113,13 @@ export function WebSocketProvider({ children }) {
     };
   }, [connect]);
 
-  // Static empty cursors to maintain compatibility
-  const cursors = {};
-
   return (
     <WebSocketContext.Provider
       value={{
         onlineCount,
-        cursors,
         isConnected,
         addWsListener,
         sendWsMessage,
-        sendCursorPosition,
       }}
     >
       {children}
