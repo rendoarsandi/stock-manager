@@ -28,6 +28,18 @@ export const localSqliteStore = {
     stmt.free();
     return rows;
   },
+
+  async queryValues(sql, params = []) {
+    const db = await getLocalSqliteDb();
+    const stmt = db.prepare(sql);
+    stmt.bind(params);
+    const rows = [];
+    while (stmt.step()) {
+      rows.push(stmt.get());
+    }
+    stmt.free();
+    return rows;
+  },
   
   async execute(sql, params = []) {
     const db = await getLocalSqliteDb();
