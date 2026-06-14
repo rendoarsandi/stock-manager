@@ -159,7 +159,8 @@ export default function StockHistory() {
   });
 
   return (
-    <div className="section-card">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+      <div className="section-card">
       <div className="section-header">
         <h2>Stock Movement Ledger</h2>
       </div>
@@ -249,5 +250,6 @@ export default function StockHistory() {
         </div>
       )}
     </div>
+  </div>
   );
 }

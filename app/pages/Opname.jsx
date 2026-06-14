@@ -204,7 +204,8 @@ export default function Opname() {
   );
 
   return (
-    <div className="section-card">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+      <div className="section-card">
       <div className="section-header">
         <h2>Stock Opname (Physical Inventory Audit)</h2>
         <button id="btn-new-opname" className="btn btn-primary" onClick={openNewOpnameModal}>
@@ -428,5 +429,6 @@ export default function Opname() {
         </div>
       )}
     </div>
+  </div>
   );
 }

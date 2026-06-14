@@ -167,6 +167,13 @@ export default function Layout({ children }) {
         </div>
       </aside>
 
+      {isMobileVisible && (
+        <div 
+          className="sidebar-overlay" 
+          onClick={() => setIsMobileVisible(false)}
+        />
+      )}
+
       <main className="main-content">
         <header className="content-header">
           <div className="header-title-container">

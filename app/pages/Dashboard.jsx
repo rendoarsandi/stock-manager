@@ -68,7 +68,7 @@ export default function Dashboard() {
   const ambiguousCount = data.ambiguous_count || 0;
 
   return (
-    <div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
       <div className="dashboard-grid">
         {/* Card 1: Total Products */}
         <div className="card" id="card-products">

@@ -501,7 +501,8 @@ export default function Products() {
   });
 
   return (
-    <div className="section-card">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+      <div className="section-card">
       <div className="section-header">
         <h2>Product List</h2>
         <button id="btn-add-product" className="btn btn-primary" onClick={openAddModal}>
@@ -999,5 +1000,6 @@ export default function Products() {
         </div>
       )}
     </div>
+  </div>
   );
 }
