@@ -235,6 +235,51 @@ async function handleMe(req) {
 
 async function handleListUsers(req) {
   try {
+    if (process.env.NODE_ENV !== 'test') {
+      try {
+        const clerk = getClerkClient();
+        const clerkUsers = await clerk.users.getUserList({ limit: 100 });
+        if (clerkUsers) {
+          const list = clerkUsers.data || clerkUsers;
+          const userArray = Array.isArray(list) ? list : [];
+          const storage = getActiveStorage();
+          for (const cu of userArray) {
+            let existing = await storage.query("SELECT id FROM users WHERE password_hash = ?", [cu.id]);
+            if (!existing || existing.length === 0) {
+              let chosenUsername = cu.username || cu.firstName || '';
+              if (cu.lastName) {
+                chosenUsername = (chosenUsername + cu.lastName).trim();
+              }
+              if (!chosenUsername && cu.emailAddresses && cu.emailAddresses.length > 0) {
+                chosenUsername = cu.emailAddresses[0].emailAddress.split('@')[0];
+              }
+              chosenUsername = chosenUsername.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
+              if (!chosenUsername) {
+                chosenUsername = cu.id;
+              }
+
+              let finalUsername = chosenUsername;
+              let checkExisting = await storage.query("SELECT id FROM users WHERE username = ?", [finalUsername]);
+              let counter = 1;
+              while (checkExisting && checkExisting.length > 0) {
+                finalUsername = `${chosenUsername}${counter}`;
+                checkExisting = await storage.query("SELECT id FROM users WHERE username = ?", [finalUsername]);
+                counter++;
+              }
+
+              const role = cu.publicMetadata?.role || cu.metadata?.role || 'staff';
+              await storage.execute(
+                "INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, datetime('now', 'localtime'))",
+                [finalUsername, cu.id, role]
+              );
+            }
+          }
+        }
+      } catch (clerkErr) {
+        console.error("Failed to sync users from Clerk:", clerkErr);
+      }
+    }
+
     const list = await db.users.list();
     list.sort((a, b) => (a.username || '').localeCompare(b.username || ''));
     const stripped = list.map(u => ({ id: u.id, username: u.username, role: u.role, created_at: u.created_at }));
