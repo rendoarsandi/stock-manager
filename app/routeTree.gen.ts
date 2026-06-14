@@ -36,6 +36,9 @@ import { Route as ApiImportConfirmRouteImport } from './routes/api/import/confir
 import { Route as ApiImportCancelRouteImport } from './routes/api/import/cancel'
 import { Route as ApiImportActiveSessionRouteImport } from './routes/api/import/active-session'
 import { Route as ApiDashboardStatsRouteImport } from './routes/api/dashboard/stats'
+import { Route as ApiChatReadRouteImport } from './routes/api/chat/read'
+import { Route as ApiChatMessagesRouteImport } from './routes/api/chat/messages'
+import { Route as ApiChatContactsRouteImport } from './routes/api/chat/contacts'
 import { Route as ApiAuthUsersRouteImport } from './routes/api/auth/users'
 import { Route as ApiAuthMeRouteImport } from './routes/api/auth/me'
 import { Route as ApiAuthLogoutRouteImport } from './routes/api/auth/logout'
@@ -182,6 +185,21 @@ const ApiDashboardStatsRoute = ApiDashboardStatsRouteImport.update({
   path: '/api/dashboard/stats',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiChatReadRoute = ApiChatReadRouteImport.update({
+  id: '/api/chat/read',
+  path: '/api/chat/read',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiChatMessagesRoute = ApiChatMessagesRouteImport.update({
+  id: '/api/chat/messages',
+  path: '/api/chat/messages',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiChatContactsRoute = ApiChatContactsRouteImport.update({
+  id: '/api/chat/contacts',
+  path: '/api/chat/contacts',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthUsersRoute = ApiAuthUsersRouteImport.update({
   id: '/api/auth/users',
   path: '/api/auth/users',
@@ -251,6 +269,9 @@ export interface FileRoutesByFullPath {
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/auth/me': typeof ApiAuthMeRoute
   '/api/auth/users': typeof ApiAuthUsersRouteWithChildren
+  '/api/chat/contacts': typeof ApiChatContactsRoute
+  '/api/chat/messages': typeof ApiChatMessagesRoute
+  '/api/chat/read': typeof ApiChatReadRoute
   '/api/dashboard/stats': typeof ApiDashboardStatsRoute
   '/api/import/active-session': typeof ApiImportActiveSessionRouteWithChildren
   '/api/import/cancel': typeof ApiImportCancelRoute
@@ -290,6 +311,9 @@ export interface FileRoutesByTo {
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/auth/me': typeof ApiAuthMeRoute
   '/api/auth/users': typeof ApiAuthUsersRouteWithChildren
+  '/api/chat/contacts': typeof ApiChatContactsRoute
+  '/api/chat/messages': typeof ApiChatMessagesRoute
+  '/api/chat/read': typeof ApiChatReadRoute
   '/api/dashboard/stats': typeof ApiDashboardStatsRoute
   '/api/import/active-session': typeof ApiImportActiveSessionRouteWithChildren
   '/api/import/cancel': typeof ApiImportCancelRoute
@@ -330,6 +354,9 @@ export interface FileRoutesById {
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/auth/me': typeof ApiAuthMeRoute
   '/api/auth/users': typeof ApiAuthUsersRouteWithChildren
+  '/api/chat/contacts': typeof ApiChatContactsRoute
+  '/api/chat/messages': typeof ApiChatMessagesRoute
+  '/api/chat/read': typeof ApiChatReadRoute
   '/api/dashboard/stats': typeof ApiDashboardStatsRoute
   '/api/import/active-session': typeof ApiImportActiveSessionRouteWithChildren
   '/api/import/cancel': typeof ApiImportCancelRoute
@@ -371,6 +398,9 @@ export interface FileRouteTypes {
     | '/api/auth/logout'
     | '/api/auth/me'
     | '/api/auth/users'
+    | '/api/chat/contacts'
+    | '/api/chat/messages'
+    | '/api/chat/read'
     | '/api/dashboard/stats'
     | '/api/import/active-session'
     | '/api/import/cancel'
@@ -410,6 +440,9 @@ export interface FileRouteTypes {
     | '/api/auth/logout'
     | '/api/auth/me'
     | '/api/auth/users'
+    | '/api/chat/contacts'
+    | '/api/chat/messages'
+    | '/api/chat/read'
     | '/api/dashboard/stats'
     | '/api/import/active-session'
     | '/api/import/cancel'
@@ -449,6 +482,9 @@ export interface FileRouteTypes {
     | '/api/auth/logout'
     | '/api/auth/me'
     | '/api/auth/users'
+    | '/api/chat/contacts'
+    | '/api/chat/messages'
+    | '/api/chat/read'
     | '/api/dashboard/stats'
     | '/api/import/active-session'
     | '/api/import/cancel'
@@ -489,6 +525,9 @@ export interface RootRouteChildren {
   ApiAuthLogoutRoute: typeof ApiAuthLogoutRoute
   ApiAuthMeRoute: typeof ApiAuthMeRoute
   ApiAuthUsersRoute: typeof ApiAuthUsersRouteWithChildren
+  ApiChatContactsRoute: typeof ApiChatContactsRoute
+  ApiChatMessagesRoute: typeof ApiChatMessagesRoute
+  ApiChatReadRoute: typeof ApiChatReadRoute
   ApiDashboardStatsRoute: typeof ApiDashboardStatsRoute
   ApiImportActiveSessionRoute: typeof ApiImportActiveSessionRouteWithChildren
   ApiImportCancelRoute: typeof ApiImportCancelRoute
@@ -696,6 +735,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiDashboardStatsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/chat/read': {
+      id: '/api/chat/read'
+      path: '/api/chat/read'
+      fullPath: '/api/chat/read'
+      preLoaderRoute: typeof ApiChatReadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/chat/messages': {
+      id: '/api/chat/messages'
+      path: '/api/chat/messages'
+      fullPath: '/api/chat/messages'
+      preLoaderRoute: typeof ApiChatMessagesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/chat/contacts': {
+      id: '/api/chat/contacts'
+      path: '/api/chat/contacts'
+      fullPath: '/api/chat/contacts'
+      preLoaderRoute: typeof ApiChatContactsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/users': {
       id: '/api/auth/users'
       path: '/api/auth/users'
@@ -862,6 +922,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthLogoutRoute: ApiAuthLogoutRoute,
   ApiAuthMeRoute: ApiAuthMeRoute,
   ApiAuthUsersRoute: ApiAuthUsersRouteWithChildren,
+  ApiChatContactsRoute: ApiChatContactsRoute,
+  ApiChatMessagesRoute: ApiChatMessagesRoute,
+  ApiChatReadRoute: ApiChatReadRoute,
   ApiDashboardStatsRoute: ApiDashboardStatsRoute,
   ApiImportActiveSessionRoute: ApiImportActiveSessionRouteWithChildren,
   ApiImportCancelRoute: ApiImportCancelRoute,

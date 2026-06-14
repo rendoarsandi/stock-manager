@@ -32,6 +32,9 @@ import { Route as opnameRoute } from '../app/routes/api/stock/opname.js';
 import { Route as opnameByIdRoute } from '../app/routes/api/stock/opname/$id.js';
 import { Route as stockHistoryRoute } from '../app/routes/api/stock/history.js';
 import { Route as apiSplatRoute } from '../app/routes/api/$.js';
+import { Route as chatMessagesRoute } from '../app/routes/api/chat/messages.js';
+import { Route as chatContactsRoute } from '../app/routes/api/chat/contacts.js';
+import { Route as chatReadRoute } from '../app/routes/api/chat/read.js';
 import { createRootRoute, Router } from '@tanstack/react-router';
 
 const rootRoute = createRootRoute();
@@ -65,6 +68,9 @@ const opnameRouteUpdated = opnameRoute.update({ id: '/api/stock/opname', path: '
 const opnameByIdRouteUpdated = opnameByIdRoute.update({ id: '/api/stock/opname/$id', path: '/api/stock/opname/$id', getParentRoute: () => rootRoute });
 const stockHistoryRouteUpdated = stockHistoryRoute.update({ id: '/api/stock/history', path: '/api/stock/history', getParentRoute: () => rootRoute });
 const apiSplatRouteUpdated = apiSplatRoute.update({ id: '/api/$', path: '/api/$', getParentRoute: () => rootRoute });
+const chatMessagesRouteUpdated = chatMessagesRoute.update({ id: '/api/chat/messages', path: '/api/chat/messages', getParentRoute: () => rootRoute });
+const chatContactsRouteUpdated = chatContactsRoute.update({ id: '/api/chat/contacts', path: '/api/chat/contacts', getParentRoute: () => rootRoute });
+const chatReadRouteUpdated = chatReadRoute.update({ id: '/api/chat/read', path: '/api/chat/read', getParentRoute: () => rootRoute });
 
 rootRoute.addChildren([
   healthRouteUpdated,
@@ -95,7 +101,10 @@ rootRoute.addChildren([
   opnameRouteUpdated,
   opnameByIdRouteUpdated,
   stockHistoryRouteUpdated,
-  apiSplatRouteUpdated
+  apiSplatRouteUpdated,
+  chatMessagesRouteUpdated,
+  chatContactsRouteUpdated,
+  chatReadRouteUpdated
 ]);
 
 const router = new Router({ routeTree: rootRoute });

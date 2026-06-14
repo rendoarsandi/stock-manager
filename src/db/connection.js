@@ -1,5 +1,5 @@
 import { getActiveStorage, getActiveDb } from './context.js';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, or, sql, inArray } from 'drizzle-orm';
 import {
   users,
   products,
@@ -11,7 +11,8 @@ import {
   stockMovements,
   stockOpnames,
   stockOpnameItems,
-  skuMappings
+  skuMappings,
+  chatMessages
 } from './schema.js';
 import { hashPassword } from '../utils/crypto.js';
 import { broadcast } from '../ws/broker.js';
@@ -640,6 +641,117 @@ export const db = {
         variance: parseInt(item.variance, 10)
       }).returning();
       return rows[0] || null;
+    }
+  },
+
+  chatMessages: {
+    async listMessages(userId, otherUserId) {
+      const db = getActiveDb();
+      return await db.select({
+        id: chatMessages.id,
+        sender_id: chatMessages.sender_id,
+        receiver_id: chatMessages.receiver_id,
+        message: chatMessages.message,
+        product_id: chatMessages.product_id,
+        created_at: chatMessages.created_at,
+        is_read: chatMessages.is_read,
+        product_name: products.name,
+        product_model: products.model,
+        product_current_stock: products.current_stock
+      })
+      .from(chatMessages)
+      .leftJoin(products, eq(chatMessages.product_id, products.id))
+      .where(
+        or(
+          and(eq(chatMessages.sender_id, userId), eq(chatMessages.receiver_id, otherUserId)),
+          and(eq(chatMessages.sender_id, otherUserId), eq(chatMessages.receiver_id, userId))
+        )
+      )
+      .orderBy(chatMessages.id);
+    },
+    async insert(message) {
+      const db = getActiveDb();
+      const rows = await db.insert(chatMessages).values({
+        sender_id: parseInt(message.sender_id, 10),
+        receiver_id: parseInt(message.receiver_id, 10),
+        message: message.message,
+        product_id: message.product_id ? parseInt(message.product_id, 10) : null,
+        is_read: 0
+      }).returning();
+      return rows[0] || null;
+    },
+    async getContacts(userId) {
+      const db = getActiveDb();
+      const userMessages = await db.select()
+        .from(chatMessages)
+        .where(
+          or(
+            eq(chatMessages.sender_id, userId),
+            eq(chatMessages.receiver_id, userId)
+          )
+        )
+        .orderBy(chatMessages.id);
+
+      if (userMessages.length === 0) {
+        return [];
+      }
+
+      const groupedMap = new Map();
+      for (const msg of userMessages) {
+        const otherUserId = msg.sender_id === userId ? msg.receiver_id : msg.sender_id;
+        let info = groupedMap.get(otherUserId);
+        if (!info) {
+          info = {
+            last_message: '',
+            last_message_time: '',
+            unread_count: 0
+          };
+          groupedMap.set(otherUserId, info);
+        }
+        info.last_message = msg.message;
+        info.last_message_time = msg.created_at;
+        
+        if (msg.receiver_id === userId && msg.is_read === 0) {
+          info.unread_count += 1;
+        }
+      }
+
+      const otherUserIds = Array.from(groupedMap.keys());
+      if (otherUserIds.length === 0) {
+        return [];
+      }
+
+      const otherUsers = await db.select({ id: users.id, username: users.username, role: users.role })
+        .from(users)
+        .where(inArray(users.id, otherUserIds));
+
+      const contacts = otherUsers.map(u => {
+        const info = groupedMap.get(u.id);
+        return {
+          id: u.id,
+          username: u.username,
+          role: u.role,
+          last_message: info.last_message,
+          last_message_time: info.last_message_time,
+          unread_count: info.unread_count
+        };
+      });
+
+      contacts.sort((a, b) => b.last_message_time.localeCompare(a.last_message_time));
+      return contacts;
+    },
+    async markAsRead(senderId, receiverId) {
+      const db = getActiveDb();
+      await db.update(chatMessages)
+        .set({ is_read: 1 })
+        .where(
+          and(
+            eq(chatMessages.sender_id, parseInt(senderId, 10)),
+            eq(chatMessages.receiver_id, parseInt(receiverId, 10)),
+            eq(chatMessages.is_read, 0)
+          )
+        );
+      return true;
     }
   }
 };

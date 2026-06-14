@@ -3,6 +3,7 @@ import { Link, useLocation } from '@tanstack/react-router';
 import { UserButton } from '@clerk/tanstack-react-start';
 import { useAuth } from '../context/AuthContext';
 import { useWebSocket } from '../context/WebSocketContext';
+import Chat from './Chat';
 
 const pageTitles = {
   '/': 'Dashboard',
@@ -208,6 +209,7 @@ export default function Layout({ children }) {
           {children}
         </div>
       </main>
+      <Chat />
     </div>
   );
 }

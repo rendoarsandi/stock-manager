@@ -144,3 +144,20 @@ export const skuMappings = sqliteTable('sku_mappings', {
     index('sku_mappings_product_id_idx').on(t.product_id)
   ];
 });
+
+export const chatMessages = sqliteTable('chat_messages', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  sender_id: integer('sender_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  receiver_id: integer('receiver_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  message: text('message').notNull(),
+  product_id: integer('product_id').references(() => products.id, { onDelete: 'set null' }),
+  created_at: text('created_at').default(sql`(datetime('now', 'localtime'))`),
+  is_read: integer('is_read').default(0),
+}, (t) => {
+  return [
+    index('chat_messages_sender_id_idx').on(t.sender_id),
+    index('chat_messages_receiver_id_idx').on(t.receiver_id),
+    index('chat_messages_product_id_idx').on(t.product_id)
+  ];
+});
+

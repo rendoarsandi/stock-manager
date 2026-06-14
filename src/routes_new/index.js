@@ -1,11 +1,12 @@
 import { createClerkClient } from '@clerk/backend';
 import crypto from 'crypto';
 import { db, seedIfNeeded } from '../db/connection.js';
-import { verifyPassword, hashPassword } from '../utils/crypto.js';
+import { verifyPassword, hashPassword, signJwt, verifyJwt } from '../utils/crypto.js';
 import { parseExcel } from '../services/excel-parser.js';
 import { parseAmbiguousDescription, extractSameProductPromo, extractPackMultiplier, resolvePromoProductToBaseItems } from '../services/ambiguous-parser.js';
 import { getActiveStorage, getActiveEnv, storageContext } from '../db/context.js';
 import { getLocalStore } from '../db/local_sqlite.js';
+import { broadcast } from '../ws/broker.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret_key';
 
@@ -26,55 +27,6 @@ function getCookie(request, name) {
     return acc;
   }, {});
   return cookies[name];
-}
-
-// Custom JWT Sign/Verify
-function signJwt(payload, secret) {
-  const header = { alg: 'HS256', typ: 'JWT' };
-  const encodedHeader = Buffer.from(JSON.stringify(header)).toString('base64url');
-  const encodedPayload = Buffer.from(JSON.stringify(payload)).toString('base64url');
-  const signature = crypto.createHmac('sha256', secret).update(`${encodedHeader}.${encodedPayload}`).digest('base64url');
-  return `${encodedHeader}.${encodedPayload}.${signature}`;
-}
-
-function verifyJwt(token, secret) {
-  try {
-    if (!token || typeof token !== 'string') {
-      return null;
-    }
-    const parts = token.split('.');
-    if (parts.length !== 3) {
-      return null;
-    }
-    const [headerB64, payloadB64, signature] = parts;
-    if (!headerB64 || !payloadB64 || !signature) {
-      return null;
-    }
-    const expectedSignature = crypto.createHmac('sha256', secret).update(`${headerB64}.${payloadB64}`).digest('base64url');
-    
-    const sigBuffer = Buffer.from(signature, 'utf8');
-    const expectedBuffer = Buffer.from(expectedSignature, 'utf8');
-    
-    if (sigBuffer.length !== expectedBuffer.length) {
-      return null;
-    }
-    
-    if (!crypto.timingSafeEqual(sigBuffer, expectedBuffer)) {
-      return null;
-    }
-    
-    const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8'));
-    
-    if (payload.exp && typeof payload.exp === 'number') {
-      if (Math.floor(Date.now() / 1000) > payload.exp) {
-        return null;
-      }
-    }
-    
-    return payload;
-  } catch (e) {
-    return null;
-  }
 }
 
 // BadRequestError for input validation
@@ -1441,6 +1393,129 @@ async function handleCreateOpname(req) {
   }
 }
 
+async function handleGetChatMessages(req) {
+  try {
+    const user = req.user;
+    if (!user) return json({ message: 'Unauthorized' }, 401);
+    
+    const url = new URL(req.url);
+    const otherUserId = parseInt(url.searchParams.get('other_user_id'), 10);
+    if (isNaN(otherUserId)) {
+      return json({ message: 'Missing other_user_id' }, 400);
+    }
+
+    const messages = await db.chatMessages.listMessages(user.id, otherUserId);
+    return json(messages);
+  } catch (err) {
+    console.error("Get chat messages error:", err);
+    return json({ message: 'Failed to retrieve messages' }, 500);
+  }
+}
+
+async function handleGetChatContacts(req) {
+  try {
+    const user = req.user;
+    if (!user) return json({ message: 'Unauthorized' }, 401);
+
+    const contacts = await db.chatMessages.getContacts(user.id);
+    return json(contacts);
+  } catch (err) {
+    console.error("Get chat contacts error:", err);
+    return json({ message: 'Failed to retrieve contacts' }, 500);
+  }
+}
+
+async function handleSendChatMessage(req) {
+  try {
+    const user = req.user;
+    if (!user) return json({ message: 'Unauthorized' }, 401);
+
+    const { receiver_id, message, product_id } = await readJson(req);
+    if (!receiver_id || !message) {
+      return json({ message: 'Receiver and message content are required' }, 400);
+    }
+
+    const recId = parseInt(receiver_id, 10);
+    if (isNaN(recId)) {
+      return json({ message: 'Invalid receiver ID' }, 400);
+    }
+
+    const receiverExists = await db.users.get(recId);
+    if (!receiverExists) {
+      return json({ message: 'Receiver user not found' }, 404);
+    }
+
+    let prodId = null;
+    if (product_id !== undefined && product_id !== null) {
+      prodId = parseInt(product_id, 10);
+      if (isNaN(prodId)) {
+        return json({ message: 'Invalid product ID' }, 400);
+      }
+      const productExists = await db.products.get(prodId);
+      if (!productExists) {
+        return json({ message: 'Product not found' }, 404);
+      }
+    }
+
+    const newMsg = await db.chatMessages.insert({
+      sender_id: user.id,
+      receiver_id: recId,
+      message,
+      product_id: prodId
+    });
+
+    let product = null;
+    if (newMsg.product_id) {
+      product = await db.products.get(newMsg.product_id);
+    }
+
+    broadcast({
+      type: 'CHAT_MESSAGE',
+      id: newMsg.id,
+      sender_id: newMsg.sender_id,
+      sender_username: user.username,
+      receiver_id: newMsg.receiver_id,
+      message: newMsg.message,
+      product_id: newMsg.product_id,
+      created_at: newMsg.created_at,
+      is_read: newMsg.is_read,
+      product: product ? {
+        name: product.name,
+        model: product.model,
+        current_stock: product.current_stock
+      } : null
+    });
+
+    return json(newMsg, 201);
+  } catch (err) {
+    console.error("Send chat message error:", err);
+    return json({ message: 'Failed to send message' }, 500);
+  }
+}
+
+async function handleMarkChatRead(req) {
+  try {
+    const user = req.user;
+    if (!user) return json({ message: 'Unauthorized' }, 401);
+
+    const { sender_id } = await readJson(req);
+    if (!sender_id) {
+      return json({ message: 'Sender ID is required' }, 400);
+    }
+
+    const sndId = parseInt(sender_id, 10);
+    if (isNaN(sndId)) {
+      return json({ message: 'Invalid sender ID' }, 400);
+    }
+
+    await db.chatMessages.markAsRead(sndId, user.id);
+    return json({ success: true });
+  } catch (err) {
+    console.error("Mark chat read error:", err);
+    return json({ message: 'Failed to mark messages as read' }, 500);
+  }
+}
+
 export function withAuthOrRole(handler, options = {}) {
   return async ({ request, params }) => {
     const runHandler = async () => {
@@ -1561,5 +1636,9 @@ export {
   handleDashboardStats,
   handleListOpname,
   handleGetOpnameDetails,
-  handleCreateOpname
+  handleCreateOpname,
+  handleGetChatMessages,
+  handleGetChatContacts,
+  handleSendChatMessage,
+  handleMarkChatRead
 };

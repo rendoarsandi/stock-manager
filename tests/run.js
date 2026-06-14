@@ -32,6 +32,7 @@ const tests = [
   'test-sku-mappings.js',
   'test-review-feedback.js',
   'test-localecompare-robustness.js',
+  'test-chat.js',
   'test-build.js'
 ];
 
