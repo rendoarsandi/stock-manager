@@ -148,7 +148,6 @@ async function getAuthUser(request) {
 
     let localId = null;
     let localUsername = username;
-    let needsRegistration = false;
     try {
       const storage = getActiveStorage();
       // 1. Search by Clerk ID in password_hash
@@ -163,7 +162,36 @@ async function getAuthUser(request) {
           // Migrate old user row to store Clerk ID in password_hash
           await storage.execute("UPDATE users SET password_hash = ?, role = ? WHERE id = ?", [authData.userId, role, localId]);
         } else {
-          needsRegistration = true;
+          // 3. Auto-register using Clerk profile info
+          const clerkUser = await clerk.users.getUser(authData.userId);
+          
+          let chosenUsername = clerkUser.username || clerkUser.firstName || '';
+          if (clerkUser.lastName) {
+            chosenUsername = (chosenUsername + clerkUser.lastName).trim();
+          }
+          if (!chosenUsername && clerkUser.emailAddresses && clerkUser.emailAddresses.length > 0) {
+            chosenUsername = clerkUser.emailAddresses[0].emailAddress.split('@')[0];
+          }
+          chosenUsername = chosenUsername.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
+          if (!chosenUsername) {
+            chosenUsername = authData.userId;
+          }
+
+          let finalUsername = chosenUsername;
+          let checkExisting = await storage.query("SELECT id FROM users WHERE username = ?", [finalUsername]);
+          let counter = 1;
+          while (checkExisting && checkExisting.length > 0) {
+            finalUsername = `${chosenUsername}${counter}`;
+            checkExisting = await storage.query("SELECT id FROM users WHERE username = ?", [finalUsername]);
+            counter++;
+          }
+
+          const result = await storage.execute(
+            "INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, datetime('now', 'localtime'))",
+            [finalUsername, authData.userId, role]
+          );
+          localId = result.lastInsertRowid;
+          localUsername = finalUsername;
         }
       } else {
         localId = existing[0].id;
@@ -173,10 +201,6 @@ async function getAuthUser(request) {
     } catch (dbErr) {
       console.error("Failed to check Clerk user in local DB:", dbErr);
       localId = Math.abs(authData.userId.split('').reduce((acc, char) => (acc << 5) - acc + char.charCodeAt(0), 0)) % 1000000;
-    }
-
-    if (needsRegistration) {
-      return { id: null, username: localUsername, role, needsRegistration: true, clerkId: authData.userId };
     }
 
     return { id: localId, username: localUsername, role };
@@ -254,45 +278,7 @@ async function handleMe(req) {
   if (!user) {
     return json({ message: 'Not logged in' }, 401);
   }
-  return json({ id: user.id, username: user.username, role: user.role, needsRegistration: user.needsRegistration || false });
-}
-
-async function handleRegister(req) {
-  try {
-    const user = await getAuthUser(req);
-    if (!user) {
-      return json({ message: 'Unauthorized. Please log in.' }, 401);
-    }
-    if (!user.needsRegistration) {
-      return json({ message: 'Already registered' }, 400);
-    }
-
-    const body = await readJson(req).catch(() => ({}));
-    const username = body.username?.trim();
-
-    if (!username) {
-      return json({ message: 'Username is required' }, 400);
-    }
-
-    const storage = getActiveStorage();
-    const existing = await storage.query("SELECT id FROM users WHERE username = ?", [username]);
-    if (existing && existing.length > 0) {
-      return json({ message: 'Username is already taken' }, 400);
-    }
-
-    const clerkId = user.clerkId || user.username || 'clerk_external';
-    const role = user.role || 'staff';
-
-    const result = await storage.execute(
-      "INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, datetime('now', 'localtime'))",
-      [username, clerkId, role]
-    );
-
-    return json({ success: true, id: result.lastInsertRowid, username, role }, 201);
-  } catch (err) {
-    console.error("Register error:", err);
-    return json({ message: 'Failed to register' }, 500);
-  }
+  return json({ id: user.id, username: user.username, role: user.role });
 }
 
 async function handleListUsers(req) {
@@ -1465,10 +1451,6 @@ export function withAuthOrRole(handler, options = {}) {
           return json({ message: 'Unauthorized. Please log in.' }, 401);
         }
 
-        if (user.needsRegistration && !options.allowUnregistered) {
-          return json({ message: 'Registration required.', needsRegistration: true }, 403);
-        }
-
         if (options.role && user.role !== options.role) {
           return json({ message: 'Forbidden. Insufficient permissions.' }, 403);
         }
@@ -1549,7 +1531,6 @@ export {
   handleLogin,
   handleLogout,
   handleMe,
-  handleRegister,
   handleListUsers,
   handleCreateUser,
   handleDeleteUser,

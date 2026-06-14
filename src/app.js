@@ -7,7 +7,6 @@ import { Route as healthRoute } from '../app/routes/api/health.js';
 import { Route as loginRoute } from '../app/routes/api/auth/login.js';
 import { Route as logoutRoute } from '../app/routes/api/auth/logout.js';
 import { Route as meRoute } from '../app/routes/api/auth/me.js';
-import { Route as registerRoute } from '../app/routes/api/auth/register.js';
 import { Route as usersRoute } from '../app/routes/api/auth/users.js';
 import { Route as userByIdRoute } from '../app/routes/api/auth/users/$id.js';
 import { Route as productsRoute } from '../app/routes/api/products.js';
@@ -41,7 +40,6 @@ const healthRouteUpdated = healthRoute.update({ id: '/api/health', path: '/api/h
 const loginRouteUpdated = loginRoute.update({ id: '/api/auth/login', path: '/api/auth/login', getParentRoute: () => rootRoute });
 const logoutRouteUpdated = logoutRoute.update({ id: '/api/auth/logout', path: '/api/auth/logout', getParentRoute: () => rootRoute });
 const meRouteUpdated = meRoute.update({ id: '/api/auth/me', path: '/api/auth/me', getParentRoute: () => rootRoute });
-const registerRouteUpdated = registerRoute.update({ id: '/api/auth/register', path: '/api/auth/register', getParentRoute: () => rootRoute });
 const usersRouteUpdated = usersRoute.update({ id: '/api/auth/users', path: '/api/auth/users', getParentRoute: () => rootRoute });
 const userByIdRouteUpdated = userByIdRoute.update({ id: '/api/auth/users/$id', path: '/api/auth/users/$id', getParentRoute: () => rootRoute });
 const productsRouteUpdated = productsRoute.update({ id: '/api/products', path: '/api/products', getParentRoute: () => rootRoute });
@@ -73,7 +71,6 @@ rootRoute.addChildren([
   loginRouteUpdated,
   logoutRouteUpdated,
   meRouteUpdated,
-  registerRouteUpdated,
   usersRouteUpdated,
   userByIdRouteUpdated,
   productsRouteUpdated,
