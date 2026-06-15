@@ -34,26 +34,6 @@ export async function seedIfNeeded(storage) {
   const now = new Date().toISOString();
   let wasEmpty = false;
 
-  // Fix old username from the registration logic bug
-  try {
-    // 1. Delete legacy non-Clerk user if it conflicts with the rename
-    await storage.execute("DELETE FROM users WHERE username = 'rendoarsandi' AND (password_hash NOT LIKE 'user_%' OR password_hash IS NULL)");
-    // 2. Perform the update
-    await storage.execute("UPDATE users SET username = 'rendoarsandi' WHERE username = 'rendoarsandiarsandi1'");
-  } catch (err) {
-    // Ignore if unique constraint fails or table doesn't exist yet
-  }
-
-  // Merge/Link Clerk admin user 'user_3F442580tT6hcfmeYeYExYptlJw' to the primary admin account (id: 1)
-  try {
-    await storage.execute("UPDATE stock_movements SET user_id = 1 WHERE user_id IN (SELECT id FROM users WHERE password_hash = 'user_3F442580tT6hcfmeYeYExYptlJw')");
-    await storage.execute("UPDATE stock_opnames SET user_id = 1 WHERE user_id IN (SELECT id FROM users WHERE password_hash = 'user_3F442580tT6hcfmeYeYExYptlJw')");
-    await storage.execute("UPDATE users SET password_hash = 'user_3F442580tT6hcfmeYeYExYptlJw' WHERE id = 1");
-    await storage.execute("DELETE FROM users WHERE password_hash = 'user_3F442580tT6hcfmeYeYExYptlJw' AND id != 1");
-  } catch (err) {
-    // Ignore
-  }
-
   // Seed users only in test mode — Clerk handles auth in production/dev
   if (process.env.NODE_ENV === 'test') {
     const existingUsers = await storage.query("SELECT * FROM users WHERE username = ?", ['admin']);
