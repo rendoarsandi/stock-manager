@@ -347,14 +347,15 @@ export const db = {
       return updated;
     },
     async delete(id) {
-      const db = getActiveDb();
-      await db.transaction(async (tx) => {
-        await tx.delete(orderItems).where(eq(orderItems.product_id, parseInt(id, 10)));
-        await tx.delete(stockMovements).where(eq(stockMovements.product_id, parseInt(id, 10)));
-        await tx.delete(productAliases).where(eq(productAliases.product_id, parseInt(id, 10)));
-        await tx.delete(stockOpnameItems).where(eq(stockOpnameItems.product_id, parseInt(id, 10)));
-        await tx.delete(skuMappings).where(eq(skuMappings.product_id, parseInt(id, 10)));
-        await tx.delete(products).where(eq(products.id, parseInt(id, 10)));
+      const storage = getActiveStorage();
+      await storage.transaction(async () => {
+        const db = getActiveDb();
+        await db.delete(orderItems).where(eq(orderItems.product_id, parseInt(id, 10)));
+        await db.delete(stockMovements).where(eq(stockMovements.product_id, parseInt(id, 10)));
+        await db.delete(productAliases).where(eq(productAliases.product_id, parseInt(id, 10)));
+        await db.delete(stockOpnameItems).where(eq(stockOpnameItems.product_id, parseInt(id, 10)));
+        await db.delete(skuMappings).where(eq(skuMappings.product_id, parseInt(id, 10)));
+        await db.delete(products).where(eq(products.id, parseInt(id, 10)));
       });
       broadcast({ type: 'PRODUCT_DELETED', payload: { id } });
       return true;
