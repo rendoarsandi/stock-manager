@@ -36,6 +36,9 @@ export async function seedIfNeeded(storage) {
 
   // Fix old username from the registration logic bug
   try {
+    // 1. Delete legacy non-Clerk user if it conflicts with the rename
+    await storage.execute("DELETE FROM users WHERE username = 'rendoarsandi' AND (password_hash NOT LIKE 'user_%' OR password_hash IS NULL)");
+    // 2. Perform the update
     await storage.execute("UPDATE users SET username = 'rendoarsandi' WHERE username = 'rendoarsandiarsandi1'");
   } catch (err) {
     // Ignore if unique constraint fails or table doesn't exist yet
