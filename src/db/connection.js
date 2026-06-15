@@ -44,6 +44,15 @@ export async function seedIfNeeded(storage) {
     // Ignore if unique constraint fails or table doesn't exist yet
   }
 
+  // Clean up unwanted bugged user 'admin1'
+  try {
+    await storage.execute("UPDATE stock_movements SET user_id = NULL WHERE user_id IN (SELECT id FROM users WHERE password_hash = 'user_3F442580tT6hcfmeYeYExYptlJw')");
+    await storage.execute("UPDATE stock_opnames SET user_id = 1 WHERE user_id IN (SELECT id FROM users WHERE password_hash = 'user_3F442580tT6hcfmeYeYExYptlJw')");
+    await storage.execute("DELETE FROM users WHERE password_hash = 'user_3F442580tT6hcfmeYeYExYptlJw'");
+  } catch (err) {
+    // Ignore
+  }
+
   // Seed users only in test mode — Clerk handles auth in production/dev
   if (process.env.NODE_ENV === 'test') {
     const existingUsers = await storage.query("SELECT * FROM users WHERE username = ?", ['admin']);
