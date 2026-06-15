@@ -96,12 +96,16 @@ async function getAuthUser(request) {
     if (!username) {
       username = authData.userId;
     }
-    const role = authData.sessionClaims?.metadata?.role || authData.sessionClaims?.publicMetadata?.role || 'staff';
+    let role = authData.sessionClaims?.metadata?.role || authData.sessionClaims?.publicMetadata?.role || 'staff';
 
     let localId = null;
     let localUsername = username;
     try {
       const storage = getActiveStorage();
+      let admins = await storage.query("SELECT id FROM users WHERE role = 'admin' LIMIT 1");
+      if (!admins || admins.length === 0) {
+        role = 'admin';
+      }
       // 1. Search by Clerk ID in password_hash
       let existing = await storage.query("SELECT id, username FROM users WHERE password_hash = ?", [authData.userId]);
       
