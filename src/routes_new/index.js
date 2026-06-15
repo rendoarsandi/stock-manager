@@ -1613,35 +1613,44 @@ async function handleMarkChatRead(req) {
 export function withAuthOrRole(handler, options = {}) {
   return async ({ request, params }) => {
     const runHandler = async () => {
-      let reqObj = request;
-      if (options.auth || options.role) {
-        const user = await getAuthUser(request);
-        if (!user) {
-          return json({ message: 'Unauthorized. Please log in.' }, 401);
-        }
-
-        if (options.role && user.role !== options.role) {
-          return json({ message: 'Forbidden. Insufficient permissions.' }, 403);
-        }
-
-        // We wrap request to be able to attach properties dynamically (e.g. user)
-        const reqProxy = new Proxy(request, {
-          get(target, prop) {
-            if (prop === 'user') {
-              return user;
-            }
-            const val = Reflect.get(target, prop);
-            if (typeof val === 'function') {
-              return val.bind(target);
-            }
-            return val;
+      try {
+        let reqObj = request;
+        if (options.auth || options.role) {
+          const user = await getAuthUser(request);
+          if (!user) {
+            return json({ message: 'Unauthorized. Please log in.' }, 401);
           }
-        });
-        reqObj = reqProxy;
-      }
 
-      const paramArray = params && params.id ? [params.id] : [];
-      return handler(reqObj, paramArray);
+          if (options.role && user.role !== options.role) {
+            return json({ message: 'Forbidden. Insufficient permissions.' }, 403);
+          }
+
+          // We wrap request to be able to attach properties dynamically (e.g. user)
+          const reqProxy = new Proxy(request, {
+            get(target, prop) {
+              if (prop === 'user') {
+                return user;
+              }
+              const val = Reflect.get(target, prop);
+              if (typeof val === 'function') {
+                return val.bind(target);
+              }
+              return val;
+            }
+          });
+          reqObj = reqProxy;
+        }
+
+        const paramArray = params && params.id ? [params.id] : [];
+        return await handler(reqObj, paramArray);
+      } catch (err) {
+        console.error("API handler error:", err);
+        return json({
+          message: 'Internal Server Error',
+          error: err.message,
+          stack: err.stack
+        }, 500);
+      }
     };
 
     if (storageContext.getStore()) {
