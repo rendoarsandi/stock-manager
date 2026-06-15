@@ -1,5 +1,6 @@
 import { getActiveStorage, getActiveDb } from './context.js';
 import { eq, and, or, sql, inArray } from 'drizzle-orm';
+import crypto from 'crypto';
 import {
   users,
   products,
@@ -12,7 +13,8 @@ import {
   stockOpnames,
   stockOpnameItems,
   skuMappings,
-  chatMessages
+  chatMessages,
+  account
 } from './schema.js';
 import { hashPassword } from '../utils/crypto.js';
 import { broadcast } from '../ws/broker.js';
@@ -39,13 +41,29 @@ export async function seedIfNeeded(storage) {
     const existingUsers = await storage.query("SELECT * FROM users WHERE username = ?", ['admin']);
     if (!existingUsers || existingUsers.length === 0) {
       wasEmpty = true;
-      const adminHash = hashPassword(process.env.SEED_ADMIN_PASSWORD || 'admin123');
-      await storage.execute("INSERT INTO users (id, username, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?)", [1, 'admin', adminHash, 'admin', now]);
+      const adminHash = await hashPassword(process.env.SEED_ADMIN_PASSWORD || 'admin123');
+      const nowSec = Math.floor(Date.now() / 1000);
+      await storage.execute(
+        "INSERT INTO users (id, name, email, email_verified, created_at, updated_at, role, username, requires_password_reset) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        ['1', 'admin', 'admin@example.com', 1, nowSec, nowSec, 'admin', 'admin', 0]
+      );
+      await storage.execute(
+        "INSERT INTO account (id, account_id, provider_id, user_id, password, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        ['admin-acc-id', '1', 'credential', '1', adminHash, nowSec, nowSec]
+      );
     }
     const existingStaff = await storage.query("SELECT * FROM users WHERE username = ?", ['staff']);
     if (!existingStaff || existingStaff.length === 0) {
-      const staffHash = hashPassword('staff123');
-      await storage.execute("INSERT INTO users (id, username, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?)", [2, 'staff', staffHash, 'staff', now]);
+      const staffHash = await hashPassword('staff123');
+      const nowSec = Math.floor(Date.now() / 1000);
+      await storage.execute(
+        "INSERT INTO users (id, name, email, email_verified, created_at, updated_at, role, username, requires_password_reset) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        ['2', 'staff', 'staff@example.com', 1, nowSec, nowSec, 'staff', 'staff', 0]
+      );
+      await storage.execute(
+        "INSERT INTO account (id, account_id, provider_id, user_id, password, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        ['staff-acc-id', '2', 'credential', '2', staffHash, nowSec, nowSec]
+      );
     }
   }
 
@@ -258,30 +276,87 @@ export const db = {
   users: {
     async list() {
       const db = getActiveDb();
-      return await db.select().from(users);
+      const userRows = await db.select().from(users);
+      for (const u of userRows) {
+        const accRows = await db.select({ password: account.password })
+          .from(account)
+          .where(and(eq(account.userId, u.id), eq(account.providerId, 'credential')));
+        u.password_hash = accRows[0]?.password || '';
+        u.created_at = u.createdAt;
+        u.updated_at = u.updatedAt;
+      }
+      return userRows;
     },
     async get(id) {
       const db = getActiveDb();
-      const rows = await db.select().from(users).where(eq(users.id, parseInt(id, 10)));
-      return rows[0] || null;
+      const rows = await db.select().from(users).where(eq(users.id, String(id)));
+      const user = rows[0] || null;
+      if (user) {
+        const accRows = await db.select({ password: account.password })
+          .from(account)
+          .where(and(eq(account.userId, user.id), eq(account.providerId, 'credential')));
+        user.password_hash = accRows[0]?.password || '';
+        user.created_at = user.createdAt;
+        user.updated_at = user.updatedAt;
+      }
+      return user;
     },
     async getByUsername(username) {
       const db = getActiveDb();
       const rows = await db.select().from(users).where(eq(users.username, username));
-      return rows[0] || null;
+      const user = rows[0] || null;
+      if (user) {
+        const accRows = await db.select({ password: account.password })
+          .from(account)
+          .where(and(eq(account.userId, user.id), eq(account.providerId, 'credential')));
+        user.password_hash = accRows[0]?.password || '';
+        user.created_at = user.createdAt;
+        user.updated_at = user.updatedAt;
+      }
+      return user;
     },
     async insert(user) {
       const db = getActiveDb();
+      const userId = user.id ? String(user.id) : crypto.randomUUID();
+      const now = new Date();
+      const email = user.email || `${user.username}@example.com`;
+      const name = user.name || user.username;
+      
       const rows = await db.insert(users).values({
+        id: userId,
+        name: name,
+        email: email,
+        emailVerified: true,
+        createdAt: now,
+        updatedAt: now,
+        role: user.role,
         username: user.username,
-        password_hash: user.password_hash,
-        role: user.role
+        requiresPasswordReset: false
       }).returning();
-      return rows[0] || null;
+      
+      const insertedUser = rows[0] || null;
+      if (insertedUser) {
+        insertedUser.created_at = insertedUser.createdAt;
+        insertedUser.updated_at = insertedUser.updatedAt;
+        if (user.password_hash) {
+          const accId = crypto.randomUUID();
+          await db.insert(account).values({
+            id: accId,
+            accountId: userId,
+            providerId: 'credential',
+            userId: userId,
+            password: user.password_hash,
+            createdAt: now,
+            updatedAt: now
+          });
+          insertedUser.password_hash = user.password_hash;
+        }
+      }
+      return insertedUser;
     },
     async delete(id) {
       const db = getActiveDb();
-      await db.delete(users).where(eq(users.id, parseInt(id, 10)));
+      await db.delete(users).where(eq(users.id, String(id)));
       return true;
     }
   },
@@ -378,7 +453,7 @@ export const db = {
         quantity_change: parseInt(movement.quantity_change, 10),
         movement_type: movement.movement_type,
         reference: movement.reference || null,
-        user_id: movement.user_id ? parseInt(movement.user_id, 10) : null
+        user_id: movement.user_id ? String(movement.user_id) : null
       }).returning();
       const newMovement = rows[0] || null;
       if (newMovement) {
@@ -444,7 +519,7 @@ export const db = {
       const db = getActiveDb();
       const rows = await db.insert(importSessions).values({
         template_id: session.template_id ? parseInt(session.template_id, 10) : null,
-        user_id: session.user_id ? parseInt(session.user_id, 10) : null,
+        user_id: session.user_id ? String(session.user_id) : null,
         filename: session.filename,
         status: session.status || 'pending',
         total_rows: parseInt(session.total_rows, 10) || 0,
@@ -458,7 +533,7 @@ export const db = {
       const db = getActiveDb();
       const setValues = {};
       if (updates.template_id !== undefined) setValues.template_id = updates.template_id ? parseInt(updates.template_id, 10) : null;
-      if (updates.user_id !== undefined) setValues.user_id = updates.user_id ? parseInt(updates.user_id, 10) : null;
+      if (updates.user_id !== undefined) setValues.user_id = updates.user_id ? String(updates.user_id) : null;
       if (updates.filename !== undefined) setValues.filename = updates.filename;
       if (updates.status !== undefined) setValues.status = updates.status;
       if (updates.total_rows !== undefined) setValues.total_rows = parseInt(updates.total_rows, 10);
@@ -611,7 +686,7 @@ export const db = {
     async insert(opname) {
       const db = getActiveDb();
       const rows = await db.insert(stockOpnames).values({
-        user_id: parseInt(opname.user_id, 10),
+        user_id: String(opname.user_id),
         notes: opname.notes || null
       }).returning();
       const newOpname = rows[0] || null;
@@ -672,8 +747,8 @@ export const db = {
     async insert(message) {
       const db = getActiveDb();
       const rows = await db.insert(chatMessages).values({
-        sender_id: parseInt(message.sender_id, 10),
-        receiver_id: parseInt(message.receiver_id, 10),
+        sender_id: String(message.sender_id),
+        receiver_id: String(message.receiver_id),
         message: message.message,
         product_id: message.product_id ? parseInt(message.product_id, 10) : null,
         is_read: 0
@@ -746,8 +821,8 @@ export const db = {
         .set({ is_read: 1 })
         .where(
           and(
-            eq(chatMessages.sender_id, parseInt(senderId, 10)),
-            eq(chatMessages.receiver_id, parseInt(receiverId, 10)),
+            eq(chatMessages.sender_id, String(senderId)),
+            eq(chatMessages.receiver_id, String(receiverId)),
             eq(chatMessages.is_read, 0)
           )
         );

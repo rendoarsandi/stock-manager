@@ -2,11 +2,50 @@ import { sqliteTable, integer, text, real, primaryKey, index } from 'drizzle-orm
 import { sql } from 'drizzle-orm';
 
 export const users = sqliteTable('users', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  username: text('username').notNull().unique(),
-  password_hash: text('password_hash').notNull().unique(),
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  email: text('email').notNull().unique(),
+  emailVerified: integer('email_verified', { mode: 'boolean' }).notNull(),
+  image: text('image'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
   role: text('role').notNull(), // CHECK(role IN ('admin', 'staff'))
-  created_at: text('created_at').default(sql`(datetime('now', 'localtime'))`),
+  username: text('username').notNull().unique(),
+  requiresPasswordReset: integer('requires_password_reset', { mode: 'boolean' }).default(false).notNull(),
+});
+
+export const session = sqliteTable('session', {
+  id: text('id').primaryKey(),
+  expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+  token: text('token').notNull().unique(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+  ipAddress: text('ip_address'),
+  userAgent: text('user_agent'),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+});
+
+export const account = sqliteTable('account', {
+  id: text('id').primaryKey(),
+  accountId: text('account_id').notNull(),
+  providerId: text('provider_id').notNull(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  accessToken: text('access_token'),
+  refreshToken: text('refresh_token'),
+  idToken: text('id_token'),
+  expiresAt: integer('expires_at', { mode: 'timestamp' }),
+  password: text('password'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+});
+
+export const verification = sqliteTable('verification', {
+  id: text('id').primaryKey(),
+  identifier: text('identifier').notNull(),
+  value: text('value').notNull(),
+  expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' }),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }),
 });
 
 export const products = sqliteTable('products', {
@@ -40,7 +79,7 @@ export const importTemplates = sqliteTable('import_templates', {
 export const importSessions = sqliteTable('import_sessions', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   template_id: integer('template_id').references(() => importTemplates.id),
-  user_id: integer('user_id').references(() => users.id),
+  user_id: text('user_id').references(() => users.id),
   filename: text('filename').notNull(),
   status: text('status').notNull(), // CHECK(status IN ('pending', 'previewing', 'applied', 'cancelled'))
   total_rows: integer('total_rows').default(0),
@@ -100,7 +139,7 @@ export const stockMovements = sqliteTable('stock_movements', {
   quantity_change: integer('quantity_change').notNull(),
   movement_type: text('movement_type').notNull(), // CHECK(movement_type IN ('sale', 'return', 'write_off', 'manual_adjust', 'initial'))
   reference: text('reference'),
-  user_id: integer('user_id').references(() => users.id),
+  user_id: text('user_id').references(() => users.id),
   created_at: text('created_at').default(sql`(datetime('now', 'localtime'))`),
 }, (t) => {
   return [
@@ -111,7 +150,7 @@ export const stockMovements = sqliteTable('stock_movements', {
 
 export const stockOpnames = sqliteTable('stock_opnames', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  user_id: integer('user_id').notNull().references(() => users.id),
+  user_id: text('user_id').notNull().references(() => users.id),
   notes: text('notes'),
   created_at: text('created_at').default(sql`(datetime('now', 'localtime'))`),
 }, (t) => {
@@ -147,8 +186,8 @@ export const skuMappings = sqliteTable('sku_mappings', {
 
 export const chatMessages = sqliteTable('chat_messages', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  sender_id: integer('sender_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  receiver_id: integer('receiver_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  sender_id: text('sender_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  receiver_id: text('receiver_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   message: text('message').notNull(),
   product_id: integer('product_id').references(() => products.id, { onDelete: 'set null' }),
   created_at: text('created_at').default(sql`(datetime('now', 'localtime'))`),

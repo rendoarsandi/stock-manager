@@ -24,6 +24,7 @@ export function getActiveDb() {
   }
   if (!store.drizzle) {
     store.drizzle = drizzle(async (sql, params, method) => {
+      console.log("DB Proxy Query:", { sql, params, method });
       try {
         if (method === 'run') {
           const result = await store.storage.execute(sql, params);
@@ -43,4 +44,3 @@ export function getActiveDb() {
   }
   return store.drizzle;
 }
-

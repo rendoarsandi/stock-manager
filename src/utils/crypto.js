@@ -1,16 +1,31 @@
 import crypto from 'crypto';
+import { hashPassword as betterHashPassword, verifyPassword as betterVerifyPassword } from 'better-auth/crypto';
 
-export function hashPassword(password) {
-  const salt = crypto.randomBytes(16).toString('hex');
-  const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
-  return `${salt}:${hash}`;
+export async function hashPassword(password) {
+  return await betterHashPassword(password);
 }
 
-export function verifyPassword(password, storedPassword) {
-  if (!storedPassword || !storedPassword.includes(':')) return false;
-  const [salt, hash] = storedPassword.split(':');
-  const verifyHash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
-  return hash === verifyHash;
+export async function verifyPassword(password, storedPassword) {
+  if (!storedPassword) return false;
+  
+  // Try BetterAuth verification first
+  try {
+    const isValid = await betterVerifyPassword({ password, hash: storedPassword });
+    if (isValid) return true;
+  } catch (e) {}
+
+  // Fallback to legacy pbkdf2 verification (just in case)
+  if (storedPassword.includes(':')) {
+    const [salt, hash] = storedPassword.split(':');
+    if (salt && hash) {
+      try {
+        const verifyHash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+        if (hash === verifyHash) return true;
+      } catch (e) {}
+    }
+  }
+
+  return false;
 }
 
 export function signJwt(payload, secret) {
@@ -60,4 +75,3 @@ export function verifyJwt(token, secret) {
     return null;
   }
 }
-

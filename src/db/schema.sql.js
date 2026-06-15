@@ -1,10 +1,51 @@
 export const schemaSql = `
 CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT NOT NULL UNIQUE,
-    password_hash TEXT NOT NULL UNIQUE,
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL UNIQUE,
+    email_verified INTEGER NOT NULL,
+    image TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
     role TEXT NOT NULL CHECK(role IN ('admin', 'staff')),
-    created_at TEXT DEFAULT (datetime('now', 'localtime'))
+    username TEXT NOT NULL UNIQUE,
+    requires_password_reset INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS session (
+    id TEXT PRIMARY KEY,
+    expires_at INTEGER NOT NULL,
+    token TEXT NOT NULL UNIQUE,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    ip_address TEXT,
+    user_agent TEXT,
+    user_id TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS account (
+    id TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL,
+    provider_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    access_token TEXT,
+    refresh_token TEXT,
+    id_token TEXT,
+    expires_at INTEGER,
+    password TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS verification (
+    id TEXT PRIMARY KEY,
+    identifier TEXT NOT NULL,
+    value TEXT NOT NULL,
+    expires_at INTEGER NOT NULL,
+    created_at INTEGER,
+    updated_at INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS products (
@@ -35,7 +76,7 @@ CREATE TABLE IF NOT EXISTS import_templates (
 CREATE TABLE IF NOT EXISTS import_sessions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     template_id INTEGER,
-    user_id INTEGER,
+    user_id TEXT,
     filename TEXT NOT NULL,
     status TEXT NOT NULL CHECK(status IN ('pending', 'previewing', 'applied', 'cancelled')),
     total_rows INTEGER DEFAULT 0,
@@ -85,7 +126,7 @@ CREATE TABLE IF NOT EXISTS stock_movements (
     quantity_change INTEGER NOT NULL, -- negative for sales/loss, positive for returns/adjustments
     movement_type TEXT NOT NULL CHECK(movement_type IN ('sale', 'return', 'write_off', 'manual_adjust', 'initial')),
     reference TEXT, -- order_id, import_session_id, or description
-    user_id INTEGER,
+    user_id TEXT,
     created_at TEXT DEFAULT (datetime('now', 'localtime')),
     FOREIGN KEY (product_id) REFERENCES products(id),
     FOREIGN KEY (user_id) REFERENCES users(id)
@@ -93,7 +134,7 @@ CREATE TABLE IF NOT EXISTS stock_movements (
 
 CREATE TABLE IF NOT EXISTS stock_opnames (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
+    user_id TEXT NOT NULL,
     notes TEXT,
     created_at TEXT DEFAULT (datetime('now', 'localtime')),
     FOREIGN KEY (user_id) REFERENCES users(id)
@@ -120,8 +161,8 @@ CREATE TABLE IF NOT EXISTS sku_mappings (
 
 CREATE TABLE IF NOT EXISTS chat_messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    sender_id INTEGER NOT NULL,
-    receiver_id INTEGER NOT NULL,
+    sender_id TEXT NOT NULL,
+    receiver_id TEXT NOT NULL,
     message TEXT NOT NULL,
     product_id INTEGER,
     created_at TEXT DEFAULT (datetime('now', 'localtime')),

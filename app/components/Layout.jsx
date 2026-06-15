@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation } from '@tanstack/react-router';
-import { UserButton } from '@clerk/tanstack-react-start';
 import { useAuth } from '../context/AuthContext';
 import { useWebSocket } from '../context/WebSocketContext';
 import Chat from './Chat';
@@ -201,7 +200,6 @@ export default function Layout({ children }) {
             <span id="connection-status" className={`status-indicator ${isConnected ? 'online' : 'danger'}`}>
               {isConnected ? 'Online' : 'Offline'}
             </span>
-            <UserButton />
           </div>
         </header>
 

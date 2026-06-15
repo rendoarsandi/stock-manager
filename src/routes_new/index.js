@@ -1,4 +1,4 @@
-import { createClerkClient } from '@clerk/backend';
+import { auth } from '../db/auth.js';
 import crypto from 'crypto';
 import { db, seedIfNeeded } from '../db/connection.js';
 import { verifyPassword, hashPassword, signJwt, verifyJwt } from '../utils/crypto.js';
@@ -7,6 +7,7 @@ import { parseAmbiguousDescription, extractSameProductPromo, extractPackMultipli
 import { getActiveStorage, getActiveEnv, storageContext } from '../db/context.js';
 import { getLocalStore } from '../db/local_sqlite.js';
 import { broadcast } from '../ws/broker.js';
+import { signCookieValue } from '../../node_modules/better-call/dist/crypto.mjs';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret_key';
 
@@ -46,134 +47,51 @@ export async function readJson(request) {
   }
 }
 
-let clerkClientInstance = null;
-function getClerkClient() {
-  if (clerkClientInstance) return clerkClientInstance;
-
-  const env = getActiveEnv();
-  let publishableKey = process.env.CLERK_PUBLISHABLE_KEY || process.env.VITE_CLERK_PUBLISHABLE_KEY;
-  if (!publishableKey && env) {
-    publishableKey = env.CLERK_PUBLISHABLE_KEY || env.VITE_CLERK_PUBLISHABLE_KEY;
-  }
-  if (!publishableKey) {
-    publishableKey = 'pk_test_ZmFzdC1oZXJyaW5nLTE5LmNsZXJrLmFjY291bnRzLmRldiQ';
-  }
-
-  let secretKey = process.env.CLERK_SECRET_KEY;
-  if (!secretKey && env) {
-    secretKey = env.CLERK_SECRET_KEY;
-  }
-  if (!secretKey) {
-    secretKey = 'sk_test_' + 'abcde12345'.repeat(8);
-  }
-
-  clerkClientInstance = createClerkClient({
-    publishableKey,
-    secretKey
-  });
-  return clerkClientInstance;
-}
-
-// Authentication check
+// Authentication check using BetterAuth
 async function getAuthUser(request) {
-  if (process.env.NODE_ENV === 'test') {
-    const token = getCookie(request, 'token');
-    if (!token) return null;
-    return verifyJwt(token, JWT_SECRET);
-  }
-
   try {
-    const clerk = getClerkClient();
-    const requestState = await clerk.authenticateRequest(request);
-    if (requestState.status === 'unknown' || requestState.status === 'signed-out') {
-      return null;
-    }
+    let token = getCookie(request, 'better-auth.session-token') || 
+                getCookie(request, 'better-auth.session_token') || 
+                getCookie(request, 'token');
 
-    const authData = requestState.toAuth();
-    if (!authData || !authData.userId) return null;
+    if (token) {
+      if (token.includes('.') && !token.startsWith('eyJ')) {
+        token = token.split('.')[0];
+      }
 
-    let username = authData.sessionClaims?.username;
-    if (!username) {
-      username = authData.userId;
-    }
-    const role = authData.sessionClaims?.metadata?.role || authData.sessionClaims?.publicMetadata?.role || 'staff';
-
-    let localId = null;
-    let localUsername = username;
-    try {
       const storage = getActiveStorage();
-      // 1. Search by Clerk ID in password_hash
-      let existing = await storage.query("SELECT id, username FROM users WHERE password_hash = ?", [authData.userId]);
-      
-      // 2. Fallback: Search by Clerk ID in username column (for migrating older accounts)
-      if (!existing || existing.length === 0) {
-        existing = await storage.query("SELECT id, username FROM users WHERE username = ?", [authData.userId]);
-        if (existing && existing.length > 0) {
-          localId = existing[0].id;
-          localUsername = existing[0].username;
-          // Migrate old user row to store Clerk ID in password_hash
-          await storage.execute("UPDATE users SET password_hash = ?, role = ? WHERE id = ?", [authData.userId, role, localId]);
-        } else {
-          // 3. Auto-register using Clerk profile info
-          const clerkUser = await clerk.users.getUser(authData.userId);
-          
-          let chosenUsername = clerkUser.username || clerkUser.firstName || '';
-          if (clerkUser.lastName) {
-            chosenUsername = (chosenUsername + clerkUser.lastName).trim();
-          }
-          if (!chosenUsername && clerkUser.emailAddresses && clerkUser.emailAddresses.length > 0) {
-            chosenUsername = clerkUser.emailAddresses[0].emailAddress.split('@')[0];
-          }
-          chosenUsername = chosenUsername.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
-          if (!chosenUsername) {
-            chosenUsername = authData.userId;
-          }
-
-          let finalUsername = chosenUsername;
-          let checkExisting = await storage.query("SELECT id FROM users WHERE username = ?", [finalUsername]);
-          let counter = 1;
-          while (checkExisting && checkExisting.length > 0) {
-            finalUsername = `${chosenUsername}${counter}`;
-            checkExisting = await storage.query("SELECT id FROM users WHERE username = ?", [finalUsername]);
-            counter++;
-          }
-
-          try {
-            const result = await storage.execute(
-              "INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, datetime('now', 'localtime'))",
-              [finalUsername, authData.userId, role]
-            );
-            localId = result.lastInsertRowid;
-            localUsername = finalUsername;
-          } catch (insertErr) {
-            if (insertErr.message && insertErr.message.includes('UNIQUE constraint')) {
-              let existingUser = await storage.query("SELECT id, username FROM users WHERE password_hash = ?", [authData.userId]);
-              if (existingUser && existingUser.length > 0) {
-                localId = existingUser[0].id;
-                localUsername = existingUser[0].username;
-              } else {
-                throw insertErr;
-              }
-            } else {
-              throw insertErr;
-            }
+      const sessions = await storage.query("SELECT * FROM session WHERE token = ?", [token]);
+      if (sessions && sessions.length > 0) {
+        const session = sessions[0];
+        const expiresAtMs = Number(session.expires_at) < 1000000000000 ? Number(session.expires_at) * 1000 : Number(session.expires_at);
+        if (expiresAtMs > Date.now()) {
+          const userRows = await storage.query("SELECT * FROM users WHERE id = ?", [session.user_id]);
+          if (userRows && userRows.length > 0) {
+            const user = userRows[0];
+            return {
+              id: user.id,
+              username: user.username,
+              role: user.role
+            };
           }
         }
-      } else {
-        localId = existing[0].id;
-        localUsername = existing[0].username;
-        await storage.execute("UPDATE users SET role = ? WHERE id = ?", [role, localId]);
       }
-    } catch (dbErr) {
-      console.error("Failed to check Clerk user in local DB:", dbErr);
-      localId = Math.abs(authData.userId.split('').reduce((acc, char) => (acc << 5) - acc + char.charCodeAt(0), 0)) % 1000000;
     }
-
-    return { id: localId, username: localUsername, role };
-  } catch (e) {
-    console.error("Clerk auth failed with error:", e);
-    return null;
+  } catch (err) {
+    console.error("Custom session check failed:", err);
   }
+
+  // Test-only JWT fallback for backward compatibility
+  if (process.env.NODE_ENV === 'test') {
+    const token = getCookie(request, 'token');
+    if (token && token.includes('.') && token.startsWith('eyJ')) {
+      try {
+        return verifyJwt(token, JWT_SECRET);
+      } catch (e) {}
+    }
+  }
+
+  return null;
 }
 
 // Helper to return JSON Response
@@ -201,9 +119,39 @@ async function handleLogin(req) {
     }
 
     const user = await db.users.getByUsername(username);
-    if (!user || !verifyPassword(password, user.password_hash)) {
+    if (!user) {
       return json({ message: 'Invalid username or password' }, 401);
     }
+
+    if (user.requiresPasswordReset || user.requires_password_reset) {
+      return json({
+        message: 'Password reset required',
+        requires_password_reset: true,
+        username: user.username
+      }, 403);
+    }
+
+    const storage = getActiveStorage();
+    const accRows = await storage.query(
+      "SELECT password FROM account WHERE user_id = ? AND provider_id = ?",
+      [user.id, 'credential']
+    );
+    const passwordHash = accRows[0]?.password;
+    if (!passwordHash || !(await verifyPassword(password, passwordHash))) {
+      return json({ message: 'Invalid username or password' }, 401);
+    }
+
+    // Create a BetterAuth session manually in DB (using milliseconds)
+    const sessionToken = crypto.randomUUID();
+    const sessionId = crypto.randomUUID();
+    const now = Date.now();
+    const expiresAt = now + 1000 * 60 * 60 * 24 * 7; // 7 days
+
+    await storage.execute(
+      `INSERT INTO session (id, expires_at, token, created_at, updated_at, user_id)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [sessionId, expiresAt, sessionToken, now, now, user.id]
+    );
 
     const payload = {
       id: user.id,
@@ -213,7 +161,10 @@ async function handleLogin(req) {
     };
 
     const token = signJwt(payload, JWT_SECRET);
+    const signedToken = await signCookieValue(sessionToken, auth.options.secret);
     const headers = new Headers();
+    headers.append('Set-Cookie', `better-auth.session-token=${signedToken}; Path=/; HttpOnly; Max-Age=86400`);
+    headers.append('Set-Cookie', `better-auth.session_token=${signedToken}; Path=/; HttpOnly; Max-Age=86400`);
     headers.append('Set-Cookie', `token=${token}; Path=/; HttpOnly; Max-Age=86400`);
 
     return new Response(JSON.stringify({
@@ -230,8 +181,96 @@ async function handleLogin(req) {
   }
 }
 
+async function handleResetPassword(req) {
+  try {
+    const { username, password } = await readJson(req);
+    if (!username || !password) {
+      return json({ message: 'Username and password are required' }, 400);
+    }
+
+    const user = await db.users.getByUsername(username);
+    if (!user || (!user.requiresPasswordReset && !user.requires_password_reset)) {
+      return json({ message: 'Password reset not allowed or user not found' }, 400);
+    }
+
+    const hashedPassword = await hashPassword(password);
+    const storage = getActiveStorage();
+    const now = Math.floor(Date.now() / 1000);
+
+    // Check if account already exists
+    const accRows = await storage.query(
+      "SELECT id FROM account WHERE user_id = ? AND provider_id = ?",
+      [user.id, 'credential']
+    );
+
+    if (accRows && accRows.length > 0) {
+      await storage.execute(
+        "UPDATE account SET password = ?, updated_at = ? WHERE user_id = ? AND provider_id = ?",
+        [hashedPassword, now, user.id, 'credential']
+      );
+    } else {
+      const accountId = crypto.randomUUID();
+      await storage.execute(
+        `INSERT INTO account (id, account_id, provider_id, user_id, password, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [accountId, user.id, 'credential', user.id, hashedPassword, now, now]
+      );
+    }
+
+    // Set requires_password_reset = 0
+    await storage.execute(
+      "UPDATE users SET requires_password_reset = 0 WHERE id = ?",
+      [user.id]
+    );
+
+    // Create a BetterAuth session manually in DB (using milliseconds)
+    const sessionToken = crypto.randomUUID();
+    const sessionId = crypto.randomUUID();
+    const nowMs = Date.now();
+    const expiresAt = nowMs + 1000 * 60 * 60 * 24 * 7; // 7 days
+
+    await storage.execute(
+      `INSERT INTO session (id, expires_at, token, created_at, updated_at, user_id)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [sessionId, expiresAt, sessionToken, nowMs, nowMs, user.id]
+    );
+
+    const payload = {
+      id: user.id,
+      username: user.username,
+      role: user.role,
+      exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 // 24 hours
+    };
+
+    const token = signJwt(payload, JWT_SECRET);
+    const signedToken = await signCookieValue(sessionToken, auth.options.secret);
+    const headers = new Headers();
+    headers.append('Set-Cookie', `better-auth.session-token=${signedToken}; Path=/; HttpOnly; Max-Age=86400`);
+    headers.append('Set-Cookie', `better-auth.session_token=${signedToken}; Path=/; HttpOnly; Max-Age=86400`);
+    headers.append('Set-Cookie', `token=${token}; Path=/; HttpOnly; Max-Age=86400`);
+
+    return new Response(JSON.stringify({
+      id: user.id,
+      username: user.username,
+      role: user.role
+    }), {
+      status: 200,
+      headers
+    });
+  } catch (err) {
+    console.error("Password reset error:", err);
+    return json({ message: 'Internal server error' }, 500);
+  }
+}
+
 async function handleLogout(req) {
+  try {
+    await auth.api.signOut({ headers: req.headers });
+  } catch (err) {
+    console.error("BetterAuth signOut failed:", err);
+  }
   const headers = new Headers();
+  headers.append('Set-Cookie', 'better-auth.session-token=; Path=/; HttpOnly; Max-Age=0');
   headers.append('Set-Cookie', 'token=; Path=/; HttpOnly; Max-Age=0');
   return new Response(JSON.stringify({ success: true }), {
     status: 200,
@@ -249,59 +288,6 @@ async function handleMe(req) {
 
 async function handleListUsers(req) {
   try {
-    if (process.env.NODE_ENV !== 'test') {
-      try {
-        const clerk = getClerkClient();
-        const clerkUsers = await clerk.users.getUserList({ limit: 100 });
-        if (clerkUsers) {
-          const list = clerkUsers.data || clerkUsers;
-          const userArray = Array.isArray(list) ? list : [];
-          const storage = getActiveStorage();
-          for (const cu of userArray) {
-            let existing = await storage.query("SELECT id FROM users WHERE password_hash = ?", [cu.id]);
-            if (!existing || existing.length === 0) {
-              let chosenUsername = cu.username || cu.firstName || '';
-              if (cu.lastName) {
-                chosenUsername = (chosenUsername + cu.lastName).trim();
-              }
-              if (!chosenUsername && cu.emailAddresses && cu.emailAddresses.length > 0) {
-                chosenUsername = cu.emailAddresses[0].emailAddress.split('@')[0];
-              }
-              chosenUsername = chosenUsername.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
-              if (!chosenUsername) {
-                chosenUsername = cu.id;
-              }
-
-              let finalUsername = chosenUsername;
-              let checkExisting = await storage.query("SELECT id FROM users WHERE username = ?", [finalUsername]);
-              let counter = 1;
-              while (checkExisting && checkExisting.length > 0) {
-                finalUsername = `${chosenUsername}${counter}`;
-                checkExisting = await storage.query("SELECT id FROM users WHERE username = ?", [finalUsername]);
-                counter++;
-              }
-
-              const role = cu.publicMetadata?.role || cu.metadata?.role || 'staff';
-              try {
-                await storage.execute(
-                  "INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, datetime('now', 'localtime'))",
-                  [finalUsername, cu.id, role]
-                );
-              } catch (insertErr) {
-                if (insertErr.message && insertErr.message.includes('UNIQUE constraint')) {
-                  console.log(`User ${finalUsername} already concurrently registered, skipping.`);
-                } else {
-                  throw insertErr;
-                }
-              }
-            }
-          }
-        }
-      } catch (clerkErr) {
-        console.error("Failed to sync users from Clerk:", clerkErr);
-      }
-    }
-
     const list = await db.users.list();
     list.sort((a, b) => (a.username || '').localeCompare(b.username || ''));
     const stripped = list.map(u => ({ id: u.id, username: u.username, role: u.role, created_at: u.created_at }));
@@ -327,7 +313,7 @@ async function handleCreateUser(req) {
       return json({ message: 'Username already exists' }, 400);
     }
 
-    const hashedPassword = hashPassword(password);
+    const hashedPassword = await hashPassword(password);
     const inserted = await db.users.insert({
       username,
       password_hash: hashedPassword,
@@ -343,11 +329,11 @@ async function handleCreateUser(req) {
 
 async function handleDeleteUser(req, params) {
   try {
-    const id = parseInt(params[0], 10);
-    if (isNaN(id)) return json({ message: "Invalid user ID" }, 400);
+    const id = params[0];
+    if (!id) return json({ message: "Invalid user ID" }, 400);
     const currentUser = req.user; // populated by routing wrapper
 
-    if (id === 1 || String(id) === String(currentUser?.id)) {
+    if (String(id) === '1' || String(id) === String(currentUser?.id)) {
       return json({ message: 'Cannot delete the main admin or your own current logged-in user account' }, 400);
     }
 
@@ -1672,6 +1658,7 @@ export {
   handleHealth,
   handleWsPlaceholder,
   handleLogin,
+  handleResetPassword,
   handleLogout,
   handleMe,
   handleListUsers,

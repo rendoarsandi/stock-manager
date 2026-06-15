@@ -40,6 +40,7 @@ import { Route as ApiChatReadRouteImport } from './routes/api/chat/read'
 import { Route as ApiChatMessagesRouteImport } from './routes/api/chat/messages'
 import { Route as ApiChatContactsRouteImport } from './routes/api/chat/contacts'
 import { Route as ApiAuthUsersRouteImport } from './routes/api/auth/users'
+import { Route as ApiAuthResetPasswordRouteImport } from './routes/api/auth/reset-password'
 import { Route as ApiAuthMeRouteImport } from './routes/api/auth/me'
 import { Route as ApiAuthLogoutRouteImport } from './routes/api/auth/logout'
 import { Route as ApiAuthLoginRouteImport } from './routes/api/auth/login'
@@ -205,6 +206,11 @@ const ApiAuthUsersRoute = ApiAuthUsersRouteImport.update({
   path: '/api/auth/users',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAuthResetPasswordRoute = ApiAuthResetPasswordRouteImport.update({
+  id: '/api/auth/reset-password',
+  path: '/api/auth/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthMeRoute = ApiAuthMeRouteImport.update({
   id: '/api/auth/me',
   path: '/api/auth/me',
@@ -268,6 +274,7 @@ export interface FileRoutesByFullPath {
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/auth/me': typeof ApiAuthMeRoute
+  '/api/auth/reset-password': typeof ApiAuthResetPasswordRoute
   '/api/auth/users': typeof ApiAuthUsersRouteWithChildren
   '/api/chat/contacts': typeof ApiChatContactsRoute
   '/api/chat/messages': typeof ApiChatMessagesRoute
@@ -310,6 +317,7 @@ export interface FileRoutesByTo {
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/auth/me': typeof ApiAuthMeRoute
+  '/api/auth/reset-password': typeof ApiAuthResetPasswordRoute
   '/api/auth/users': typeof ApiAuthUsersRouteWithChildren
   '/api/chat/contacts': typeof ApiChatContactsRoute
   '/api/chat/messages': typeof ApiChatMessagesRoute
@@ -353,6 +361,7 @@ export interface FileRoutesById {
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/auth/me': typeof ApiAuthMeRoute
+  '/api/auth/reset-password': typeof ApiAuthResetPasswordRoute
   '/api/auth/users': typeof ApiAuthUsersRouteWithChildren
   '/api/chat/contacts': typeof ApiChatContactsRoute
   '/api/chat/messages': typeof ApiChatMessagesRoute
@@ -397,6 +406,7 @@ export interface FileRouteTypes {
     | '/api/auth/login'
     | '/api/auth/logout'
     | '/api/auth/me'
+    | '/api/auth/reset-password'
     | '/api/auth/users'
     | '/api/chat/contacts'
     | '/api/chat/messages'
@@ -439,6 +449,7 @@ export interface FileRouteTypes {
     | '/api/auth/login'
     | '/api/auth/logout'
     | '/api/auth/me'
+    | '/api/auth/reset-password'
     | '/api/auth/users'
     | '/api/chat/contacts'
     | '/api/chat/messages'
@@ -481,6 +492,7 @@ export interface FileRouteTypes {
     | '/api/auth/login'
     | '/api/auth/logout'
     | '/api/auth/me'
+    | '/api/auth/reset-password'
     | '/api/auth/users'
     | '/api/chat/contacts'
     | '/api/chat/messages'
@@ -524,6 +536,7 @@ export interface RootRouteChildren {
   ApiAuthLoginRoute: typeof ApiAuthLoginRoute
   ApiAuthLogoutRoute: typeof ApiAuthLogoutRoute
   ApiAuthMeRoute: typeof ApiAuthMeRoute
+  ApiAuthResetPasswordRoute: typeof ApiAuthResetPasswordRoute
   ApiAuthUsersRoute: typeof ApiAuthUsersRouteWithChildren
   ApiChatContactsRoute: typeof ApiChatContactsRoute
   ApiChatMessagesRoute: typeof ApiChatMessagesRoute
@@ -763,6 +776,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthUsersRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/auth/reset-password': {
+      id: '/api/auth/reset-password'
+      path: '/api/auth/reset-password'
+      fullPath: '/api/auth/reset-password'
+      preLoaderRoute: typeof ApiAuthResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/me': {
       id: '/api/auth/me'
       path: '/api/auth/me'
@@ -921,6 +941,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthLoginRoute: ApiAuthLoginRoute,
   ApiAuthLogoutRoute: ApiAuthLogoutRoute,
   ApiAuthMeRoute: ApiAuthMeRoute,
+  ApiAuthResetPasswordRoute: ApiAuthResetPasswordRoute,
   ApiAuthUsersRoute: ApiAuthUsersRouteWithChildren,
   ApiChatContactsRoute: ApiChatContactsRoute,
   ApiChatMessagesRoute: ApiChatMessagesRoute,

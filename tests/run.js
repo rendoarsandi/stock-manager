@@ -18,6 +18,7 @@ const tests = [
   'test-drizzle.js',
   'test-api.js',
   'test-registration.js',
+  'password-reset.test.js',
   'test-tanstack-start-entry.js',
   'test-cloudflare-drizzle.js',
   'test-products.js',
