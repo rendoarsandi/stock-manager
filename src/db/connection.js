@@ -44,11 +44,12 @@ export async function seedIfNeeded(storage) {
     // Ignore if unique constraint fails or table doesn't exist yet
   }
 
-  // Clean up unwanted bugged user 'admin1'
+  // Merge/Link Clerk admin user 'user_3F442580tT6hcfmeYeYExYptlJw' to the primary admin account (id: 1)
   try {
-    await storage.execute("UPDATE stock_movements SET user_id = NULL WHERE user_id IN (SELECT id FROM users WHERE password_hash = 'user_3F442580tT6hcfmeYeYExYptlJw')");
+    await storage.execute("UPDATE stock_movements SET user_id = 1 WHERE user_id IN (SELECT id FROM users WHERE password_hash = 'user_3F442580tT6hcfmeYeYExYptlJw')");
     await storage.execute("UPDATE stock_opnames SET user_id = 1 WHERE user_id IN (SELECT id FROM users WHERE password_hash = 'user_3F442580tT6hcfmeYeYExYptlJw')");
-    await storage.execute("DELETE FROM users WHERE password_hash = 'user_3F442580tT6hcfmeYeYExYptlJw'");
+    await storage.execute("UPDATE users SET password_hash = 'user_3F442580tT6hcfmeYeYExYptlJw' WHERE id = 1");
+    await storage.execute("DELETE FROM users WHERE password_hash = 'user_3F442580tT6hcfmeYeYExYptlJw' AND id != 1");
   } catch (err) {
     // Ignore
   }
