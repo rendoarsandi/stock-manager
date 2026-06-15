@@ -34,6 +34,13 @@ export async function seedIfNeeded(storage) {
   const now = new Date().toISOString();
   let wasEmpty = false;
 
+  // Fix old username from the registration logic bug
+  try {
+    await storage.execute("UPDATE users SET username = 'rendoarsandi' WHERE username = 'rendoarsandiarsandi1'");
+  } catch (err) {
+    // Ignore if unique constraint fails or table doesn't exist yet
+  }
+
   // Seed users only in test mode — Clerk handles auth in production/dev
   if (process.env.NODE_ENV === 'test') {
     const existingUsers = await storage.query("SELECT * FROM users WHERE username = ?", ['admin']);
