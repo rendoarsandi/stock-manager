@@ -7,8 +7,43 @@ import { parseAmbiguousDescription, extractSameProductPromo, extractPackMultipli
 import { getActiveStorage, getActiveEnv, storageContext } from '../db/context.js';
 import { getLocalStore } from '../db/local_sqlite.js';
 import { broadcast } from '../ws/broker.js';
+import { z } from 'zod';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret_key';
+
+const loginSchema = z.object({
+  username: z.string().min(1, 'Username and password are required'),
+  password: z.string().min(1, 'Username and password are required'),
+});
+
+const createUserSchema = z.object({
+  username: z.string().min(1, 'Username, password and role are required'),
+  password: z.string().min(1, 'Username, password and role are required'),
+  role: z.enum(['admin', 'staff'], { errorMap: () => ({ message: 'Role must be admin or staff' }) }),
+});
+
+const createProductSchema = z.object({
+  name: z.string().min(1, 'Product name and model are required'),
+  model: z.string().min(1, 'Product name and model are required'),
+  master_sku: z.string().optional().nullable(),
+  description: z.string().optional().nullable(),
+  initial_stock: z.union([z.number(), z.string()]).transform(val => parseInt(val, 10)).pipe(z.number().int().min(0)).optional().default(0),
+  low_stock_threshold: z.union([z.number(), z.string()]).transform(val => parseInt(val, 10)).pipe(z.number().int().min(0)).optional().default(10),
+});
+
+const updateProductSchema = z.object({
+  name: z.string().min(1, 'Product name and model are required'),
+  model: z.string().min(1, 'Product name and model are required'),
+  master_sku: z.string().optional().nullable(),
+  description: z.string().optional().nullable(),
+  low_stock_threshold: z.union([z.number(), z.string()]).transform(val => parseInt(val, 10)).pipe(z.number().int().min(0)).optional().default(10),
+});
+
+const adjustStockSchema = z.object({
+  quantity_change: z.union([z.number(), z.string()]).transform(val => parseInt(val, 10)).pipe(z.number().int({ message: 'Valid quantity change is required' })),
+  movement_type: z.string().optional().default('manual_adjust'),
+  reference: z.string().optional().default('Manual stock adjustment'),
+});
 
 // Helper for parsing cookies
 function getCookie(request, name) {
@@ -217,10 +252,12 @@ async function handleWsPlaceholder(req) {
 
 async function handleLogin(req) {
   try {
-    const { username, password } = await readJson(req);
-    if (!username || !password) {
-      return json({ message: 'Username and password are required' }, 400);
+    const body = await readJson(req);
+    const parsed = loginSchema.safeParse(body);
+    if (!parsed.success) {
+      return json({ message: parsed.error.errors[0].message }, 400);
     }
+    const { username, password } = parsed.data;
 
     const user = await db.users.getByUsername(username);
     if (!user || !verifyPassword(password, user.password_hash)) {
@@ -336,13 +373,12 @@ async function handleListUsers(req) {
 
 async function handleCreateUser(req) {
   try {
-    const { username, password, role } = await readJson(req);
-    if (!username || !password || !role) {
-      return json({ message: 'Username, password and role are required' }, 400);
+    const body = await readJson(req);
+    const parsed = createUserSchema.safeParse(body);
+    if (!parsed.success) {
+      return json({ message: parsed.error.errors[0].message }, 400);
     }
-    if (role !== 'admin' && role !== 'staff') {
-      return json({ message: 'Role must be admin or staff' }, 400);
-    }
+    const { username, password, role } = parsed.data;
 
     const existing = await db.users.getByUsername(username);
     if (existing) {
@@ -432,15 +468,16 @@ async function handleListLedger(req) {
 
 async function handleCreateProduct(req) {
   try {
-    const { name, model, master_sku, description, initial_stock, low_stock_threshold } = await readJson(req);
-    
-    if (!name || !model) {
-      return json({ message: 'Product name and model are required' }, 400);
+    const body = await readJson(req);
+    const parsed = createProductSchema.safeParse(body);
+    if (!parsed.success) {
+      return json({ message: parsed.error.errors[0].message }, 400);
     }
+    const { name, model, master_sku, description, initial_stock, low_stock_threshold } = parsed.data;
 
     const user = req.user;
-    const threshold = low_stock_threshold !== undefined ? parseInt(low_stock_threshold, 10) : 10;
-    const stock = initial_stock !== undefined ? parseInt(initial_stock, 10) : 0;
+    const threshold = low_stock_threshold;
+    const stock = initial_stock;
 
     const existing = await db.products.getByName(name);
     if (existing) {
@@ -537,15 +574,16 @@ async function handleAdjustStock(req, params) {
   try {
     const id = parseInt(params[0], 10);
     if (isNaN(id)) return json({ message: "Invalid product ID" }, 400);
-    const { quantity_change, movement_type, reference } = await readJson(req);
-
-    if (quantity_change === undefined || isNaN(parseInt(quantity_change, 10))) {
-      return json({ message: 'Valid quantity change is required' }, 400);
+    const body = await readJson(req);
+    const parsed = adjustStockSchema.safeParse(body);
+    if (!parsed.success) {
+      return json({ message: parsed.error.errors[0].message }, 400);
     }
+    const { quantity_change, movement_type, reference } = parsed.data;
 
-    const change = parseInt(quantity_change, 10);
-    const type = movement_type || 'manual_adjust';
-    const ref = reference || 'Manual stock adjustment';
+    const change = quantity_change;
+    const type = movement_type;
+    const ref = reference;
     const user = req.user;
 
     const product = await db.products.get(id);
@@ -577,18 +615,19 @@ async function handleUpdateProduct(req, params) {
   try {
     const id = parseInt(params[0], 10);
     if (isNaN(id)) return json({ message: "Invalid product ID" }, 400);
-    const { name, model, master_sku, description, low_stock_threshold } = await readJson(req);
-
-    if (!name || !model) {
-      return json({ message: 'Product name and model are required' }, 400);
+    const body = await readJson(req);
+    const parsed = updateProductSchema.safeParse(body);
+    if (!parsed.success) {
+      return json({ message: parsed.error.errors[0].message }, 400);
     }
+    const { name, model, master_sku, description, low_stock_threshold } = parsed.data;
 
     const existing = await db.products.getByName(name);
     if (existing && existing.id !== id) {
       return json({ message: 'Product name already exists' }, 400);
     }
 
-    const threshold = low_stock_threshold !== undefined ? parseInt(low_stock_threshold, 10) : 10;
+    const threshold = low_stock_threshold;
 
     await db.products.update(id, {
       name,
