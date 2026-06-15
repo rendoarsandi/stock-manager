@@ -117,9 +117,12 @@ async function getAuthUser(request) {
           // 3. Auto-register using Clerk profile info
           const clerkUser = await clerk.users.getUser(authData.userId);
           
-          let chosenUsername = clerkUser.username || clerkUser.firstName || '';
-          if (clerkUser.lastName) {
-            chosenUsername = (chosenUsername + clerkUser.lastName).trim();
+          let chosenUsername = clerkUser.username;
+          if (!chosenUsername) {
+            chosenUsername = clerkUser.firstName || '';
+            if (clerkUser.lastName) {
+              chosenUsername = (chosenUsername + clerkUser.lastName).trim();
+            }
           }
           if (!chosenUsername && clerkUser.emailAddresses && clerkUser.emailAddresses.length > 0) {
             chosenUsername = clerkUser.emailAddresses[0].emailAddress.split('@')[0];
@@ -162,7 +165,18 @@ async function getAuthUser(request) {
       } else {
         localId = existing[0].id;
         localUsername = existing[0].username;
-        await storage.execute("UPDATE users SET role = ? WHERE id = ?", [role, localId]);
+        const claimUsername = authData.sessionClaims?.username;
+        if (claimUsername && claimUsername !== localUsername) {
+          let conflict = await storage.query("SELECT id FROM users WHERE username = ? AND password_hash != ?", [claimUsername, authData.userId]);
+          if (!conflict || conflict.length === 0) {
+            await storage.execute("UPDATE users SET username = ?, role = ? WHERE id = ?", [claimUsername, role, localId]);
+            localUsername = claimUsername;
+          } else {
+            await storage.execute("UPDATE users SET role = ? WHERE id = ?", [role, localId]);
+          }
+        } else {
+          await storage.execute("UPDATE users SET role = ? WHERE id = ?", [role, localId]);
+        }
       }
     } catch (dbErr) {
       console.error("Failed to check Clerk user in local DB:", dbErr);
@@ -1668,6 +1682,124 @@ export function withAuthOrRole(handler, options = {}) {
   };
 }
 
+async function verifyClerkWebhook(req, webhookSecret) {
+  const svixId = req.headers.get('svix-id');
+  const svixTimestamp = req.headers.get('svix-timestamp');
+  const svixSignature = req.headers.get('svix-signature');
+
+  if (!svixId || !svixTimestamp || !svixSignature) {
+    return false;
+  }
+
+  const payload = await req.clone().text();
+  const toSign = `${svixId}.${svixTimestamp}.${payload}`;
+  
+  const secretKey = webhookSecret.startsWith('whsec_') 
+    ? webhookSecret.slice(6) 
+    : webhookSecret;
+  
+  const secretBytes = Buffer.from(secretKey, 'base64');
+  
+  const signatures = svixSignature.split(' ');
+  for (const sig of signatures) {
+    const parts = sig.split(',');
+    if (parts.length < 2) continue;
+    const version = parts[0];
+    const rawSig = parts[1];
+    
+    if (version === 'v1') {
+      const hmac = crypto.createHmac('sha256', secretBytes);
+      hmac.update(toSign);
+      const expectedSignature = hmac.digest('base64');
+      if (expectedSignature === rawSig) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+async function handleClerkWebhook(req) {
+  try {
+    const env = getActiveEnv();
+    const webhookSecret = process.env.CLERK_WEBHOOK_SECRET || (env && env.CLERK_WEBHOOK_SECRET);
+    
+    if (webhookSecret) {
+      const isValid = await verifyClerkWebhook(req, webhookSecret);
+      if (!isValid) {
+        return json({ message: 'Invalid signature' }, 401);
+      }
+    } else {
+      console.warn("CLERK_WEBHOOK_SECRET is not configured. Webhook signature verification is skipped.");
+    }
+
+    const body = await readJson(req);
+    const eventType = body.type;
+    const data = body.data;
+
+    if (eventType === 'user.created' || eventType === 'user.updated') {
+      const clerkId = data.id;
+      const role = data.public_metadata?.role || 'staff';
+      
+      let chosenUsername = data.username;
+      if (!chosenUsername) {
+        chosenUsername = data.first_name || '';
+        if (data.last_name) {
+          chosenUsername = (chosenUsername + data.last_name).trim();
+        }
+      }
+      if (!chosenUsername && data.email_addresses && data.email_addresses.length > 0) {
+        chosenUsername = data.email_addresses[0].email_address.split('@')[0];
+      }
+      chosenUsername = chosenUsername ? chosenUsername.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase() : clerkId;
+
+      const storage = getActiveStorage();
+      
+      let existing = await storage.query("SELECT id, username FROM users WHERE password_hash = ?", [clerkId]);
+      if (existing && existing.length > 0) {
+        const localId = existing[0].id;
+        const localUsername = existing[0].username;
+        
+        if (localUsername !== chosenUsername) {
+          let conflict = await storage.query("SELECT id FROM users WHERE username = ? AND password_hash != ?", [chosenUsername, clerkId]);
+          if (conflict && conflict.length > 0) {
+            let finalUsername = chosenUsername;
+            let counter = 1;
+            let checkExisting = await storage.query("SELECT id FROM users WHERE username = ?", [finalUsername]);
+            while (checkExisting && checkExisting.length > 0) {
+              finalUsername = `${chosenUsername}${counter}`;
+              checkExisting = await storage.query("SELECT id FROM users WHERE username = ?", [finalUsername]);
+              counter++;
+            }
+            chosenUsername = finalUsername;
+          }
+          await storage.execute("UPDATE users SET username = ?, role = ? WHERE id = ?", [chosenUsername, role, localId]);
+        } else {
+          await storage.execute("UPDATE users SET role = ? WHERE id = ?", [role, localId]);
+        }
+      } else {
+        let finalUsername = chosenUsername;
+        let counter = 1;
+        let checkExisting = await storage.query("SELECT id FROM users WHERE username = ?", [finalUsername]);
+        while (checkExisting && checkExisting.length > 0) {
+          finalUsername = `${chosenUsername}${counter}`;
+          checkExisting = await storage.query("SELECT id FROM users WHERE username = ?", [finalUsername]);
+          counter++;
+        }
+        await storage.execute(
+          "INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, datetime('now', 'localtime'))",
+          [finalUsername, clerkId, role]
+        );
+      }
+    }
+
+    return json({ success: true });
+  } catch (err) {
+    console.error("Clerk Webhook processing error:", err);
+    return json({ message: 'Internal server error' }, 500);
+  }
+}
+
 export {
   handleHealth,
   handleWsPlaceholder,
@@ -1707,5 +1839,6 @@ export {
   handleGetChatMessages,
   handleGetChatContacts,
   handleSendChatMessage,
-  handleMarkChatRead
+  handleMarkChatRead,
+  handleClerkWebhook
 };

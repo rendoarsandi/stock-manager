@@ -13,6 +13,8 @@ data/
 
 # Environment variables
 .env
+.env.*
+.env.production
 
 # OS Files
 .DS_Store

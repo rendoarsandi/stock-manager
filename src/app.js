@@ -8,6 +8,7 @@ import { Route as loginRoute } from '../app/routes/api/auth/login.js';
 import { Route as logoutRoute } from '../app/routes/api/auth/logout.js';
 import { Route as meRoute } from '../app/routes/api/auth/me.js';
 import { Route as usersRoute } from '../app/routes/api/auth/users.js';
+import { Route as clerkWebhookRoute } from '../app/routes/api/auth/clerk-webhook.js';
 import { Route as userByIdRoute } from '../app/routes/api/auth/users/$id.js';
 import { Route as productsRoute } from '../app/routes/api/products.js';
 import { Route as productsLedgerRoute } from '../app/routes/api/products/ledger.js';
@@ -44,6 +45,7 @@ const loginRouteUpdated = loginRoute.update({ id: '/api/auth/login', path: '/api
 const logoutRouteUpdated = logoutRoute.update({ id: '/api/auth/logout', path: '/api/auth/logout', getParentRoute: () => rootRoute });
 const meRouteUpdated = meRoute.update({ id: '/api/auth/me', path: '/api/auth/me', getParentRoute: () => rootRoute });
 const usersRouteUpdated = usersRoute.update({ id: '/api/auth/users', path: '/api/auth/users', getParentRoute: () => rootRoute });
+const clerkWebhookRouteUpdated = clerkWebhookRoute.update({ id: '/api/auth/clerk-webhook', path: '/api/auth/clerk-webhook', getParentRoute: () => rootRoute });
 const userByIdRouteUpdated = userByIdRoute.update({ id: '/api/auth/users/$id', path: '/api/auth/users/$id', getParentRoute: () => rootRoute });
 const productsRouteUpdated = productsRoute.update({ id: '/api/products', path: '/api/products', getParentRoute: () => rootRoute });
 const productsLedgerRouteUpdated = productsLedgerRoute.update({ id: '/api/products/ledger', path: '/api/products/ledger', getParentRoute: () => rootRoute });
@@ -78,6 +80,7 @@ rootRoute.addChildren([
   logoutRouteUpdated,
   meRouteUpdated,
   usersRouteUpdated,
+  clerkWebhookRouteUpdated,
   userByIdRouteUpdated,
   productsRouteUpdated,
   productsLedgerRouteUpdated,

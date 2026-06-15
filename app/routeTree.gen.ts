@@ -43,6 +43,7 @@ import { Route as ApiAuthUsersRouteImport } from './routes/api/auth/users'
 import { Route as ApiAuthMeRouteImport } from './routes/api/auth/me'
 import { Route as ApiAuthLogoutRouteImport } from './routes/api/auth/logout'
 import { Route as ApiAuthLoginRouteImport } from './routes/api/auth/login'
+import { Route as ApiAuthClerkWebhookRouteImport } from './routes/api/auth/clerk-webhook'
 import { Route as ApiStockOpnameIdRouteImport } from './routes/api/stock/opname/$id'
 import { Route as ApiProductsIdLedgerRouteImport } from './routes/api/products/$id/ledger'
 import { Route as ApiProductsIdAdjustStockRouteImport } from './routes/api/products/$id/adjust-stock'
@@ -220,6 +221,11 @@ const ApiAuthLoginRoute = ApiAuthLoginRouteImport.update({
   path: '/api/auth/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAuthClerkWebhookRoute = ApiAuthClerkWebhookRouteImport.update({
+  id: '/api/auth/clerk-webhook',
+  path: '/api/auth/clerk-webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiStockOpnameIdRoute = ApiStockOpnameIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -265,6 +271,7 @@ export interface FileRoutesByFullPath {
   '/api/health': typeof ApiHealthRoute
   '/api/products': typeof ApiProductsRouteWithChildren
   '/sign-up/$': typeof SignUpSplatRoute
+  '/api/auth/clerk-webhook': typeof ApiAuthClerkWebhookRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/auth/me': typeof ApiAuthMeRoute
@@ -307,6 +314,7 @@ export interface FileRoutesByTo {
   '/api/health': typeof ApiHealthRoute
   '/api/products': typeof ApiProductsRouteWithChildren
   '/sign-up/$': typeof SignUpSplatRoute
+  '/api/auth/clerk-webhook': typeof ApiAuthClerkWebhookRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/auth/me': typeof ApiAuthMeRoute
@@ -350,6 +358,7 @@ export interface FileRoutesById {
   '/api/health': typeof ApiHealthRoute
   '/api/products': typeof ApiProductsRouteWithChildren
   '/sign-up/$': typeof SignUpSplatRoute
+  '/api/auth/clerk-webhook': typeof ApiAuthClerkWebhookRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/auth/me': typeof ApiAuthMeRoute
@@ -394,6 +403,7 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/api/products'
     | '/sign-up/$'
+    | '/api/auth/clerk-webhook'
     | '/api/auth/login'
     | '/api/auth/logout'
     | '/api/auth/me'
@@ -436,6 +446,7 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/api/products'
     | '/sign-up/$'
+    | '/api/auth/clerk-webhook'
     | '/api/auth/login'
     | '/api/auth/logout'
     | '/api/auth/me'
@@ -478,6 +489,7 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/api/products'
     | '/sign-up/$'
+    | '/api/auth/clerk-webhook'
     | '/api/auth/login'
     | '/api/auth/logout'
     | '/api/auth/me'
@@ -521,6 +533,7 @@ export interface RootRouteChildren {
   ApiHealthRoute: typeof ApiHealthRoute
   ApiProductsRoute: typeof ApiProductsRouteWithChildren
   SignUpSplatRoute: typeof SignUpSplatRoute
+  ApiAuthClerkWebhookRoute: typeof ApiAuthClerkWebhookRoute
   ApiAuthLoginRoute: typeof ApiAuthLoginRoute
   ApiAuthLogoutRoute: typeof ApiAuthLogoutRoute
   ApiAuthMeRoute: typeof ApiAuthMeRoute
@@ -784,6 +797,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/auth/clerk-webhook': {
+      id: '/api/auth/clerk-webhook'
+      path: '/api/auth/clerk-webhook'
+      fullPath: '/api/auth/clerk-webhook'
+      preLoaderRoute: typeof ApiAuthClerkWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/stock/opname/$id': {
       id: '/api/stock/opname/$id'
       path: '/$id'
@@ -918,6 +938,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHealthRoute: ApiHealthRoute,
   ApiProductsRoute: ApiProductsRouteWithChildren,
   SignUpSplatRoute: SignUpSplatRoute,
+  ApiAuthClerkWebhookRoute: ApiAuthClerkWebhookRoute,
   ApiAuthLoginRoute: ApiAuthLoginRoute,
   ApiAuthLogoutRoute: ApiAuthLogoutRoute,
   ApiAuthMeRoute: ApiAuthMeRoute,
