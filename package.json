@@ -26,7 +26,8 @@
     "react-dom": "^19.0.0",
     "sql.js": "^1.14.1",
     "ws": "^8.21.0",
-    "xlsx": "https://cdn.sheetjs.com/xlsx-latest/xlsx-latest.tgz"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-latest/xlsx-latest.tgz",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.0",
