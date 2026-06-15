@@ -1780,13 +1780,13 @@ async function verifyClerkWebhook(req, webhookSecret) {
   return false;
 }
 
-async function handleClerkWebhook(req) {
+async function handleClerkWebhook({ request }) {
   try {
     const env = getActiveEnv();
     const webhookSecret = process.env.CLERK_WEBHOOK_SECRET || (env && env.CLERK_WEBHOOK_SECRET);
     
     if (webhookSecret) {
-      const isValid = await verifyClerkWebhook(req, webhookSecret);
+      const isValid = await verifyClerkWebhook(request, webhookSecret);
       if (!isValid) {
         return json({ message: 'Invalid signature' }, 401);
       }
@@ -1794,7 +1794,7 @@ async function handleClerkWebhook(req) {
       console.warn("CLERK_WEBHOOK_SECRET is not configured. Webhook signature verification is skipped.");
     }
 
-    const body = await readJson(req);
+    const body = await readJson(request);
     const eventType = body.type;
     const data = body.data;
 

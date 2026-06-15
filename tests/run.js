@@ -14,6 +14,7 @@ if (fs.existsSync(testDbPath)) {
 }
 
 const tests = [
+  'test-sql.js',
   'test-db.js',
   'test-drizzle.js',
   'test-api.js',
@@ -33,6 +34,7 @@ const tests = [
   'test-review-feedback.js',
   'test-localecompare-robustness.js',
   'test-chat.js',
+  'test-coverage-ext.js',
   'test-build.js'
 ];
 
@@ -73,7 +75,8 @@ for (const test of tests) {
   try {
     const output = execSync(`node "${testPath}"`, { 
       env: { ...process.env, NODE_ENV: 'test' },
-      encoding: 'utf8'
+      encoding: 'utf8',
+      timeout: 20000
     });
     console.log(output);
     console.log(`✅ ${test} passed!`);

@@ -36,37 +36,39 @@ async function runTests() {
         { id: 3, name: undefined, column_mapping: '{}' }
       ];
 
-      // Import handlers to test
-      const { handleListProducts, handleListUsers, handleListTemplates } = await import('../src/routes_new/index.js');
+      try {
+        // Import handlers to test
+        const { handleListProducts, handleListUsers, handleListTemplates } = await import('../src/routes_new/index.js');
 
-      // 1. Test handleListProducts
-      const resProducts = await handleListProducts({});
-      const productsData = await resProducts.json();
-      console.log("handleListProducts return count:", productsData.length);
-      if (productsData.length !== 3) {
-        throw new Error("Expected 3 products back");
+        // 1. Test handleListProducts
+        const resProducts = await handleListProducts({});
+        const productsData = await resProducts.json();
+        console.log("handleListProducts return count:", productsData.length);
+        if (productsData.length !== 3) {
+          throw new Error("Expected 3 products back");
+        }
+
+        // 2. Test handleListUsers
+        const resUsers = await handleListUsers({});
+        const usersData = await resUsers.json();
+        console.log("handleListUsers return count:", usersData.length);
+        if (usersData.length !== 3) {
+          throw new Error("Expected 3 users back");
+        }
+
+        // 3. Test handleListTemplates
+        const resTemplates = await handleListTemplates({});
+        const templatesData = await resTemplates.json();
+        console.log("handleListTemplates return count:", templatesData.length);
+        if (templatesData.length !== 3) {
+          throw new Error("Expected 3 templates back");
+        }
+      } finally {
+        // Restore original methods
+        db.products.list = originalProductsList;
+        db.users.list = originalUsersList;
+        db.templates.list = originalTemplatesList;
       }
-
-      // 2. Test handleListUsers
-      const resUsers = await handleListUsers({});
-      const usersData = await resUsers.json();
-      console.log("handleListUsers return count:", usersData.length);
-      if (usersData.length !== 3) {
-        throw new Error("Expected 3 users back");
-      }
-
-      // 3. Test handleListTemplates
-      const resTemplates = await handleListTemplates({});
-      const templatesData = await resTemplates.json();
-      console.log("handleListTemplates return count:", templatesData.length);
-      if (templatesData.length !== 3) {
-        throw new Error("Expected 3 templates back");
-      }
-
-      // Restore original methods
-      db.products.list = originalProductsList;
-      db.users.list = originalUsersList;
-      db.templates.list = originalTemplatesList;
 
       console.log("✅ All localeCompare robustness tests passed successfully!");
       process.exit(0);

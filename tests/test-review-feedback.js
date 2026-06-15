@@ -2,6 +2,7 @@ import app from '../src/index.js';
 import { initDatabase, db, seedIfNeeded } from '../src/db/connection.js';
 import { storageContext } from '../src/db/context.js';
 import { getLocalStore } from '../src/db/local_kv.js';
+import { signJwt } from './helpers.js';
 import XLSX from 'xlsx';
 
 process.env.NODE_ENV = 'test';
@@ -209,20 +210,12 @@ async function runTests() {
 
       // 5. Test verifyJwt timing-safe signature comparison & expired token validation
       console.log("\nTesting custom JWT validation and expiration checks...");
-      const crypto = await import('crypto');
-      function signJwtForTest(payload, secret) {
-        const header = { alg: 'HS256', typ: 'JWT' };
-        const encodedHeader = Buffer.from(JSON.stringify(header)).toString('base64url');
-        const encodedPayload = Buffer.from(JSON.stringify(payload)).toString('base64url');
-        const signature = crypto.createHmac('sha256', secret).update(`${encodedHeader}.${encodedPayload}`).digest('base64url');
-        return `${encodedHeader}.${encodedPayload}.${signature}`;
-      }
       
       const JWT_SECRET = 'dev_secret_key';
 
       // 5a. Expired Token
       const expiredPayload = { id: 1, username: 'admin', role: 'admin', exp: Math.floor(Date.now() / 1000) - 10 };
-      const expiredToken = signJwtForTest(expiredPayload, JWT_SECRET);
+      const expiredToken = signJwt(expiredPayload, JWT_SECRET);
       const expiredRes = await app.request('/api/auth/me', {
         headers: { 'Cookie': `token=${expiredToken}` }
       });
@@ -233,7 +226,7 @@ async function runTests() {
 
       // 5b. Tampered Signature
       const tamperedPayload = { id: 1, username: 'admin', role: 'admin', exp: Math.floor(Date.now() / 1000) + 3600 };
-      const tamperedToken = signJwtForTest(tamperedPayload, 'wrong_secret_key_used_to_tamper_signature');
+      const tamperedToken = signJwt(tamperedPayload, 'wrong_secret_key_used_to_tamper_signature');
       const tamperedRes = await app.request('/api/auth/me', {
         headers: { 'Cookie': `token=${tamperedToken}` }
       });
