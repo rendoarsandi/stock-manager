@@ -378,6 +378,11 @@ async function handleDeleteUser(req, params) {
       return json({ message: 'User not found' }, 404);
     }
 
+    const storage = getActiveStorage();
+    const fallbackUserId = currentUser?.id || 1;
+    await storage.execute("UPDATE stock_movements SET user_id = NULL WHERE user_id = ?", [id]);
+    await storage.execute("UPDATE stock_opnames SET user_id = ? WHERE user_id = ?", [fallbackUserId, id]);
+
     await db.users.delete(id);
     return json({ success: true });
   } catch (err) {
