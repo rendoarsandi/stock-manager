@@ -1,13 +1,12 @@
 import { auth } from '../db/auth.js';
 import crypto from 'crypto';
 import { db, seedIfNeeded } from '../db/connection.js';
-import { verifyPassword, hashPassword, signJwt, verifyJwt } from '../utils/crypto.js';
+import { verifyPassword, hashPassword, signJwt, verifyJwt, signCookieValue } from '../utils/crypto.js';
 import { parseExcel } from '../services/excel-parser.js';
 import { parseAmbiguousDescription, extractSameProductPromo, extractPackMultiplier, resolvePromoProductToBaseItems } from '../services/ambiguous-parser.js';
 import { getActiveStorage, getActiveEnv, storageContext } from '../db/context.js';
 import { getLocalStore } from '../db/local_sqlite.js';
 import { broadcast } from '../ws/broker.js';
-import { signCookieValue } from '../../node_modules/better-call/dist/crypto.mjs';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret_key';
 

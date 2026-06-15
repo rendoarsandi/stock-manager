@@ -42,27 +42,27 @@ export async function seedIfNeeded(storage) {
     if (!existingUsers || existingUsers.length === 0) {
       wasEmpty = true;
       const adminHash = await hashPassword(process.env.SEED_ADMIN_PASSWORD || 'admin123');
-      const nowSec = Math.floor(Date.now() / 1000);
+      const nowMs = Date.now();
       await storage.execute(
         "INSERT INTO users (id, name, email, email_verified, created_at, updated_at, role, username, requires_password_reset) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        ['1', 'admin', 'admin@example.com', 1, nowSec, nowSec, 'admin', 'admin', 0]
+        ['1', 'admin', 'admin@example.com', 1, nowMs, nowMs, 'admin', 'admin', 0]
       );
       await storage.execute(
         "INSERT INTO account (id, account_id, provider_id, user_id, password, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        ['admin-acc-id', '1', 'credential', '1', adminHash, nowSec, nowSec]
+        ['admin-acc-id', '1', 'credential', '1', adminHash, nowMs, nowMs]
       );
     }
     const existingStaff = await storage.query("SELECT * FROM users WHERE username = ?", ['staff']);
     if (!existingStaff || existingStaff.length === 0) {
       const staffHash = await hashPassword('staff123');
-      const nowSec = Math.floor(Date.now() / 1000);
+      const nowMs = Date.now();
       await storage.execute(
         "INSERT INTO users (id, name, email, email_verified, created_at, updated_at, role, username, requires_password_reset) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        ['2', 'staff', 'staff@example.com', 1, nowSec, nowSec, 'staff', 'staff', 0]
+        ['2', 'staff', 'staff@example.com', 1, nowMs, nowMs, 'staff', 'staff', 0]
       );
       await storage.execute(
         "INSERT INTO account (id, account_id, provider_id, user_id, password, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        ['staff-acc-id', '2', 'credential', '2', staffHash, nowSec, nowSec]
+        ['staff-acc-id', '2', 'credential', '2', staffHash, nowMs, nowMs]
       );
     }
   }
@@ -276,12 +276,24 @@ export const db = {
   users: {
     async list() {
       const db = getActiveDb();
-      const userRows = await db.select().from(users);
+      const userRows = await db.select({
+        id: users.id,
+        name: users.name,
+        email: users.email,
+        emailVerified: users.emailVerified,
+        image: users.image,
+        createdAt: users.createdAt,
+        updatedAt: users.updatedAt,
+        role: users.role,
+        username: users.username,
+        requiresPasswordReset: users.requiresPasswordReset,
+        password_hash: account.password
+      })
+      .from(users)
+      .leftJoin(account, and(eq(account.userId, users.id), eq(account.providerId, 'credential')));
+
       for (const u of userRows) {
-        const accRows = await db.select({ password: account.password })
-          .from(account)
-          .where(and(eq(account.userId, u.id), eq(account.providerId, 'credential')));
-        u.password_hash = accRows[0]?.password || '';
+        u.password_hash = u.password_hash || '';
         u.created_at = u.createdAt;
         u.updated_at = u.updatedAt;
       }

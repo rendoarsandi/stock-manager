@@ -1,5 +1,5 @@
 import { betterAuth } from "better-auth";
-import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { users, session, account, verification } from "../src/db/schema.js";
 import { storageContext, getActiveDb } from "../src/db/context.js";
 import { getLocalStore } from "../src/db/local_sqlite.js";

@@ -56,7 +56,7 @@ export default function SignUpPage() {
               <path d="m3.3 7 8.7 5 8.7-5" />
               <path d="M12 22V12" />
             </svg>
-            <h1 style={{ fontSize: '2.25rem', fontWeight: '800', tracking: '-0.025em', color: '#cdd6f4', margin: 0 }}>StockManager</h1>
+            <h1 style={{ fontSize: '2.25rem', fontWeight: '800', letterSpacing: '-0.025em', color: '#cdd6f4', margin: 0 }}>StockManager</h1>
           </div>
           <p style={{ fontSize: '1.25rem', lineHeight: '1.75rem', color: '#bac2de', marginBottom: '2rem' }}>
             A modern, robust platform for managing your warehouse inventory, imports, split orders, and operations in real-time.

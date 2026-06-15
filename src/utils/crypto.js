@@ -75,3 +75,8 @@ export function verifyJwt(token, secret) {
     return null;
   }
 }
+
+export async function signCookieValue(value, secret) {
+  const signature = crypto.createHmac('sha256', secret).update(value).digest('base64');
+  return encodeURIComponent(`${value}.${signature}`);
+}

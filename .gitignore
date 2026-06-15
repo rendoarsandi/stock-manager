@@ -12,7 +12,7 @@ data/
 *.tmp
 
 # Environment variables
-.env
+.env*
 
 # OS Files
 .DS_Store

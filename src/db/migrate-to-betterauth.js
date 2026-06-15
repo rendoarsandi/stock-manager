@@ -7,6 +7,10 @@ export async function migrateDatabase(storage) {
   try {
     // Check if users table has already been migrated (e.g. if the 'email' column exists)
     const tableInfo = await storage.query("PRAGMA table_info(users)");
+    if (tableInfo.length === 0) {
+      console.log("No users table found. Skipping migration.");
+      return;
+    }
     const hasEmail = tableInfo.some(col => col.name === 'email');
     if (hasEmail) {
       console.log("Database already migrated to BetterAuth schema.");
@@ -87,11 +91,11 @@ export async function migrateDatabase(storage) {
       const emailVerified = 1;
 
       // Parse created_at datetime string or use current date
-      let timestampSec = Math.floor(Date.now() / 1000);
+      let timestampMs = Date.now();
       if (user.created_at) {
         const parsedDate = new Date(user.created_at);
         if (!isNaN(parsedDate.getTime())) {
-          timestampSec = Math.floor(parsedDate.getTime() / 1000);
+          timestampMs = parsedDate.getTime();
         }
       }
 
@@ -99,7 +103,7 @@ export async function migrateDatabase(storage) {
       await storage.execute(
         `INSERT INTO users (id, name, email, email_verified, image, created_at, updated_at, role, username, requires_password_reset)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [userIdText, name, email, emailVerified, null, timestampSec, timestampSec, user.role, user.username, requiresReset]
+        [userIdText, name, email, emailVerified, null, timestampMs, timestampMs, user.role, user.username, requiresReset]
       );
 
       // For local users, move password hashes to the credentials account table (provider_id = 'credential')
@@ -108,7 +112,7 @@ export async function migrateDatabase(storage) {
         await storage.execute(
           `INSERT INTO account (id, account_id, provider_id, user_id, password, created_at, updated_at)
            VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          [accountId, userIdText, 'credential', userIdText, user.password_hash, timestampSec, timestampSec]
+          [accountId, userIdText, 'credential', userIdText, user.password_hash, timestampMs, timestampMs]
         );
       }
     }

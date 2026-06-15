@@ -1,8 +1,14 @@
 import React, { createContext, useContext } from 'react';
 import { createAuthClient } from 'better-auth/react';
+import { sentinelClient } from "@better-auth/infra/client";
 
 export const authClient = createAuthClient({
-  baseURL: typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'
+  baseURL: typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000',
+  plugins: [
+    sentinelClient({
+      identifyUrl: import.meta.env.VITE_BETTER_AUTH_INGESTION_URL
+    })
+  ]
 });
 
 export const AuthContext = createContext(null);

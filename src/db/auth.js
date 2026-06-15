@@ -1,7 +1,8 @@
 import { betterAuth } from "better-auth";
-import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { getActiveDb } from "./context.js";
 import { users, session, account, verification } from "./schema.js";
+import { dash } from "@better-auth/infra";
 
 const lazyDb = new Proxy({}, {
   get(target, prop) {
@@ -21,6 +22,23 @@ export const auth = betterAuth({
   }),
   baseURL: process.env.BETTER_AUTH_URL || "http://localhost:3000",
   secret: process.env.BETTER_AUTH_SECRET || "dev_secret_key",
+  plugins: [
+    dash()
+  ],
+  databaseHooks: {
+    user: {
+      create: {
+        before: async (user) => {
+          return {
+            data: {
+              ...user,
+              role: "staff"
+            }
+          };
+        }
+      }
+    }
+  },
   logger: {
     level: "debug"
   },
