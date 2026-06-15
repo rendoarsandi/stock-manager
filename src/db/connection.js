@@ -347,16 +347,13 @@ export const db = {
       return updated;
     },
     async delete(id) {
-      const storage = getActiveStorage();
-      await storage.transaction(async () => {
-        const db = getActiveDb();
-        await db.delete(orderItems).where(eq(orderItems.product_id, parseInt(id, 10)));
-        await db.delete(stockMovements).where(eq(stockMovements.product_id, parseInt(id, 10)));
-        await db.delete(productAliases).where(eq(productAliases.product_id, parseInt(id, 10)));
-        await db.delete(stockOpnameItems).where(eq(stockOpnameItems.product_id, parseInt(id, 10)));
-        await db.delete(skuMappings).where(eq(skuMappings.product_id, parseInt(id, 10)));
-        await db.delete(products).where(eq(products.id, parseInt(id, 10)));
-      });
+      const db = getActiveDb();
+      await db.delete(orderItems).where(eq(orderItems.product_id, parseInt(id, 10)));
+      await db.delete(stockMovements).where(eq(stockMovements.product_id, parseInt(id, 10)));
+      await db.delete(productAliases).where(eq(productAliases.product_id, parseInt(id, 10)));
+      await db.delete(stockOpnameItems).where(eq(stockOpnameItems.product_id, parseInt(id, 10)));
+      await db.delete(skuMappings).where(eq(skuMappings.product_id, parseInt(id, 10)));
+      await db.delete(products).where(eq(products.id, parseInt(id, 10)));
       broadcast({ type: 'PRODUCT_DELETED', payload: { id } });
       return true;
     }
