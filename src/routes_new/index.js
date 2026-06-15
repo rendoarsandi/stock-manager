@@ -115,17 +115,25 @@ async function getAuthUser(request) {
           await storage.execute("UPDATE users SET password_hash = ?, role = ? WHERE id = ?", [authData.userId, role, localId]);
         } else {
           // 3. Auto-register using Clerk profile info
-          const clerkUser = await clerk.users.getUser(authData.userId);
-          
-          let chosenUsername = clerkUser.username;
-          if (!chosenUsername) {
-            chosenUsername = clerkUser.firstName || '';
-            if (clerkUser.lastName) {
-              chosenUsername = (chosenUsername + clerkUser.lastName).trim();
-            }
+          let clerkUser = null;
+          try {
+            clerkUser = await clerk.users.getUser(authData.userId);
+          } catch (err) {
+            console.error("Failed to fetch Clerk user info:", err);
           }
-          if (!chosenUsername && clerkUser.emailAddresses && clerkUser.emailAddresses.length > 0) {
-            chosenUsername = clerkUser.emailAddresses[0].emailAddress.split('@')[0];
+          
+          let chosenUsername = '';
+          if (clerkUser) {
+            chosenUsername = clerkUser.username;
+            if (!chosenUsername) {
+              chosenUsername = clerkUser.firstName || '';
+              if (clerkUser.lastName) {
+                chosenUsername = (chosenUsername + clerkUser.lastName).trim();
+              }
+            }
+            if (!chosenUsername && clerkUser.emailAddresses && clerkUser.emailAddresses.length > 0) {
+              chosenUsername = clerkUser.emailAddresses[0].emailAddress.split('@')[0];
+            }
           }
           chosenUsername = chosenUsername.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
           if (!chosenUsername) {
