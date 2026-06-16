@@ -151,25 +151,24 @@ export async function seedIfNeeded(storage) {
 
       console.log("Database seeded successfully.");
     }
-  }
 
-  // Always attempt to seed SKU mappings (idempotent via INSERT OR IGNORE)
-  // This ensures existing databases without sku_mappings get them populated.
-  try {
-    const { BUNDLE_MAPPINGS } = await import('../services/ambiguous-parser.js');
-    for (const [skuCode, items] of Object.entries(BUNDLE_MAPPINGS)) {
-      for (const item of items) {
-        const prodRows = await storage.query("SELECT id FROM products WHERE LOWER(name) = ? OR LOWER(model) = ?", [item.name.toLowerCase(), item.name.toLowerCase()]);
-        if (prodRows && prodRows[0]) {
-          await storage.execute(
-            "INSERT OR IGNORE INTO sku_mappings (sku_code, product_id, quantity) VALUES (?, ?, ?)",
-            [skuCode.toLowerCase(), prodRows[0].id, item.qty]
-          );
+    // Attempt to seed SKU mappings during initial database seeding
+    try {
+      const { BUNDLE_MAPPINGS } = await import('../services/ambiguous-parser.js');
+      for (const [skuCode, items] of Object.entries(BUNDLE_MAPPINGS)) {
+        for (const item of items) {
+          const prodRows = await storage.query("SELECT id FROM products WHERE LOWER(name) = ? OR LOWER(model) = ?", [item.name.toLowerCase(), item.name.toLowerCase()]);
+          if (prodRows && prodRows[0]) {
+            await storage.execute(
+              "INSERT OR IGNORE INTO sku_mappings (sku_code, product_id, quantity) VALUES (?, ?, ?)",
+              [skuCode.toLowerCase(), prodRows[0].id, item.qty]
+            );
+          }
         }
       }
+    } catch (err) {
+      console.error("Error seeding SKU mappings:", err);
     }
-  } catch (err) {
-    console.error("Error seeding SKU mappings:", err);
   }
 }
 

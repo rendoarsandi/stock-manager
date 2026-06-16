@@ -36,6 +36,7 @@ const tests = [
   'test-localecompare-robustness.js',
   'test-chat.js',
   'test-coverage-ext.js',
+  'test-seed-query-count.js',
   'test-build.js'
 ];
 
