@@ -30,6 +30,7 @@ const tests = [
   'test-opname.js',
   'test-extras.js',
   'test-websocket.js',
+  'test-durable-object-websocket.js',
   'test-sku-mappings.js',
   'test-review-feedback.js',
   'test-localecompare-robustness.js',

@@ -111,8 +111,38 @@ export class StockRoom extends DurableObject {
   // RPC to broadcast message to all connected WS clients
   broadcast(payload, excludeWs = null) {
     const websockets = this.ctx.getWebSockets();
+    let parsed = null;
+    try {
+      parsed = typeof payload === 'string' ? JSON.parse(payload) : payload;
+    } catch (e) {}
+
     for (const ws of websockets) {
       if (ws === excludeWs) continue;
+
+      // If it is a CHAT_MESSAGE, perform target verification to prevent leaks
+      if (parsed && parsed.type === 'CHAT_MESSAGE') {
+        const senderId = parseInt(parsed.sender_id, 10);
+        const receiverId = parseInt(parsed.receiver_id, 10);
+        
+        let clientUserId = ws.userId;
+        if (!clientUserId) {
+          try {
+            const attachment = this.ctx.getWebSocketAttachment(ws);
+            clientUserId = attachment ? attachment.userId : null;
+          } catch (e) {}
+        }
+        
+        if (clientUserId) {
+          const parsedClientUserId = parseInt(clientUserId, 10);
+          if (parsedClientUserId !== senderId && parsedClientUserId !== receiverId) {
+            continue; // Skip: do not leak private conversations to unauthorized users
+          }
+        } else {
+          // If the connection hasn't identified itself yet, do not send chat messages to it.
+          continue;
+        }
+      }
+
       try {
         ws.send(payload);
       } catch (err) {
@@ -140,8 +170,25 @@ export class StockRoom extends DurableObject {
   // Handle incoming DO WebSocket messages
   webSocketMessage(ws, message) {
     try {
+      const payloadString = typeof message === 'string' ? message : new globalThis.TextDecoder().decode(message);
+      let parsed = null;
+      try {
+        parsed = JSON.parse(payloadString);
+      } catch (e) {}
+
+      if (parsed && parsed.type === 'IDENTIFY') {
+        if (parsed.userId) {
+          const userId = parseInt(parsed.userId, 10);
+          ws.userId = userId;
+          try {
+            this.ctx.setWebSocketAttachment(ws, { userId });
+          } catch (e) {}
+        }
+        return; // Don't broadcast IDENTIFY messages
+      }
+
       // Broadcast client message directly to all other clients
-      this.broadcast(message, ws);
+      this.broadcast(payloadString, ws);
     } catch (err) {
       console.error('Error in DO webSocketMessage:', err);
     }
