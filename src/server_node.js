@@ -1,4 +1,4 @@
-import { serve } from '@hono/node-server';
+import { serve } from './utils/server_adapter.js';
 import server_default from '../dist/server/server.js';
 import { setupLocalWebSocket } from './ws/broker.js';
 import fs, { promises as fsPromises } from 'fs';

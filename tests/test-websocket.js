@@ -1,5 +1,4 @@
-import { serve } from '@hono/node-server';
-import { Hono } from 'hono';
+import { serve } from '../src/utils/server_adapter.js';
 import WebSocket from 'ws';
 import assert from 'assert';
 import { db } from '../src/db/connection.js';
@@ -7,25 +6,32 @@ import { storageContext } from '../src/db/context.js';
 import { getLocalStore, clearLocalDbFile } from '../src/db/local_kv.js';
 import { setupLocalWebSocket } from '../src/ws/broker.js';
 
-const app = new Hono();
-
-// Mimic the request context wrapper from index.js
-app.use('*', async (c, next) => {
+// Standard web-compliant fetch handler
+async function handleRequest(request) {
+  const url = new URL(request.url);
+  
   const store = {
     type: 'local',
     storage: getLocalStore(),
-    env: c.env
+    env: {}
   };
-  return storageContext.run(store, async () => {
-    return await next();
-  });
-});
 
-app.post('/api/products', async (c) => {
-  const body = await c.req.json();
-  const product = await db.products.insert(body);
-  return c.json(product);
-});
+  return storageContext.run(store, async () => {
+    if (url.pathname === '/api/products' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const product = await db.products.insert(body);
+        return new Response(JSON.stringify(product), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      } catch (err) {
+        return new Response(JSON.stringify({ message: err.message }), { status: 400 });
+      }
+    }
+    return new Response('Not Found', { status: 404 });
+  });
+}
 
 async function runTest() {
   console.log("--- Running WebSocket Integration Tests ---");
@@ -34,7 +40,7 @@ async function runTest() {
 
   const PORT = 4001;
   const server = serve({
-    fetch: app.fetch,
+    fetch: handleRequest,
     port: PORT
   });
 

@@ -13,7 +13,7 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     
-    // 1. Handle WebSocket handshake via Hono app
+    // 1. Handle WebSocket handshake
     if (url.pathname === '/ws') {
       return app.fetch(request, env, ctx);
     }
