@@ -113,6 +113,8 @@ rootRoute.addChildren([
 const router = new Router({ routeTree: rootRoute });
 
 let seedingPromise = null;
+const apiCache = new Map();
+const CACHE_TTL_MS = 5000; // 5-second cache for GET requests to eliminate redundant/concurrent requests
 
 export const app = {
   async fetch(request, env, ctx) {
@@ -163,6 +165,19 @@ export const app = {
         const path = url.pathname;
         const method = request.method.toUpperCase();
 
+        const isGetApi = method === 'GET' && path.startsWith('/api/') && path !== '/api/health';
+        if (isGetApi) {
+          const cached = apiCache.get(path);
+          if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+            return new Response(cached.body, {
+              status: cached.status,
+              headers: new Headers(cached.headers)
+            });
+          }
+        } else if (method !== 'GET') {
+          apiCache.clear();
+        }
+
         let response = null;
 
         if (path === '/ws' && env && env.STOCK_ROOM) {
@@ -189,6 +204,22 @@ export const app = {
             headers: { 'Content-Type': 'application/json' }
           });
         }
+
+        if (isGetApi && response && response.status === 200) {
+          try {
+            const clonedResponse = response.clone();
+            const bodyText = await clonedResponse.text();
+            apiCache.set(path, {
+              body: bodyText,
+              status: response.status,
+              headers: Array.from(response.headers.entries()),
+              timestamp: Date.now()
+            });
+          } catch (e) {
+            console.error("Cache store error:", e);
+          }
+        }
+
         if (response.status === 101) {
           return response;
         }

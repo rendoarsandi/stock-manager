@@ -41,7 +41,7 @@ const fetchClerkPublishableKey = createServerFn({ method: 'GET' }).handler(async
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      refetchOnWindowFocus: true,
+      refetchOnWindowFocus: false,
       retry: false,
     },
   },
