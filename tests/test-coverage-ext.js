@@ -46,7 +46,7 @@ async function runTests() {
       // 1. Clerk Webhook Signature Validation Tests
       // ==========================================
       console.log("\n1. Testing Clerk Webhook Signatures...");
-      const webhookSecret = 'whsec_dGVzdF9zZWNyZXRfd2ViaG9va19zaWduYXR1cmVfa2V5XzEyMw=='; // test_secret_webhook_signature_key_123
+      const webhookSecret = 'whsec_ZHVtbXlfY2xlcmtfd2ViaG9va19zZWNyZXRfa2V5'; // dummy test secret
       process.env.CLERK_WEBHOOK_SECRET = webhookSecret;
 
       const payload = {

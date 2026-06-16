@@ -1,11 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useWebSocket } from '../context/WebSocketContext';
 import { showToast } from '../utils/toast';
 
 export default function Review() {
   const queryClient = useQueryClient();
-  const { addWsListener } = useWebSocket();
 
   // Modal states for order resolution
   const [isResolveModalOpen, setIsResolveModalOpen] = useState(false);
@@ -34,6 +32,7 @@ export default function Review() {
       if (!res.ok) throw new Error('Failed to fetch review orders');
       return res.json();
     },
+    refetchInterval: 30000, // REST polling every 30s
   });
 
   // Fetch ambiguous items
@@ -44,6 +43,7 @@ export default function Review() {
       if (!res.ok) throw new Error('Failed to fetch ambiguous items');
       return res.json();
     },
+    refetchInterval: 30000, // REST polling every 30s
   });
 
   // Handle errors
@@ -53,25 +53,8 @@ export default function Review() {
     }
   }, [errorOrders, errorAmbiguous]);
 
-  // Invalidate queries on WebSocket event
+  // REST resync invalidations
   useEffect(() => {
-    const targetEvents = [
-      'SESSION_UPDATED',
-      'ORDER_CREATED',
-      'ORDER_UPDATED',
-      'ORDER_ITEM_UPDATED',
-      'PRODUCT_UPDATED',
-      'PRODUCT_CREATED',
-      'MOVEMENT_CREATED',
-    ];
-
-    const unsubscribe = addWsListener((msg) => {
-      if (targetEvents.includes(msg.type)) {
-        queryClient.invalidateQueries({ queryKey: ['reviewOrders'] });
-        queryClient.invalidateQueries({ queryKey: ['ambiguousItems'] });
-      }
-    });
-
     const handleResync = () => {
       queryClient.invalidateQueries({ queryKey: ['reviewOrders'] });
       queryClient.invalidateQueries({ queryKey: ['ambiguousItems'] });
@@ -80,10 +63,9 @@ export default function Review() {
     window.addEventListener('resync-data', handleResync);
 
     return () => {
-      unsubscribe();
       window.removeEventListener('resync-data', handleResync);
     };
-  }, [addWsListener, queryClient]);
+  }, [queryClient]);
 
   // Mutations
   const resolveOrderMutation = useMutation({

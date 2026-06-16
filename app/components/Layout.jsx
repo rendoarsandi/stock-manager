@@ -17,7 +17,7 @@ const pageTitles = {
 
 export default function Layout({ children }) {
   const { currentUser, logout } = useAuth();
-  const { onlineCount, isConnected, addWsListener } = useWebSocket();
+  const { onlineCount, isConnected } = useWebSocket();
   const location = useLocation();
 
   const [isCollapsed, setIsCollapsed] = useState(() => {
@@ -44,15 +44,14 @@ export default function Layout({ children }) {
   useEffect(() => {
     fetchPendingCount();
     window.addEventListener('resync-data', fetchPendingCount);
-    return () => window.removeEventListener('resync-data', fetchPendingCount);
-  }, [fetchPendingCount]);
 
-  useEffect(() => {
-    const unsubscribe = addWsListener(() => {
-      fetchPendingCount();
-    });
-    return () => unsubscribe();
-  }, [addWsListener, fetchPendingCount]);
+    const interval = setInterval(fetchPendingCount, 30000); // Poll every 30s via REST
+
+    return () => {
+      window.removeEventListener('resync-data', fetchPendingCount);
+      clearInterval(interval);
+    };
+  }, [fetchPendingCount]);
 
   useEffect(() => {
     const handleOutsideClick = (e) => {

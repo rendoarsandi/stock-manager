@@ -1,11 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useWebSocket } from '../context/WebSocketContext';
 import { showToast } from '../utils/toast';
 
 export default function Opname() {
   const queryClient = useQueryClient();
-  const { addWsListener } = useWebSocket();
 
   // Modal states
   const [activeModal, setActiveModal] = useState(null); // 'new' | 'details'
@@ -25,6 +23,7 @@ export default function Opname() {
       if (!res.ok) throw new Error('Failed to fetch opname history');
       return res.json();
     },
+    refetchInterval: 30000, // REST polling every 30s
   });
 
   // Fetch all catalog products for New Opname audit
@@ -69,14 +68,8 @@ export default function Opname() {
     }
   }, [error]);
 
-  // WS invalidations
+  // REST resync invalidations
   useEffect(() => {
-    const unsubscribe = addWsListener((msg) => {
-      if (msg.type === 'OPNAME_CREATED' || msg.type === 'MOVEMENT_CREATED') {
-        queryClient.invalidateQueries({ queryKey: ['opnames'] });
-      }
-    });
-
     const handleResync = () => {
       queryClient.invalidateQueries({ queryKey: ['opnames'] });
     };
@@ -84,10 +77,9 @@ export default function Opname() {
     window.addEventListener('resync-data', handleResync);
 
     return () => {
-      unsubscribe();
       window.removeEventListener('resync-data', handleResync);
     };
-  }, [addWsListener, queryClient]);
+  }, [queryClient]);
 
   // Mutation for creating opname
   const createOpnameMutation = useMutation({

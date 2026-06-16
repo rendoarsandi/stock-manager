@@ -7,12 +7,10 @@ import {
   getPaginationRowModel,
   flexRender,
 } from '@tanstack/react-table';
-import { useWebSocket } from '../context/WebSocketContext';
 import { showToast } from '../utils/toast';
 
 export default function StockHistory() {
   const queryClient = useQueryClient();
-  const { addWsListener } = useWebSocket();
 
   // Table state
   const [sorting, setSorting] = useState([{ id: 'id', desc: true }]);
@@ -26,6 +24,7 @@ export default function StockHistory() {
       if (!res.ok) throw new Error('Failed to fetch stock ledger');
       return res.json();
     },
+    refetchInterval: 30000, // REST polling every 30s
   });
 
   useEffect(() => {
@@ -34,14 +33,8 @@ export default function StockHistory() {
     }
   }, [error]);
 
-  // WebSocket / resync invalidations
+  // REST resync invalidations
   useEffect(() => {
-    const unsubscribe = addWsListener((msg) => {
-      if (msg.type === 'MOVEMENT_CREATED') {
-        queryClient.invalidateQueries({ queryKey: ['ledgerHistory'] });
-      }
-    });
-
     const handleResync = () => {
       queryClient.invalidateQueries({ queryKey: ['ledgerHistory'] });
     };
@@ -49,10 +42,9 @@ export default function StockHistory() {
     window.addEventListener('resync-data', handleResync);
 
     return () => {
-      unsubscribe();
       window.removeEventListener('resync-data', handleResync);
     };
-  }, [addWsListener, queryClient]);
+  }, [queryClient]);
 
   // Columns configuration
   const columns = useMemo(() => [

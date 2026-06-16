@@ -8,12 +8,10 @@ import {
   getFilteredRowModel,
   flexRender,
 } from '@tanstack/react-table';
-import { useWebSocket } from '../context/WebSocketContext';
 import { showToast } from '../utils/toast';
 
 export default function Products() {
   const queryClient = useQueryClient();
-  const { addWsListener } = useWebSocket();
 
   // Search filter and pagination state
   const [globalFilter, setGlobalFilter] = useState('');
@@ -60,6 +58,7 @@ export default function Products() {
       if (!res.ok) throw new Error('Failed to fetch products');
       return res.json();
     },
+    refetchInterval: 30000, // REST polling every 30s
   });
 
   // Handle errors
@@ -69,19 +68,8 @@ export default function Products() {
     }
   }, [error]);
 
-  // WebSocket / resync invalidations
+  // REST resync invalidations
   useEffect(() => {
-    const unsubscribe = addWsListener((msg) => {
-      if (
-        msg.type === 'PRODUCT_CREATED' ||
-        msg.type === 'PRODUCT_UPDATED' ||
-        msg.type === 'PRODUCT_DELETED' ||
-        msg.type === 'MOVEMENT_CREATED'
-      ) {
-        queryClient.invalidateQueries({ queryKey: ['products'] });
-      }
-    });
-
     const handleResync = () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
     };
@@ -89,10 +77,9 @@ export default function Products() {
     window.addEventListener('resync-data', handleResync);
 
     return () => {
-      unsubscribe();
       window.removeEventListener('resync-data', handleResync);
     };
-  }, [addWsListener, queryClient]);
+  }, [queryClient]);
 
   // Mutations
   const createProductMutation = useMutation({

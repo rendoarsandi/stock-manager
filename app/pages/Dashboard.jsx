@@ -1,12 +1,10 @@
 import React, { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { useWebSocket } from '../context/WebSocketContext';
 import { showToast } from '../utils/toast';
 
 export default function Dashboard() {
   const queryClient = useQueryClient();
-  const { addWsListener } = useWebSocket();
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboardStats'],
@@ -17,6 +15,7 @@ export default function Dashboard() {
       }
       return res.json();
     },
+    refetchInterval: 30000, // REST polling every 30s
   });
 
   useEffect(() => {
@@ -27,13 +26,6 @@ export default function Dashboard() {
   }, [error]);
 
   useEffect(() => {
-    const unsubscribe = addWsListener((msg) => {
-      // Invalidate stats on any WS message that affects dashboard data (exclude online count updates)
-      if (msg.type !== 'ONLINE_COUNT') {
-        queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
-      }
-    });
-
     const handleResync = () => {
       queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
     };
@@ -41,10 +33,9 @@ export default function Dashboard() {
     window.addEventListener('resync-data', handleResync);
 
     return () => {
-      unsubscribe();
       window.removeEventListener('resync-data', handleResync);
     };
-  }, [addWsListener, queryClient]);
+  }, [queryClient]);
 
   if (isLoading) {
     return (
