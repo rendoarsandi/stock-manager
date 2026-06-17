@@ -38,6 +38,7 @@ const tests = [
   'test-chat.js',
   'test-coverage-ext.js',
   'test-seed-query-count.js',
+  'test-clerk-rpc-avoidance.js',
   'test-build.js'
 ];
 

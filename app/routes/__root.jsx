@@ -119,6 +119,7 @@ function AppWithProviders() {
 }
 
 let cachedPublishableKey = typeof window !== 'undefined' ? window.__CLERK_PUBLISHABLE_KEY : undefined;
+let hasFetchedClerkKey = false;
 
 export const Route = createRootRoute({
   beforeLoad: async () => {
@@ -132,11 +133,15 @@ export const Route = createRootRoute({
       // On the client, check cache or window global
       publishableKey = cachedPublishableKey || window.__CLERK_PUBLISHABLE_KEY;
       
-      if (!publishableKey) {
-        // Fetch once and cache to prevent infinite request loops
-        const res = await fetchClerkPublishableKey();
-        publishableKey = res.clerkPublishableKey;
-        cachedPublishableKey = publishableKey;
+      if (!publishableKey && !hasFetchedClerkKey) {
+        hasFetchedClerkKey = true; // Mark as fetched immediately to prevent concurrent duplicate requests
+        try {
+          const res = await fetchClerkPublishableKey();
+          publishableKey = res?.clerkPublishableKey;
+          cachedPublishableKey = publishableKey;
+        } catch (err) {
+          console.error('Error fetching Clerk publishable key:', err);
+        }
       }
     }
     
