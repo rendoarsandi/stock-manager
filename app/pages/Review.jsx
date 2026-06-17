@@ -31,8 +31,7 @@ export default function Review() {
       const res = await fetch('/api/review/orders');
       if (!res.ok) throw new Error('Failed to fetch review orders');
       return res.json();
-    },
-    refetchInterval: 30000, // REST polling every 30s
+    }
   });
 
   // Fetch ambiguous items
@@ -42,8 +41,7 @@ export default function Review() {
       const res = await fetch('/api/review/ambiguous');
       if (!res.ok) throw new Error('Failed to fetch ambiguous items');
       return res.json();
-    },
-    refetchInterval: 30000, // REST polling every 30s
+    }
   });
 
   // Handle errors

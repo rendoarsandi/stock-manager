@@ -45,11 +45,8 @@ export default function Layout({ children }) {
     fetchPendingCount();
     window.addEventListener('resync-data', fetchPendingCount);
 
-    const interval = setInterval(fetchPendingCount, 30000); // Poll every 30s via REST
-
     return () => {
       window.removeEventListener('resync-data', fetchPendingCount);
-      clearInterval(interval);
     };
   }, [fetchPendingCount]);
 

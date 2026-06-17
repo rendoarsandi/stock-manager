@@ -138,11 +138,11 @@ async function getAuthUser(request) {
     try {
       const storage = getActiveStorage();
       // 1. Search by Clerk ID in password_hash
-      let existing = await storage.query("SELECT id, username FROM users WHERE password_hash = ?", [authData.userId]);
+      let existing = await storage.query("SELECT id, username, role FROM users WHERE password_hash = ?", [authData.userId]);
       
       // 2. Fallback: Search by Clerk ID in username column (for migrating older accounts)
       if (!existing || existing.length === 0) {
-        existing = await storage.query("SELECT id, username FROM users WHERE username = ?", [authData.userId]);
+        existing = await storage.query("SELECT id, username, role FROM users WHERE username = ?", [authData.userId]);
         if (existing && existing.length > 0) {
           localId = existing[0].id;
           localUsername = existing[0].username;
@@ -193,7 +193,7 @@ async function getAuthUser(request) {
             localUsername = finalUsername;
           } catch (insertErr) {
             if (insertErr.message && insertErr.message.includes('UNIQUE constraint')) {
-              let existingUser = await storage.query("SELECT id, username FROM users WHERE password_hash = ?", [authData.userId]);
+              let existingUser = await storage.query("SELECT id, username, role FROM users WHERE password_hash = ?", [authData.userId]);
               if (existingUser && existingUser.length > 0) {
                 localId = existingUser[0].id;
                 localUsername = existingUser[0].username;
@@ -209,15 +209,16 @@ async function getAuthUser(request) {
         localId = existing[0].id;
         localUsername = existing[0].username;
         const claimUsername = authData.sessionClaims?.username;
+        const localRole = existing[0].role;
         if (claimUsername && claimUsername !== localUsername) {
           let conflict = await storage.query("SELECT id FROM users WHERE username = ? AND password_hash != ?", [claimUsername, authData.userId]);
           if (!conflict || conflict.length === 0) {
             await storage.execute("UPDATE users SET username = ?, role = ? WHERE id = ?", [claimUsername, role, localId]);
             localUsername = claimUsername;
-          } else {
+          } else if (localRole !== role) {
             await storage.execute("UPDATE users SET role = ? WHERE id = ?", [role, localId]);
           }
-        } else {
+        } else if (localRole !== role) {
           await storage.execute("UPDATE users SET role = ? WHERE id = ?", [role, localId]);
         }
       }

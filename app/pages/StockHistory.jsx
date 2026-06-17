@@ -23,8 +23,7 @@ export default function StockHistory() {
       const res = await fetch('/api/products/ledger');
       if (!res.ok) throw new Error('Failed to fetch stock ledger');
       return res.json();
-    },
-    refetchInterval: 30000, // REST polling every 30s
+    }
   });
 
   useEffect(() => {

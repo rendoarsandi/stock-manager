@@ -22,8 +22,7 @@ export default function Opname() {
       const res = await fetch('/api/stock/opname');
       if (!res.ok) throw new Error('Failed to fetch opname history');
       return res.json();
-    },
-    refetchInterval: 30000, // REST polling every 30s
+    }
   });
 
   // Fetch all catalog products for New Opname audit

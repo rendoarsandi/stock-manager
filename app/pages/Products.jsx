@@ -57,8 +57,7 @@ export default function Products() {
       const res = await fetch('/api/products');
       if (!res.ok) throw new Error('Failed to fetch products');
       return res.json();
-    },
-    refetchInterval: 30000, // REST polling every 30s
+    }
   });
 
   // Handle errors

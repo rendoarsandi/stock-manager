@@ -9,7 +9,18 @@ export function WebSocketProvider({ children }) {
   const wsRef = useRef(null);
   const listenersRef = useRef(new Set());
   const reconnectTimeoutRef = useRef(null);
+  const resyncTimeoutRef = useRef(null);
   const isUnmountedRef = useRef(false);
+
+  const scheduleResync = useCallback(() => {
+    if (resyncTimeoutRef.current) {
+      clearTimeout(resyncTimeoutRef.current);
+    }
+    resyncTimeoutRef.current = setTimeout(() => {
+      resyncTimeoutRef.current = null;
+      window.dispatchEvent(new CustomEvent('resync-data'));
+    }, 250);
+  }, []);
 
   const connect = useCallback(() => {
     if (wsRef.current && (wsRef.current.readyState === WebSocket.CONNECTING || wsRef.current.readyState === WebSocket.OPEN)) {
@@ -34,6 +45,8 @@ export function WebSocketProvider({ children }) {
         const data = JSON.parse(event.data);
         if (data.type === 'ONLINE_COUNT') {
           setOnlineCount(data.count);
+        } else if (data.type !== 'CHAT_MESSAGE') {
+          scheduleResync();
         }
 
         // Notify subscribers
@@ -65,7 +78,7 @@ export function WebSocketProvider({ children }) {
     ws.onerror = (err) => {
       console.error('WebSocket error:', err);
     };
-  }, []);
+  }, [scheduleResync]);
 
   const addWsListener = useCallback((callback) => {
     listenersRef.current.add(callback);
@@ -109,6 +122,9 @@ export function WebSocketProvider({ children }) {
       }
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
+      }
+      if (resyncTimeoutRef.current) {
+        clearTimeout(resyncTimeoutRef.current);
       }
     };
   }, [connect]);

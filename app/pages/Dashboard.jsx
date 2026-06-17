@@ -14,8 +14,7 @@ export default function Dashboard() {
         throw new Error('Failed to load dashboard statistics');
       }
       return res.json();
-    },
-    refetchInterval: 30000, // REST polling every 30s
+    }
   });
 
   useEffect(() => {
