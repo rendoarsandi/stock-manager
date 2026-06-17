@@ -312,6 +312,8 @@ export default function Chat() {
     scrollToBottom(userId);
     // Close user selector
     setShowUserSelector(false);
+    // Collapse contacts list so it doesn't block/overlap with the current chat window
+    setContactsExpanded(false);
   }, [fetchMessages, markAsRead, scrollToBottom]);
 
   // Close conversation
@@ -402,7 +404,7 @@ export default function Chat() {
               openChat(t.sender_id);
               setToasts(prev => prev.filter(x => x.id !== t.id));
             }}
-            className="pointer-events-auto bg-zinc-950/95 dark:bg-zinc-900/95 backdrop-blur text-white p-4 rounded-xl shadow-2xl border border-zinc-800/80 flex flex-col gap-1.5 cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-zinc-950/20 active:scale-[0.98] animate-slide-in animate-duration-300"
+            className="pointer-events-auto bg-zinc-950/95 dark:bg-zinc-900/95 backdrop-blur text-white p-4 rounded-xl shadow-2xl border border-zinc-800 flex flex-col gap-1.5 cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-zinc-950/20 active:scale-[0.98] animate-slide-in animate-duration-300"
           >
             <div className="flex items-center justify-between">
               <span className="font-bold text-xs text-zinc-400 tracking-wider uppercase">💬 New Message</span>
@@ -451,14 +453,14 @@ export default function Chat() {
           return (
             <div
               key={userId}
-              className={`pointer-events-auto w-80 bg-white dark:bg-zinc-900/95 backdrop-blur-md border border-zinc-200 dark:border-zinc-800/80 rounded-2xl shadow-2xl flex flex-col transition-all duration-300 overflow-hidden ${
+              className={`pointer-events-auto w-80 bg-white dark:bg-zinc-900/95 backdrop-blur-md border-2 border-zinc-950 dark:border-zinc-100 rounded-2xl shadow-2xl flex flex-col transition-all duration-300 overflow-hidden z-10 ${
                 isMinimized ? 'h-12' : 'h-[28rem]'
               }`}
             >
               {/* Chat Header */}
               <div
                 onClick={() => toggleMinimize(userId)}
-                className="bg-zinc-950 dark:bg-zinc-900 text-white px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-zinc-900 dark:hover:bg-zinc-850/80 transition-colors border-b border-zinc-800/40"
+                className="bg-zinc-950 dark:bg-zinc-900 text-white px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-zinc-900 dark:hover:bg-zinc-850/80 transition-colors border-b border-zinc-800"
               >
                 <div className="flex items-center gap-2.5 font-semibold text-xs tracking-wider uppercase truncate">
                   <span className="relative flex h-2 w-2">
@@ -486,61 +488,63 @@ export default function Chat() {
               {!isMinimized && (
                 <>
                   {/* Chat Messages */}
-                  <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-zinc-50/50 dark:bg-zinc-950/20 select-text flex flex-col custom-scrollbar">
-                    {conversationMessages.length === 0 ? (
-                      <div className="text-center text-xs text-zinc-400 dark:text-zinc-500 my-auto flex flex-col items-center gap-2">
-                        <MessageSquareIcon className="w-8 h-8 text-zinc-300 dark:text-zinc-700 stroke-[1.5]" />
-                        <span>No messages yet. Say hello!</span>
-                      </div>
-                    ) : (
-                      conversationMessages.map((msg) => {
-                        const isMe = msg.sender_id === currentUser.id;
-                        return (
-                          <div
-                            key={msg.id}
-                            className={`flex flex-col max-w-[85%] ${
-                              isMe ? 'self-end items-end' : 'self-start items-start'
-                            }`}
-                          >
+                  <div className="flex-1 overflow-y-auto bg-zinc-50/50 dark:bg-zinc-950/20 select-text custom-scrollbar">
+                    <div className="p-4 space-y-3 flex flex-col w-full min-h-full">
+                      {conversationMessages.length === 0 ? (
+                        <div className="text-center text-xs text-zinc-400 dark:text-zinc-500 my-auto py-20 flex flex-col items-center gap-2">
+                          <MessageSquareIcon className="w-8 h-8 text-zinc-300 dark:text-zinc-700 stroke-[1.5]" />
+                          <span>No messages yet. Say hello!</span>
+                        </div>
+                      ) : (
+                        conversationMessages.map((msg) => {
+                          const isMe = msg.sender_id === currentUser.id;
+                          return (
                             <div
-                              className={`px-3.5 py-2.5 rounded-2xl text-[13px] leading-relaxed shadow-sm ${
-                                isMe
-                                  ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-tr-none font-medium'
-                                  : 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-tl-none border border-zinc-150 dark:border-zinc-700/50'
+                              key={msg.id}
+                              className={`flex flex-col max-w-[85%] ${
+                                isMe ? 'self-end items-end' : 'self-start items-start'
                               }`}
                             >
-                              <div>{msg.message}</div>
-                              
-                              {/* Product Tag Badge Inside Bubble */}
-                              {msg.product_name && (
-                                <div className="mt-2.5 p-2.5 bg-zinc-50 dark:bg-zinc-900/90 border border-zinc-200/60 dark:border-zinc-800 rounded-xl text-[11px] flex flex-col gap-1 w-52 select-none shadow-inner">
-                                  <div className="font-bold text-zinc-800 dark:text-zinc-200 truncate flex items-center gap-1.5">
-                                    <span>📦</span> {msg.product_name}
+                              <div
+                                className={`px-3.5 py-2 rounded-2xl text-[13px] leading-relaxed shadow-sm w-fit max-w-full break-words whitespace-pre-wrap ${
+                                  isMe
+                                    ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-tr-none font-medium'
+                                  : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-tl-none border border-zinc-200 dark:border-zinc-700/50'
+                                }`}
+                              >
+                                <div>{msg.message}</div>
+                                
+                                {/* Product Tag Badge Inside Bubble */}
+                                {msg.product_name && (
+                                  <div className="mt-2.5 p-2.5 bg-zinc-50 dark:bg-zinc-900/90 border border-zinc-200 dark:border-zinc-800 rounded-xl text-[11px] flex flex-col gap-1 w-52 select-none shadow-inner">
+                                    <div className="font-bold text-zinc-800 dark:text-zinc-200 truncate flex items-center gap-1.5">
+                                      <span>📦</span> {msg.product_name}
+                                    </div>
+                                    <div className="text-[10px] text-zinc-400 dark:text-zinc-500 truncate">
+                                      Model: {msg.product_model}
+                                    </div>
+                                    <div className="flex justify-between items-center mt-2 pt-1.5 border-t border-zinc-100 dark:border-zinc-800/40">
+                                      <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                                        Stock: {msg.product_current_stock}
+                                      </span>
+                                      <span className="text-zinc-400 dark:text-zinc-500 font-semibold uppercase text-[9px] tracking-wider">Tagged</span>
+                                    </div>
                                   </div>
-                                  <div className="text-[10px] text-zinc-400 dark:text-zinc-500 truncate">
-                                    Model: {msg.product_model}
-                                  </div>
-                                  <div className="flex justify-between items-center mt-2 pt-1.5 border-t border-zinc-100 dark:border-zinc-800/40">
-                                    <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                                      Stock: {msg.product_current_stock}
-                                    </span>
-                                    <span className="text-zinc-400 dark:text-zinc-500 font-semibold uppercase text-[9px] tracking-wider">Tagged</span>
-                                  </div>
-                                </div>
-                              )}
+                                )}
+                              </div>
+                              <span className="text-[9px] text-zinc-400 dark:text-zinc-500 mt-1.5 px-1 font-semibold">
+                                {msg.created_at ? msg.created_at.split(' ')[1] || msg.created_at : ''}
+                              </span>
                             </div>
-                            <span className="text-[9px] text-zinc-400 dark:text-zinc-500 mt-1.5 px-1 font-semibold">
-                              {msg.created_at ? msg.created_at.split(' ')[1] || msg.created_at : ''}
-                            </span>
-                          </div>
-                        );
-                      })
-                    )}
-                    <div ref={el => messagesEndRefs.current[userId] = el} />
+                          );
+                        })
+                      )}
+                      <div ref={el => messagesEndRefs.current[userId] = el} />
+                    </div>
                   </div>
 
                   {/* Input Footer */}
-                  <div className="p-3 border-t border-zinc-150 dark:border-zinc-800/80 bg-white dark:bg-zinc-900 relative">
+                  <div className="p-3 border-t border-zinc-200 dark:border-zinc-800/80 bg-white dark:bg-zinc-900 relative">
                     
                     {/* Tagged Product Preview Bar */}
                     {taggedProd && (
@@ -559,7 +563,7 @@ export default function Chat() {
 
                     {/* Product Selection Dropdown Popover */}
                     {showProdDropdown && (
-                      <div className="absolute bottom-full left-2 right-2 mb-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-850 rounded-xl shadow-2xl p-2.5 z-50 flex flex-col gap-2 animate-slide-up">
+                      <div className="absolute bottom-full left-2 right-2 mb-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-2xl p-2.5 z-50 flex flex-col gap-2 animate-slide-up">
                         <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800/60 pb-2">
                           <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Tag Product Item</span>
                           <button
@@ -608,9 +612,9 @@ export default function Chat() {
                       <button
                         onClick={() => setShowProductDropdown(prev => ({ ...prev, [userId]: !prev[userId] }))}
                         title="Tag a product item"
-                        className="w-8.5 h-8.5 rounded-lg flex items-center justify-center hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 transition-all active:scale-95"
+                        className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 transition-all active:scale-95"
                       >
-                        <TagIcon className="w-4.5 h-4.5" />
+                        <TagIcon className="w-5 h-5" />
                       </button>
                       <input
                         type="text"
@@ -618,12 +622,12 @@ export default function Chat() {
                         value={inputVal}
                         onChange={(e) => setChatInputs(prev => ({ ...prev, [userId]: e.target.value }))}
                         onKeyDown={(e) => handleKeyDown(e, userId)}
-                        className="flex-1 px-3.5 py-2 text-xs rounded-lg border border-zinc-200 dark:border-zinc-850 bg-zinc-50 dark:bg-zinc-950 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:focus:ring-zinc-700 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 transition-all"
+                        className="flex-1 px-3 py-2 text-xs rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:focus:ring-zinc-700 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 transition-all"
                       />
                       <button
                         onClick={() => sendMessage(userId)}
                         disabled={!inputVal.trim() && !taggedProd}
-                        className="w-8.5 h-8.5 rounded-lg bg-zinc-950 dark:bg-zinc-100 text-white dark:text-zinc-900 flex items-center justify-center hover:bg-zinc-900 dark:hover:bg-zinc-200 disabled:opacity-45 disabled:hover:bg-zinc-950 dark:disabled:hover:bg-zinc-100 transition-all active:scale-95"
+                        className="w-8 h-8 rounded-lg bg-zinc-950 dark:bg-zinc-100 text-white dark:text-zinc-900 flex items-center justify-center hover:bg-zinc-900 dark:hover:bg-zinc-200 disabled:opacity-45 disabled:hover:bg-zinc-950 dark:disabled:hover:bg-zinc-100 transition-all active:scale-95 animate-none"
                       >
                         <SendIcon className="w-4 h-4" />
                       </button>
@@ -636,25 +640,25 @@ export default function Chat() {
         })}
 
         {/* Contacts Roster/List Dock or Plus Button */}
-        <div className="pointer-events-auto relative flex flex-col items-end">
+        <div className="pointer-events-auto relative flex flex-col items-end z-0">
           
           {/* Main Roster Card */}
-          {contactsExpanded && (
-            <div className="absolute bottom-16 right-0 w-72 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800/80 rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-slide-up h-96">
+          {contactsExpanded ? (
+            <div className="w-72 bg-white dark:bg-zinc-900 border-2 border-zinc-950 dark:border-zinc-100 rounded-2xl shadow-2xl flex flex-col overflow-hidden h-96">
               {/* Roster Header */}
-              <div className="bg-zinc-950 dark:bg-zinc-900 text-white px-4 py-3 flex items-center justify-between border-b border-zinc-800/40">
+              <div className="bg-zinc-950 dark:bg-zinc-900 text-white px-4 py-3 flex items-center justify-between border-b border-zinc-800">
                 <span className="font-bold text-xs tracking-wider uppercase text-zinc-100">Conversations</span>
                 <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
                   <button
                     onClick={() => setShowUserSelector(prev => !prev)}
                     title="New Conversation"
-                    className="hover:bg-white/10 w-7 h-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-white transition-all active:scale-95"
+                    className="hover:bg-white/10 w-8 h-8 flex items-center justify-center rounded-lg text-zinc-400 hover:text-white transition-all active:scale-95"
                   >
                     <PlusIcon className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => setContactsExpanded(false)}
-                    className="hover:bg-white/10 w-7 h-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-white transition-all"
+                    className="hover:bg-white/10 w-8 h-8 flex items-center justify-center rounded-lg text-zinc-400 hover:text-white transition-all"
                   >
                     <ChevronDownIcon className="w-4 h-4" />
                   </button>
@@ -683,7 +687,7 @@ export default function Chat() {
                         placeholder="Type username..."
                         value={searchUserQuery}
                         onChange={(e) => setSearchUserQuery(e.target.value)}
-                        className="w-full text-xs pl-8 pr-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-850 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 focus:outline-none"
+                        className="w-full text-xs pl-8 pr-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 focus:outline-none"
                         autoFocus
                       />
                     </div>
@@ -728,7 +732,7 @@ export default function Chat() {
                           onClick={() => openChat(c.id)}
                           className={`w-full text-left p-2.5 hover:bg-zinc-50 dark:hover:bg-zinc-850/50 transition-all flex items-center justify-between rounded-xl border ${
                             isOpen 
-                              ? 'bg-zinc-100/60 dark:bg-zinc-800/40 border-zinc-150 dark:border-zinc-800/80 shadow-inner' 
+                              ? 'bg-zinc-100/60 dark:bg-zinc-800/40 border-zinc-200 dark:border-zinc-800 shadow-inner' 
                               : 'border-transparent'
                           }`}
                         >
@@ -762,23 +766,23 @@ export default function Chat() {
                 </div>
               </div>
             </div>
+          ) : (
+            /* Floating Circle Button Trigger (Only shown when closed) */
+            <button
+              onClick={() => setContactsExpanded(true)}
+              title="Open Chat"
+              className="w-14 h-14 rounded-full bg-zinc-950 dark:bg-zinc-100 hover:scale-105 active:scale-95 text-white dark:text-zinc-900 flex items-center justify-center shadow-2xl transition-all cursor-pointer border border-zinc-800 dark:border-zinc-200 relative hover:shadow-zinc-950/25"
+            >
+              <MessageSquareIcon className="w-6 h-6 stroke-[2]" />
+              
+              {/* Total Unread Badge on the circle */}
+              {totalUnread > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg border-2 border-white dark:border-zinc-950 animate-bounce">
+                  {totalUnread}
+                </span>
+              )}
+            </button>
           )}
-
-          {/* Floating Circle Button Trigger */}
-          <button
-            onClick={() => setContactsExpanded(prev => !prev)}
-            title="Open Chat"
-            className="w-14 h-14 rounded-full bg-zinc-950 dark:bg-zinc-100 hover:scale-105 active:scale-95 text-white dark:text-zinc-900 flex items-center justify-center shadow-2xl transition-all cursor-pointer border border-zinc-800/50 dark:border-zinc-200/50 relative hover:shadow-zinc-950/25"
-          >
-            <MessageSquareIcon className="w-6 h-6 stroke-[2]" />
-            
-            {/* Total Unread Badge on the circle */}
-            {totalUnread > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg border-2 border-white dark:border-zinc-950 animate-bounce">
-                {totalUnread}
-              </span>
-            )}
-          </button>
         </div>
 
       </div>
