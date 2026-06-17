@@ -8,6 +8,7 @@ import Chat from './Chat';
 const pageTitles = {
   '/': 'Dashboard',
   '/products': 'Products',
+  '/products/status-return': 'Status Return',
   '/import': 'Import Excel',
   '/review': 'Pending Review',
   '/stock-history': 'Stock History',
@@ -28,6 +29,15 @@ export default function Layout({ children }) {
   });
   const [isMobileVisible, setIsMobileVisible] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
+  const [isProductsSubmenuOpen, setIsProductsSubmenuOpen] = useState(() => {
+    return location.pathname.startsWith('/products');
+  });
+
+  useEffect(() => {
+    if (location.pathname.startsWith('/products')) {
+      setIsProductsSubmenuOpen(true);
+    }
+  }, [location.pathname]);
 
   const fetchPendingCount = useCallback(async () => {
     try {
@@ -102,12 +112,33 @@ export default function Layout({ children }) {
             </span>
             <span className="nav-text">Dashboard</span>
           </Link>
-          <Link to="/products" className="nav-item" activeProps={{ className: 'nav-item active' }} title="Products">
-            <span className="nav-icon">
-              <svg viewBox="0 0 24 24"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
-            </span>
-            <span className="nav-text">Products</span>
-          </Link>
+          <div className="nav-item-group" style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
+            <div 
+              className={`nav-item ${location.pathname.startsWith('/products') ? 'active' : ''}`}
+              style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: '1rem' }}
+              onClick={() => setIsProductsSubmenuOpen(prev => !prev)}
+            >
+              <Link to="/products" className="nav-item-inner" title="Products" style={{ display: 'flex', alignItems: 'center', gap: 'inherit', color: 'inherit', textDecoration: 'none', flex: 1, width: '100%', height: '100%' }}>
+                <span className="nav-icon">
+                  <svg viewBox="0 0 24 24"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+                </span>
+                <span className="nav-text">Products</span>
+              </Link>
+              {!isCollapsed && (
+                <span className="submenu-toggle-indicator" style={{ transition: 'transform 0.2s', transform: isProductsSubmenuOpen ? 'rotate(180deg)' : 'rotate(0deg)', fontSize: '0.65rem', opacity: 0.6, marginLeft: '0.5rem', pointerEvents: 'none' }}>
+                  ▼
+                </span>
+              )}
+            </div>
+            {isProductsSubmenuOpen && (
+              <div className="submenu" style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', paddingLeft: isCollapsed ? '0' : '2.25rem', marginTop: '0.15rem', overflow: 'hidden' }}>
+                <Link to="/products/status-return" className="submenu-item" activeProps={{ className: 'submenu-item active' }} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', textDecoration: 'none', fontSize: '0.85rem', fontWeight: '500', borderRadius: 'var(--border-radius-md)', transition: 'var(--transition)' }}>
+                  <span className="submenu-icon">↪</span>
+                  <span className="submenu-text" style={{ display: isCollapsed ? 'none' : 'inline' }}>Status Return</span>
+                </Link>
+              </div>
+            )}
+          </div>
           <Link to="/import" className="nav-item" activeProps={{ className: 'nav-item active' }} title="Import Excel">
             <span className="nav-icon">
               <svg viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M8 13h8"/><path d="M8 17h8"/><path d="M10 9H8v8"/></svg>

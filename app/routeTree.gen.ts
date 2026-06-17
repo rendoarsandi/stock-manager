@@ -17,11 +17,13 @@ import { Route as OpnameRouteImport } from './routes/opname'
 import { Route as ImportRouteImport } from './routes/import'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SignUpSplatRouteImport } from './routes/sign-up.$'
+import { Route as ProductsStatusReturnRouteImport } from './routes/products/status-return'
 import { Route as ApiProductsRouteImport } from './routes/api/products'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiSplatRouteImport } from './routes/api/$'
 import { Route as ApiStockOpnameRouteImport } from './routes/api/stock/opname'
 import { Route as ApiStockHistoryRouteImport } from './routes/api/stock/history'
+import { Route as ApiReviewReturnedRouteImport } from './routes/api/review/returned'
 import { Route as ApiReviewResolveRouteImport } from './routes/api/review/resolve'
 import { Route as ApiReviewOrdersRouteImport } from './routes/api/review/orders'
 import { Route as ApiReviewConfirmSplitRouteImport } from './routes/api/review/confirm-split'
@@ -91,6 +93,11 @@ const SignUpSplatRoute = SignUpSplatRouteImport.update({
   path: '/sign-up/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProductsStatusReturnRoute = ProductsStatusReturnRouteImport.update({
+  id: '/status-return',
+  path: '/status-return',
+  getParentRoute: () => ProductsRoute,
+} as any)
 const ApiProductsRoute = ApiProductsRouteImport.update({
   id: '/api/products',
   path: '/api/products',
@@ -114,6 +121,11 @@ const ApiStockOpnameRoute = ApiStockOpnameRouteImport.update({
 const ApiStockHistoryRoute = ApiStockHistoryRouteImport.update({
   id: '/api/stock/history',
   path: '/api/stock/history',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiReviewReturnedRoute = ApiReviewReturnedRouteImport.update({
+  id: '/api/review/returned',
+  path: '/api/review/returned',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiReviewResolveRoute = ApiReviewResolveRouteImport.update({
@@ -263,13 +275,14 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/import': typeof ImportRoute
   '/opname': typeof OpnameRoute
-  '/products': typeof ProductsRoute
+  '/products': typeof ProductsRouteWithChildren
   '/review': typeof ReviewRoute
   '/settings': typeof SettingsRoute
   '/stock-history': typeof StockHistoryRoute
   '/api/$': typeof ApiSplatRoute
   '/api/health': typeof ApiHealthRoute
   '/api/products': typeof ApiProductsRouteWithChildren
+  '/products/status-return': typeof ProductsStatusReturnRoute
   '/sign-up/$': typeof SignUpSplatRoute
   '/api/auth/clerk-webhook': typeof ApiAuthClerkWebhookRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
@@ -293,6 +306,7 @@ export interface FileRoutesByFullPath {
   '/api/review/confirm-split': typeof ApiReviewConfirmSplitRoute
   '/api/review/orders': typeof ApiReviewOrdersRoute
   '/api/review/resolve': typeof ApiReviewResolveRoute
+  '/api/review/returned': typeof ApiReviewReturnedRoute
   '/api/stock/history': typeof ApiStockHistoryRoute
   '/api/stock/opname': typeof ApiStockOpnameRouteWithChildren
   '/api/auth/users/$id': typeof ApiAuthUsersIdRoute
@@ -306,13 +320,14 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/import': typeof ImportRoute
   '/opname': typeof OpnameRoute
-  '/products': typeof ProductsRoute
+  '/products': typeof ProductsRouteWithChildren
   '/review': typeof ReviewRoute
   '/settings': typeof SettingsRoute
   '/stock-history': typeof StockHistoryRoute
   '/api/$': typeof ApiSplatRoute
   '/api/health': typeof ApiHealthRoute
   '/api/products': typeof ApiProductsRouteWithChildren
+  '/products/status-return': typeof ProductsStatusReturnRoute
   '/sign-up/$': typeof SignUpSplatRoute
   '/api/auth/clerk-webhook': typeof ApiAuthClerkWebhookRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
@@ -336,6 +351,7 @@ export interface FileRoutesByTo {
   '/api/review/confirm-split': typeof ApiReviewConfirmSplitRoute
   '/api/review/orders': typeof ApiReviewOrdersRoute
   '/api/review/resolve': typeof ApiReviewResolveRoute
+  '/api/review/returned': typeof ApiReviewReturnedRoute
   '/api/stock/history': typeof ApiStockHistoryRoute
   '/api/stock/opname': typeof ApiStockOpnameRouteWithChildren
   '/api/auth/users/$id': typeof ApiAuthUsersIdRoute
@@ -350,13 +366,14 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/import': typeof ImportRoute
   '/opname': typeof OpnameRoute
-  '/products': typeof ProductsRoute
+  '/products': typeof ProductsRouteWithChildren
   '/review': typeof ReviewRoute
   '/settings': typeof SettingsRoute
   '/stock-history': typeof StockHistoryRoute
   '/api/$': typeof ApiSplatRoute
   '/api/health': typeof ApiHealthRoute
   '/api/products': typeof ApiProductsRouteWithChildren
+  '/products/status-return': typeof ProductsStatusReturnRoute
   '/sign-up/$': typeof SignUpSplatRoute
   '/api/auth/clerk-webhook': typeof ApiAuthClerkWebhookRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
@@ -380,6 +397,7 @@ export interface FileRoutesById {
   '/api/review/confirm-split': typeof ApiReviewConfirmSplitRoute
   '/api/review/orders': typeof ApiReviewOrdersRoute
   '/api/review/resolve': typeof ApiReviewResolveRoute
+  '/api/review/returned': typeof ApiReviewReturnedRoute
   '/api/stock/history': typeof ApiStockHistoryRoute
   '/api/stock/opname': typeof ApiStockOpnameRouteWithChildren
   '/api/auth/users/$id': typeof ApiAuthUsersIdRoute
@@ -402,6 +420,7 @@ export interface FileRouteTypes {
     | '/api/$'
     | '/api/health'
     | '/api/products'
+    | '/products/status-return'
     | '/sign-up/$'
     | '/api/auth/clerk-webhook'
     | '/api/auth/login'
@@ -425,6 +444,7 @@ export interface FileRouteTypes {
     | '/api/review/confirm-split'
     | '/api/review/orders'
     | '/api/review/resolve'
+    | '/api/review/returned'
     | '/api/stock/history'
     | '/api/stock/opname'
     | '/api/auth/users/$id'
@@ -445,6 +465,7 @@ export interface FileRouteTypes {
     | '/api/$'
     | '/api/health'
     | '/api/products'
+    | '/products/status-return'
     | '/sign-up/$'
     | '/api/auth/clerk-webhook'
     | '/api/auth/login'
@@ -468,6 +489,7 @@ export interface FileRouteTypes {
     | '/api/review/confirm-split'
     | '/api/review/orders'
     | '/api/review/resolve'
+    | '/api/review/returned'
     | '/api/stock/history'
     | '/api/stock/opname'
     | '/api/auth/users/$id'
@@ -488,6 +510,7 @@ export interface FileRouteTypes {
     | '/api/$'
     | '/api/health'
     | '/api/products'
+    | '/products/status-return'
     | '/sign-up/$'
     | '/api/auth/clerk-webhook'
     | '/api/auth/login'
@@ -511,6 +534,7 @@ export interface FileRouteTypes {
     | '/api/review/confirm-split'
     | '/api/review/orders'
     | '/api/review/resolve'
+    | '/api/review/returned'
     | '/api/stock/history'
     | '/api/stock/opname'
     | '/api/auth/users/$id'
@@ -525,7 +549,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ImportRoute: typeof ImportRoute
   OpnameRoute: typeof OpnameRoute
-  ProductsRoute: typeof ProductsRoute
+  ProductsRoute: typeof ProductsRouteWithChildren
   ReviewRoute: typeof ReviewRoute
   SettingsRoute: typeof SettingsRoute
   StockHistoryRoute: typeof StockHistoryRoute
@@ -553,6 +577,7 @@ export interface RootRouteChildren {
   ApiReviewConfirmSplitRoute: typeof ApiReviewConfirmSplitRoute
   ApiReviewOrdersRoute: typeof ApiReviewOrdersRoute
   ApiReviewResolveRoute: typeof ApiReviewResolveRoute
+  ApiReviewReturnedRoute: typeof ApiReviewReturnedRoute
   ApiStockHistoryRoute: typeof ApiStockHistoryRoute
   ApiStockOpnameRoute: typeof ApiStockOpnameRouteWithChildren
 }
@@ -615,6 +640,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignUpSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/products/status-return': {
+      id: '/products/status-return'
+      path: '/status-return'
+      fullPath: '/products/status-return'
+      preLoaderRoute: typeof ProductsStatusReturnRouteImport
+      parentRoute: typeof ProductsRoute
+    }
     '/api/products': {
       id: '/api/products'
       path: '/api/products'
@@ -648,6 +680,13 @@ declare module '@tanstack/react-router' {
       path: '/api/stock/history'
       fullPath: '/api/stock/history'
       preLoaderRoute: typeof ApiStockHistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/review/returned': {
+      id: '/api/review/returned'
+      path: '/api/review/returned'
+      fullPath: '/api/review/returned'
+      preLoaderRoute: typeof ApiReviewReturnedRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/review/resolve': {
@@ -849,6 +888,18 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface ProductsRouteChildren {
+  ProductsStatusReturnRoute: typeof ProductsStatusReturnRoute
+}
+
+const ProductsRouteChildren: ProductsRouteChildren = {
+  ProductsStatusReturnRoute: ProductsStatusReturnRoute,
+}
+
+const ProductsRouteWithChildren = ProductsRoute._addFileChildren(
+  ProductsRouteChildren,
+)
+
 interface ApiProductsIdRouteChildren {
   ApiProductsIdAdjustStockRoute: typeof ApiProductsIdAdjustStockRoute
   ApiProductsIdLedgerRoute: typeof ApiProductsIdLedgerRoute
@@ -930,7 +981,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ImportRoute: ImportRoute,
   OpnameRoute: OpnameRoute,
-  ProductsRoute: ProductsRoute,
+  ProductsRoute: ProductsRouteWithChildren,
   ReviewRoute: ReviewRoute,
   SettingsRoute: SettingsRoute,
   StockHistoryRoute: StockHistoryRoute,
@@ -958,6 +1009,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiReviewConfirmSplitRoute: ApiReviewConfirmSplitRoute,
   ApiReviewOrdersRoute: ApiReviewOrdersRoute,
   ApiReviewResolveRoute: ApiReviewResolveRoute,
+  ApiReviewReturnedRoute: ApiReviewReturnedRoute,
   ApiStockHistoryRoute: ApiStockHistoryRoute,
   ApiStockOpnameRoute: ApiStockOpnameRouteWithChildren,
 }

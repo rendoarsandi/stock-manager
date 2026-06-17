@@ -1173,6 +1173,45 @@ async function handleReviewOrders(req) {
   }
 }
 
+async function handleReturnedOrders(req) {
+  try {
+    const ordersList = await db.orders.list();
+    const orderItemsList = await db.orderItems.list();
+    const productsList = await db.products.list();
+
+    const productMap = new Map(productsList.map(p => [p.id, p]));
+    
+    const itemsByOrder = new Map();
+    for (const item of orderItemsList) {
+      if (!itemsByOrder.has(item.order_id)) {
+        itemsByOrder.set(item.order_id, []);
+      }
+      const prod = item.product_id ? productMap.get(item.product_id) : null;
+      itemsByOrder.get(item.order_id).push({
+        id: item.id,
+        product_id: item.product_id,
+        quantity: item.quantity,
+        is_confirmed: item.is_confirmed,
+        product_name: prod ? prod.name : 'Unmapped Product',
+        product_model: prod ? prod.model : ''
+      });
+    }
+
+    const filtered = ordersList
+      .filter(o => o.system_status === 'resolved' && o.resolution === 'returned')
+      .map(o => ({
+        ...o,
+        items: itemsByOrder.get(o.id) || []
+      }));
+
+    filtered.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    return json(filtered);
+  } catch (err) {
+    console.error("Get returned orders error:", err);
+    return json({ message: 'Failed to retrieve returned orders' }, 500);
+  }
+}
+
 async function handleResolveReviewOrder(req) {
   try {
     const { order_id, resolution, resolution_notes } = await readJson(req);
@@ -1891,6 +1930,7 @@ export {
   handleSaveSkuMapping,
   handleDeleteSkuMapping,
   handleReviewOrders,
+  handleReturnedOrders,
   handleResolveReviewOrder,
   handleReviewAmbiguous,
   handleConfirmSplit,

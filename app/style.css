@@ -186,6 +186,21 @@ body {
   color: var(--accent-color);
 }
 
+.submenu-item {
+  color: var(--text-secondary);
+  transition: var(--transition);
+}
+
+.submenu-item:hover {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.submenu-item.active {
+  background-color: var(--accent-light);
+  color: var(--accent-color);
+}
+
 .nav-icon {
   font-size: 1.15rem;
   flex-shrink: 0;

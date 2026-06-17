@@ -33,6 +33,22 @@ export default function Chat() {
   const [toasts, setToasts] = useState([]);
 
   const messagesEndRefs = useRef({});
+  const activeChatsRef = useRef([]);
+  const messagesRef = useRef({});
+  const contactsRef = useRef([]);
+
+  // Keep refs in sync to prevent stale closures in the WebSocket listener
+  useEffect(() => {
+    activeChatsRef.current = activeChats;
+  }, [activeChats]);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  useEffect(() => {
+    contactsRef.current = contacts;
+  }, [contacts]);
 
   // Fetch contacts
   const fetchContacts = useCallback(async () => {
@@ -135,9 +151,8 @@ export default function Chat() {
     if (!currentUser) return;
     const unsubscribe = addWsListener((data) => {
       if (data.type === 'CHAT_MESSAGE') {
-        // We received a message!
         if (data.receiver_id === currentUser.id) {
-          const isChatWindowOpen = activeChats.includes(data.sender_id);
+          const isChatWindowOpen = activeChatsRef.current.includes(data.sender_id);
           
           if (isChatWindowOpen) {
             // Append to messages list
@@ -190,15 +205,15 @@ export default function Chat() {
     });
 
     return () => unsubscribe();
-  }, [currentUser, addWsListener, activeChats, fetchContacts, fetchMessages, markAsRead, scrollToBottom]);
+  }, [currentUser, addWsListener, fetchContacts, markAsRead, scrollToBottom]);
 
   // Open conversation
   const openChat = useCallback((userId) => {
-    if (!activeChats.includes(userId)) {
-      // Limit to max 3 chat windows to keep viewport clean
-      setActiveChats(prev => [...prev.filter(id => id !== userId).slice(-2), userId]);
-      fetchMessages(userId);
-    }
+    setActiveChats(prev => {
+      if (prev.includes(userId)) return prev;
+      return [...prev.filter(id => id !== userId).slice(-2), userId];
+    });
+    fetchMessages(userId);
     // Remove from minimized
     setMinimizedChats(prev => prev.filter(id => id !== userId));
     // Clear unread indicator and mark read
@@ -207,7 +222,7 @@ export default function Chat() {
     scrollToBottom(userId);
     // Close user selector
     setShowUserSelector(false);
-  }, [activeChats, fetchMessages, markAsRead, scrollToBottom]);
+  }, [fetchMessages, markAsRead, scrollToBottom]);
 
   // Close conversation
   const closeChat = useCallback((userId) => {
@@ -294,26 +309,26 @@ export default function Chat() {
               openChat(t.sender_id);
               setToasts(prev => prev.filter(x => x.id !== t.id));
             }}
-            className="pointer-events-auto bg-slate-900/95 dark:bg-zinc-900/95 backdrop-blur text-white p-4 rounded-xl shadow-2xl border border-slate-700/50 flex flex-col gap-1 cursor-pointer transition-all hover:translate-y-[-2px] hover:shadow-xl active:scale-95 animate-slide-in"
+            className="pointer-events-auto bg-zinc-950/95 dark:bg-zinc-900/95 backdrop-blur text-white p-4 rounded-xl shadow-2xl border border-zinc-800/80 flex flex-col gap-1.5 cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-zinc-950/20 active:scale-[0.98] animate-slide-in animate-duration-300"
           >
             <div className="flex items-center justify-between">
-              <span className="font-bold text-sm text-indigo-400">💬 New Message</span>
+              <span className="font-bold text-xs text-zinc-400 tracking-wider uppercase">💬 New Message</span>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   setToasts(prev => prev.filter(x => x.id !== t.id));
                 }}
-                className="text-gray-400 hover:text-white text-xs"
+                className="text-zinc-500 hover:text-white transition-colors w-5 h-5 flex items-center justify-center rounded-full hover:bg-zinc-800/60"
               >
                 ✕
               </button>
             </div>
-            <div className="font-semibold text-sm">{t.sender_username}</div>
-            <div className="text-xs text-gray-300 line-clamp-2 mt-0.5">{t.message}</div>
+            <div className="font-semibold text-sm text-zinc-100">{t.sender_username}</div>
+            <div className="text-xs text-zinc-300 line-clamp-2 leading-relaxed">{t.message}</div>
             {t.product && (
-              <div className="mt-2 p-1.5 bg-slate-800/80 rounded border border-slate-700 text-[10px] flex items-center gap-1.5">
-                <span className="text-amber-400">📦</span>
-                <span className="font-medium text-gray-200 truncate">{t.product.name}</span>
+              <div className="mt-2 p-2 bg-zinc-900 border border-zinc-800 rounded-lg text-[10px] flex items-center gap-2">
+                <span className="text-emerald-400">📦</span>
+                <span className="font-medium text-zinc-300 truncate">{t.product.name}</span>
               </div>
             )}
           </div>
@@ -321,7 +336,7 @@ export default function Chat() {
       </div>
 
       {/* Floating Chat System */}
-      <div className="fixed bottom-0 right-4 z-50 flex items-end gap-3 pointer-events-none select-none">
+      <div className="fixed bottom-0 right-4 z-50 flex items-end gap-4 pointer-events-none select-none">
         
         {/* Active Chat Windows (Facebook style) */}
         {activeChats.map(userId => {
@@ -343,29 +358,32 @@ export default function Chat() {
           return (
             <div
               key={userId}
-              className={`pointer-events-auto w-80 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-t-xl shadow-2xl flex flex-col transition-all duration-200 ${
-                isMinimized ? 'h-10' : 'h-96'
+              className={`pointer-events-auto w-80 bg-white dark:bg-zinc-900/95 backdrop-blur-md border border-zinc-200 dark:border-zinc-800/90 rounded-t-xl shadow-2xl flex flex-col transition-all duration-300 ${
+                isMinimized ? 'h-11' : 'h-[26rem]'
               }`}
             >
               {/* Chat Header */}
               <div
                 onClick={() => toggleMinimize(userId)}
-                className="bg-zinc-950 dark:bg-zinc-800 text-white px-3 py-2 flex items-center justify-between rounded-t-xl cursor-pointer hover:bg-zinc-900 dark:hover:bg-zinc-750"
+                className="bg-zinc-900 dark:bg-zinc-850 text-white px-4 py-2.5 flex items-center justify-between rounded-t-xl cursor-pointer hover:bg-zinc-850 dark:hover:bg-zinc-800 transition-colors"
               >
-                <div className="flex items-center gap-2 font-medium text-sm truncate">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                  <span className="truncate">{name}</span>
+                <div className="flex items-center gap-2.5 font-medium text-xs tracking-wider uppercase truncate">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  <span className="truncate text-zinc-100">{name}</span>
                 </div>
-                <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
                   <button
                     onClick={() => toggleMinimize(userId)}
-                    className="hover:bg-white/10 w-6 h-6 flex items-center justify-center rounded text-gray-300 hover:text-white"
+                    className="hover:bg-white/10 w-6 h-6 flex items-center justify-center rounded text-zinc-400 hover:text-white transition-colors"
                   >
                     {isMinimized ? '▲' : '—'}
                   </button>
                   <button
                     onClick={() => closeChat(userId)}
-                    className="hover:bg-white/10 w-6 h-6 flex items-center justify-center rounded text-gray-300 hover:text-white"
+                    className="hover:bg-white/10 w-6 h-6 flex items-center justify-center rounded text-zinc-400 hover:text-white transition-colors"
                   >
                     ✕
                   </button>
@@ -375,7 +393,7 @@ export default function Chat() {
               {!isMinimized && (
                 <>
                   {/* Chat Messages */}
-                  <div className="flex-1 overflow-y-auto p-3 space-y-2 bg-zinc-50 dark:bg-zinc-950/40 select-text flex flex-col">
+                  <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-zinc-50/50 dark:bg-zinc-950/20 select-text flex flex-col custom-scrollbar">
                     {conversationMessages.length === 0 ? (
                       <div className="text-center text-xs text-zinc-400 dark:text-zinc-500 my-auto">
                         No messages yet. Say hello!
@@ -391,33 +409,33 @@ export default function Chat() {
                             }`}
                           >
                             <div
-                              className={`px-3 py-1.5 rounded-2xl text-sm leading-relaxed ${
+                              className={`px-3 py-2 rounded-2xl text-[13px] leading-relaxed shadow-sm ${
                                 isMe
                                   ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-tr-none'
-                                  : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-tl-none border border-zinc-300/40 dark:border-zinc-700/30'
+                                  : 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-tl-none border border-zinc-200 dark:border-zinc-700/50'
                               }`}
                             >
                               <div>{msg.message}</div>
                               
                               {/* Product Tag Badge Inside Bubble */}
                               {msg.product_name && (
-                                <div className="mt-1.5 p-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg text-xs flex flex-col gap-1 w-52 select-none shadow-sm">
-                                  <div className="font-semibold text-zinc-900 dark:text-zinc-100 truncate flex items-center gap-1.5">
+                                <div className="mt-2 p-2.5 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-850 rounded-xl text-[11px] flex flex-col gap-1 w-52 select-none shadow-inner">
+                                  <div className="font-semibold text-zinc-800 dark:text-zinc-200 truncate flex items-center gap-1.5">
                                     <span>📦</span> {msg.product_name}
                                   </div>
-                                  <div className="text-[10px] text-zinc-500 dark:text-zinc-400 truncate">
+                                  <div className="text-[10px] text-zinc-400 dark:text-zinc-500 truncate">
                                     Model: {msg.product_model}
                                   </div>
-                                  <div className="flex justify-between items-center mt-1 text-[10px]">
-                                    <span className="font-medium text-emerald-600 dark:text-emerald-400">
+                                  <div className="flex justify-between items-center mt-1.5 text-[10px] pt-1 border-t border-zinc-100 dark:border-zinc-800/40">
+                                    <span className="font-semibold text-emerald-600 dark:text-emerald-400">
                                       Stock: {msg.product_current_stock}
                                     </span>
-                                    <span className="text-zinc-400 dark:text-zinc-500">Mentioned</span>
+                                    <span className="text-zinc-400 dark:text-zinc-500 font-medium">Tagged</span>
                                   </div>
                                 </div>
                               )}
                             </div>
-                            <span className="text-[9px] text-zinc-400 dark:text-zinc-500 mt-0.5 px-1">
+                            <span className="text-[9px] text-zinc-400 dark:text-zinc-500 mt-1 px-1 font-medium">
                               {msg.created_at ? msg.created_at.split(' ')[1] || msg.created_at : ''}
                             </span>
                           </div>
@@ -428,17 +446,17 @@ export default function Chat() {
                   </div>
 
                   {/* Input Footer */}
-                  <div className="p-2 border-t border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 relative">
+                  <div className="p-3 border-t border-zinc-150 dark:border-zinc-800/80 bg-white dark:bg-zinc-900 relative">
                     
                     {/* Tagged Product Preview Bar */}
                     {taggedProd && (
-                      <div className="mb-2 px-2 py-1 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 text-xs rounded border border-amber-200 dark:border-amber-900/50 flex justify-between items-center">
-                        <span className="truncate font-medium flex items-center gap-1">
+                      <div className="mb-2 px-3 py-1.5 bg-zinc-50 dark:bg-zinc-850 text-zinc-700 dark:text-zinc-300 text-[11px] rounded-lg border border-zinc-200 dark:border-zinc-800 flex justify-between items-center animate-slide-up">
+                        <span className="truncate font-semibold flex items-center gap-1.5 text-zinc-600 dark:text-zinc-300">
                           <span>🏷️</span> Tagged: {taggedProd.name}
                         </span>
                         <button
                           onClick={() => setTaggedProducts(prev => ({ ...prev, [userId]: null }))}
-                          className="hover:text-amber-950 font-bold ml-1"
+                          className="text-zinc-400 hover:text-zinc-750 dark:hover:text-white font-bold ml-2 text-xs transition-colors"
                         >
                           ✕
                         </button>
@@ -447,12 +465,12 @@ export default function Chat() {
 
                     {/* Product Selection Dropdown Popover */}
                     {showProdDropdown && (
-                      <div className="absolute bottom-full left-2 right-2 mb-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-2xl p-2 z-50 flex flex-col gap-1.5 animate-slide-up">
-                        <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-1.5">
-                          <span className="text-xs font-bold text-zinc-500 dark:text-zinc-400">Tag Product Item</span>
+                      <div className="absolute bottom-full left-2 right-2 mb-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-2xl p-2.5 z-50 flex flex-col gap-2 animate-slide-up">
+                        <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800/80 pb-2">
+                          <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Tag Product Item</span>
                           <button
                             onClick={() => setShowProductDropdown(prev => ({ ...prev, [userId]: false }))}
-                            className="text-zinc-400 hover:text-zinc-600 text-xs"
+                            className="text-zinc-400 hover:text-zinc-650 dark:hover:text-white text-xs"
                           >
                             ✕
                           </button>
@@ -462,12 +480,12 @@ export default function Chat() {
                           placeholder="Search product name..."
                           value={prodSearch}
                           onChange={(e) => setSearchProductQuery(prev => ({ ...prev, [userId]: e.target.value }))}
-                          className="w-full text-xs px-2 py-1.5 rounded border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 focus:outline-none focus:border-zinc-500"
+                          className="w-full text-xs px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-850 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:focus:ring-zinc-700 focus:border-transparent transition-all"
                           autoFocus
                         />
-                        <div className="max-h-36 overflow-y-auto mt-1 flex flex-col divide-y divide-zinc-100 dark:divide-zinc-800">
+                        <div className="max-h-36 overflow-y-auto mt-1 flex flex-col divide-y divide-zinc-100 dark:divide-zinc-800/40 custom-scrollbar">
                           {filteredProducts.length === 0 ? (
-                            <div className="text-[10px] text-zinc-400 text-center py-2">No products found</div>
+                            <div className="text-[10px] text-zinc-450 text-center py-3">No products found</div>
                           ) : (
                             filteredProducts.map(p => (
                               <button
@@ -477,10 +495,10 @@ export default function Chat() {
                                   setShowProductDropdown(prev => ({ ...prev, [userId]: false }));
                                   setSearchProductQuery(prev => ({ ...prev, [userId]: '' }));
                                 }}
-                                className="text-left text-xs px-2 py-1.5 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 flex flex-col gap-0.5 truncate"
+                                className="text-left text-xs px-2 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-850/60 rounded-lg flex flex-col gap-0.5 truncate transition-all"
                               >
                                 <span className="font-semibold text-zinc-800 dark:text-zinc-200 truncate">{p.name}</span>
-                                <span className="text-[10px] text-zinc-400">Model: {p.model} | Stock: {p.current_stock}</span>
+                                <span className="text-[10px] text-zinc-400 dark:text-zinc-500">Model: {p.model} | Stock: {p.current_stock}</span>
                               </button>
                             ))
                           )}
@@ -489,11 +507,11 @@ export default function Chat() {
                     )}
 
                     {/* Input Controls */}
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-2">
                       <button
                         onClick={() => setShowProductDropdown(prev => ({ ...prev, [userId]: !prev[userId] }))}
                         title="Tag a product item"
-                        className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
+                        className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-zinc-100 dark:hover:bg-zinc-800/80 text-zinc-500 hover:text-zinc-850 dark:text-zinc-400 dark:hover:text-zinc-200 transition-all active:scale-95"
                       >
                         🏷️
                       </button>
@@ -503,12 +521,12 @@ export default function Chat() {
                         value={inputVal}
                         onChange={(e) => setChatInputs(prev => ({ ...prev, [userId]: e.target.value }))}
                         onKeyDown={(e) => handleKeyDown(e, userId)}
-                        className="flex-1 px-3 py-1.5 text-sm rounded-full border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 focus:outline-none focus:border-zinc-500 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400"
+                        className="flex-1 px-4 py-2 text-xs rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:focus:ring-zinc-700 focus:border-transparent text-zinc-900 dark:text-zinc-100 placeholder-zinc-450 transition-all"
                       />
                       <button
                         onClick={() => sendMessage(userId)}
                         disabled={!inputVal.trim() && !taggedProd}
-                        className="w-8 h-8 rounded-full bg-zinc-950 dark:bg-zinc-100 text-white dark:text-zinc-900 flex items-center justify-center hover:opacity-90 disabled:opacity-40 transition-opacity"
+                        className="w-8 h-8 rounded-lg bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 flex items-center justify-center hover:bg-zinc-800 dark:hover:bg-zinc-200 disabled:opacity-40 disabled:hover:bg-zinc-900 dark:disabled:hover:bg-zinc-100 transition-all active:scale-95"
                       >
                         ➔
                       </button>
@@ -525,12 +543,12 @@ export default function Chat() {
           /* User never chatted to anyone: Show float round "+" Button */
           <div className="pointer-events-auto relative mb-4 mr-2">
             {showUserSelector && (
-              <div className="absolute bottom-full right-0 mb-3 w-64 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-2xl p-2 z-50 animate-slide-up flex flex-col gap-1.5">
-                <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-1.5">
-                  <span className="text-xs font-bold text-zinc-500 dark:text-zinc-400">Start a chat with...</span>
+              <div className="absolute bottom-full right-0 mb-3 w-64 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-2xl p-2.5 z-50 animate-slide-up flex flex-col gap-2">
+                <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-850 pb-2">
+                  <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Start a chat with...</span>
                   <button
                     onClick={() => setShowUserSelector(false)}
-                    className="text-zinc-400 hover:text-zinc-600 text-xs"
+                    className="text-zinc-400 hover:text-zinc-650 dark:hover:text-white text-xs"
                   >
                     ✕
                   </button>
@@ -540,10 +558,10 @@ export default function Chat() {
                   placeholder="Search username..."
                   value={searchUserQuery}
                   onChange={(e) => setSearchUserQuery(e.target.value)}
-                  className="w-full text-xs px-2 py-1.5 rounded border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 focus:outline-none focus:border-zinc-500"
+                  className="w-full text-xs px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-850 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-zinc-450 transition-all"
                   autoFocus
                 />
-                <div className="max-h-48 overflow-y-auto mt-1 flex flex-col">
+                <div className="max-h-48 overflow-y-auto mt-1 flex flex-col gap-1 custom-scrollbar">
                   {filteredUsers.length === 0 ? (
                     <div className="text-xs text-zinc-400 text-center py-4">No users found</div>
                   ) : (
@@ -551,9 +569,9 @@ export default function Chat() {
                       <button
                         key={u.id}
                         onClick={() => openChat(u.id)}
-                        className="text-left text-xs px-2..5 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded flex items-center gap-2 font-medium"
+                        className="text-left text-xs px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 rounded-lg flex items-center gap-2 font-medium transition-all"
                       >
-                        <span className="w-2 h-2 rounded-full bg-zinc-300"></span>
+                        <span className="w-1.5 h-1.5 rounded-full bg-zinc-300 dark:bg-zinc-650"></span>
                         {u.username}
                       </button>
                     ))
@@ -564,7 +582,7 @@ export default function Chat() {
             <button
               onClick={() => setShowUserSelector(prev => !prev)}
               title="Start new chat conversation"
-              className="w-12 h-12 rounded-full bg-zinc-900 dark:bg-zinc-100 hover:scale-105 active:scale-95 text-white dark:text-zinc-900 flex items-center justify-center shadow-xl transition-all cursor-pointer font-bold text-xl"
+              className="w-12 h-12 rounded-full bg-zinc-950 dark:bg-zinc-100 hover:scale-105 active:scale-95 text-white dark:text-zinc-900 flex items-center justify-center shadow-xl transition-all cursor-pointer font-bold text-xl"
             >
               +
             </button>
@@ -572,40 +590,40 @@ export default function Chat() {
         ) : (
           /* User already talked to someone: Show Facebook style chat bar roster */
           <div
-            className={`pointer-events-auto w-64 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-t-xl shadow-2xl flex flex-col transition-all duration-200 ${
-              contactsExpanded ? 'h-80' : 'h-10'
+            className={`pointer-events-auto w-64 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800/80 rounded-t-xl shadow-2xl flex flex-col transition-all duration-300 ${
+              contactsExpanded ? 'h-80' : 'h-11'
             }`}
           >
             {/* Roster Header */}
             <div
               onClick={() => setContactsExpanded(prev => !prev)}
-              className="bg-zinc-900 dark:bg-zinc-800 text-white px-3 py-2.5 flex items-center justify-between rounded-t-xl cursor-pointer hover:bg-zinc-850"
+              className="bg-zinc-950 dark:bg-zinc-850 text-white px-4 py-3 flex items-center justify-between rounded-t-xl cursor-pointer hover:bg-zinc-900 dark:hover:bg-zinc-800 transition-colors"
             >
-              <span className="font-semibold text-xs tracking-wider uppercase">Conversations</span>
-              <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+              <span className="font-semibold text-[10px] tracking-wider uppercase text-zinc-200">Conversations</span>
+              <div className="flex items-center gap-2.5" onClick={e => e.stopPropagation()}>
                 <button
                   onClick={() => setShowUserSelector(prev => !prev)}
                   title="New Conversation"
-                  className="hover:bg-white/10 w-5 h-5 flex items-center justify-center rounded text-sm font-bold text-gray-300 hover:text-white"
+                  className="hover:bg-white/10 w-5 h-5 flex items-center justify-center rounded-md text-sm font-bold text-zinc-400 hover:text-white transition-all active:scale-95"
                 >
                   +
                 </button>
-                <span className="text-xs text-gray-400">{contactsExpanded ? '▼' : '▲'}</span>
+                <span className="text-[10px] text-zinc-400">{contactsExpanded ? '▼' : '▲'}</span>
               </div>
             </div>
 
             {/* Roster Contact List */}
             {contactsExpanded && (
-              <div className="flex-1 overflow-y-auto p-1 relative flex flex-col">
+              <div className="flex-1 overflow-y-auto p-1.5 relative flex flex-col custom-scrollbar">
                 
                 {/* User Selector Dropdown in Contact List */}
                 {showUserSelector && (
-                  <div className="absolute top-1 left-1 right-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-xl p-2 z-50 flex flex-col gap-1.5 animate-slide-down">
+                  <div className="absolute top-1 left-1.5 right-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-2xl p-2.5 z-50 flex flex-col gap-2 animate-slide-down">
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold text-zinc-400 uppercase">New Message</span>
+                      <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider">New Message</span>
                       <button
                         onClick={() => setShowUserSelector(false)}
-                        className="text-zinc-400 hover:text-zinc-600 text-xs"
+                        className="text-zinc-450 hover:text-zinc-700 dark:hover:text-white text-xs"
                       >
                         ✕
                       </button>
@@ -615,10 +633,10 @@ export default function Chat() {
                       placeholder="Type username..."
                       value={searchUserQuery}
                       onChange={(e) => setSearchUserQuery(e.target.value)}
-                      className="w-full text-xs px-2 py-1 rounded border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 focus:outline-none"
+                      className="w-full text-xs px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-850 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-zinc-450 transition-all"
                       autoFocus
                     />
-                    <div className="max-h-32 overflow-y-auto flex flex-col">
+                    <div className="max-h-32 overflow-y-auto flex flex-col gap-0.5 mt-1 custom-scrollbar">
                       {filteredUsers.length === 0 ? (
                         <div className="text-[10px] text-zinc-400 text-center py-2">No users found</div>
                       ) : (
@@ -626,9 +644,9 @@ export default function Chat() {
                           <button
                             key={u.id}
                             onClick={() => openChat(u.id)}
-                            className="text-left text-xs px-2 py-1.5 hover:bg-zinc-50 dark:hover:bg-zinc-800 rounded flex items-center gap-2 font-medium"
+                            className="text-left text-xs px-2.5 py-1.5 hover:bg-zinc-50 dark:hover:bg-zinc-850 rounded-lg flex items-center gap-2 font-medium transition-all"
                           >
-                            <span className="w-1.5 h-1.5 rounded-full bg-zinc-300"></span>
+                            <span className="w-1.5 h-1.5 rounded-full bg-zinc-300 dark:bg-zinc-650"></span>
                             {u.username}
                           </button>
                         ))
@@ -638,19 +656,19 @@ export default function Chat() {
                 )}
 
                 {/* Contact List */}
-                <div className="divide-y divide-zinc-100 dark:divide-zinc-800 flex flex-col">
+                <div className="flex flex-col gap-1">
                   {contacts.map(c => {
                     const isOpen = activeChats.includes(c.id);
                     return (
                       <button
                         key={c.id}
                         onClick={() => openChat(c.id)}
-                        className={`w-full text-left p-2 hover:bg-zinc-50 dark:hover:bg-zinc-800/40 transition-colors flex items-center justify-between rounded-md ${
-                          isOpen ? 'bg-zinc-100/50 dark:bg-zinc-800/20' : ''
+                        className={`w-full text-left p-2 hover:bg-zinc-50 dark:hover:bg-zinc-850/40 transition-all flex items-center justify-between rounded-lg ${
+                          isOpen ? 'bg-zinc-100/60 dark:bg-zinc-800/40 border border-zinc-150 dark:border-zinc-800' : 'border border-transparent'
                         }`}
                       >
-                        <div className="flex items-center gap-2 truncate">
-                          <span className="relative flex h-2 w-2">
+                        <div className="flex items-center gap-2.5 truncate">
+                          <span className="relative flex h-2 w-2 flex-shrink-0">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                             <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                           </span>
@@ -658,7 +676,7 @@ export default function Chat() {
                             <div className="font-semibold text-xs text-zinc-800 dark:text-zinc-200 truncate">
                               {c.username}
                             </div>
-                            <div className="text-[10px] text-zinc-400 dark:text-zinc-500 truncate mt-0.5">
+                            <div className="text-[10px] text-zinc-400 dark:text-zinc-500 truncate mt-0.5 font-medium leading-normal">
                               {c.last_message || 'Start conversation...'}
                             </div>
                           </div>
@@ -666,7 +684,7 @@ export default function Chat() {
 
                         {/* Unread badge */}
                         {c.unread_count > 0 && (
-                          <span className="bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full min-w-4 text-center">
+                          <span className="bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full min-w-4 text-center shadow-sm">
                             {c.unread_count}
                           </span>
                         )}
