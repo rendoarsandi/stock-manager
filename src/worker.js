@@ -92,16 +92,15 @@ export class StockRoom extends DurableObject {
   executeTransaction(queries) {
     const results = [];
     try {
-      this.sql.exec("BEGIN TRANSACTION");
-      for (const q of queries) {
-        this.sql.exec(q.sql, ...(q.params || []));
-        const cursor = this.sql.exec("SELECT last_insert_rowid() AS id");
-        const row = cursor.one();
-        results.push({ lastInsertRowid: row ? row.id : null });
-      }
-      this.sql.exec("COMMIT");
+      this.ctx.storage.transactionSync(() => {
+        for (const q of queries) {
+          this.sql.exec(q.sql, ...(q.params || []));
+          const cursor = this.sql.exec("SELECT last_insert_rowid() AS id");
+          const row = cursor.one();
+          results.push({ lastInsertRowid: row ? row.id : null });
+        }
+      });
     } catch (err) {
-      this.sql.exec("ROLLBACK");
       console.error("DO transaction failed", err);
       throw err;
     }
