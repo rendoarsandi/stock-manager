@@ -2,6 +2,96 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useWebSocket } from '../context/WebSocketContext';
 
+// ==========================================
+// Premium SVG Icon Components (Radix/Shadcn style)
+// ==========================================
+
+function MessageSquareIcon({ className = "w-5 h-5" }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
+  );
+}
+
+function PlusIcon({ className = "w-4 h-4" }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  );
+}
+
+function XIcon({ className = "w-4 h-4" }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  );
+}
+
+function MinusIcon({ className = "w-4 h-4" }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  );
+}
+
+function ChevronUpIcon({ className = "w-4 h-4" }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <polyline points="18 15 12 9 6 15" />
+    </svg>
+  );
+}
+
+function ChevronDownIcon({ className = "w-4 h-4" }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  );
+}
+
+function TagIcon({ className = "w-4 h-4" }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2z" />
+      <path d="M7 7h.01" />
+    </svg>
+  );
+}
+
+function SendIcon({ className = "w-4 h-4" }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <line x1="22" y1="2" x2="11" y2="13" />
+      <polygon points="22 2 15 22 11 13 2 9 22 2" />
+    </svg>
+  );
+}
+
+function SearchIcon({ className = "w-4 h-4" }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <circle cx="11" cy="11" r="8" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+    </svg>
+  );
+}
+
+function UserIcon({ className = "w-4 h-4" }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
+    </svg>
+  );
+}
+
 export default function Chat() {
   const { currentUser } = useAuth();
   const { addWsListener, sendWsMessage, isConnected } = useWebSocket();
@@ -298,6 +388,9 @@ export default function Chat() {
     u.username.toLowerCase().includes(searchUserQuery.toLowerCase())
   );
 
+  // Total unread messages count for floating badge
+  const totalUnread = contacts.reduce((sum, c) => sum + (c.unread_count || 0), 0);
+
   return (
     <>
       {/* Toast Notification Container */}
@@ -320,7 +413,7 @@ export default function Chat() {
                 }}
                 className="text-zinc-500 hover:text-white transition-colors w-5 h-5 flex items-center justify-center rounded-full hover:bg-zinc-800/60"
               >
-                ✕
+                <XIcon className="w-3.5 h-3.5" />
               </button>
             </div>
             <div className="font-semibold text-sm text-zinc-100">{t.sender_username}</div>
@@ -336,7 +429,7 @@ export default function Chat() {
       </div>
 
       {/* Floating Chat System */}
-      <div className="fixed bottom-0 right-4 z-50 flex items-end gap-4 pointer-events-none select-none">
+      <div className="fixed bottom-6 right-6 z-50 flex items-end gap-4 pointer-events-none select-none">
         
         {/* Active Chat Windows (Facebook style) */}
         {activeChats.map(userId => {
@@ -358,34 +451,34 @@ export default function Chat() {
           return (
             <div
               key={userId}
-              className={`pointer-events-auto w-80 bg-white dark:bg-zinc-900/95 backdrop-blur-md border border-zinc-200 dark:border-zinc-800/90 rounded-t-xl shadow-2xl flex flex-col transition-all duration-300 ${
-                isMinimized ? 'h-11' : 'h-[26rem]'
+              className={`pointer-events-auto w-80 bg-white dark:bg-zinc-900/95 backdrop-blur-md border border-zinc-200 dark:border-zinc-800/80 rounded-2xl shadow-2xl flex flex-col transition-all duration-300 overflow-hidden ${
+                isMinimized ? 'h-12' : 'h-[28rem]'
               }`}
             >
               {/* Chat Header */}
               <div
                 onClick={() => toggleMinimize(userId)}
-                className="bg-zinc-900 dark:bg-zinc-850 text-white px-4 py-2.5 flex items-center justify-between rounded-t-xl cursor-pointer hover:bg-zinc-850 dark:hover:bg-zinc-800 transition-colors"
+                className="bg-zinc-950 dark:bg-zinc-900 text-white px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-zinc-900 dark:hover:bg-zinc-850/80 transition-colors border-b border-zinc-800/40"
               >
-                <div className="flex items-center gap-2.5 font-medium text-xs tracking-wider uppercase truncate">
+                <div className="flex items-center gap-2.5 font-semibold text-xs tracking-wider uppercase truncate">
                   <span className="relative flex h-2 w-2">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                   </span>
-                  <span className="truncate text-zinc-100">{name}</span>
+                  <span className="truncate text-zinc-100 font-bold">{name}</span>
                 </div>
-                <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
                   <button
                     onClick={() => toggleMinimize(userId)}
-                    className="hover:bg-white/10 w-6 h-6 flex items-center justify-center rounded text-zinc-400 hover:text-white transition-colors"
+                    className="hover:bg-white/10 w-7 h-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-white transition-all"
                   >
-                    {isMinimized ? '▲' : '—'}
+                    {isMinimized ? <ChevronUpIcon className="w-4 h-4" /> : <MinusIcon className="w-4 h-4" />}
                   </button>
                   <button
                     onClick={() => closeChat(userId)}
-                    className="hover:bg-white/10 w-6 h-6 flex items-center justify-center rounded text-zinc-400 hover:text-white transition-colors"
+                    className="hover:bg-white/10 w-7 h-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-white transition-all"
                   >
-                    ✕
+                    <XIcon className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>
@@ -395,8 +488,9 @@ export default function Chat() {
                   {/* Chat Messages */}
                   <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-zinc-50/50 dark:bg-zinc-950/20 select-text flex flex-col custom-scrollbar">
                     {conversationMessages.length === 0 ? (
-                      <div className="text-center text-xs text-zinc-400 dark:text-zinc-500 my-auto">
-                        No messages yet. Say hello!
+                      <div className="text-center text-xs text-zinc-400 dark:text-zinc-500 my-auto flex flex-col items-center gap-2">
+                        <MessageSquareIcon className="w-8 h-8 text-zinc-300 dark:text-zinc-700 stroke-[1.5]" />
+                        <span>No messages yet. Say hello!</span>
                       </div>
                     ) : (
                       conversationMessages.map((msg) => {
@@ -409,33 +503,33 @@ export default function Chat() {
                             }`}
                           >
                             <div
-                              className={`px-3 py-2 rounded-2xl text-[13px] leading-relaxed shadow-sm ${
+                              className={`px-3.5 py-2.5 rounded-2xl text-[13px] leading-relaxed shadow-sm ${
                                 isMe
-                                  ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-tr-none'
-                                  : 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-tl-none border border-zinc-200 dark:border-zinc-700/50'
+                                  ? 'bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-tr-none font-medium'
+                                  : 'bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-tl-none border border-zinc-150 dark:border-zinc-700/50'
                               }`}
                             >
                               <div>{msg.message}</div>
                               
                               {/* Product Tag Badge Inside Bubble */}
                               {msg.product_name && (
-                                <div className="mt-2 p-2.5 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200/60 dark:border-zinc-850 rounded-xl text-[11px] flex flex-col gap-1 w-52 select-none shadow-inner">
-                                  <div className="font-semibold text-zinc-800 dark:text-zinc-200 truncate flex items-center gap-1.5">
+                                <div className="mt-2.5 p-2.5 bg-zinc-50 dark:bg-zinc-900/90 border border-zinc-200/60 dark:border-zinc-800 rounded-xl text-[11px] flex flex-col gap-1 w-52 select-none shadow-inner">
+                                  <div className="font-bold text-zinc-800 dark:text-zinc-200 truncate flex items-center gap-1.5">
                                     <span>📦</span> {msg.product_name}
                                   </div>
                                   <div className="text-[10px] text-zinc-400 dark:text-zinc-500 truncate">
                                     Model: {msg.product_model}
                                   </div>
-                                  <div className="flex justify-between items-center mt-1.5 text-[10px] pt-1 border-t border-zinc-100 dark:border-zinc-800/40">
-                                    <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                                  <div className="flex justify-between items-center mt-2 pt-1.5 border-t border-zinc-100 dark:border-zinc-800/40">
+                                    <span className="font-bold text-emerald-600 dark:text-emerald-400">
                                       Stock: {msg.product_current_stock}
                                     </span>
-                                    <span className="text-zinc-400 dark:text-zinc-500 font-medium">Tagged</span>
+                                    <span className="text-zinc-400 dark:text-zinc-500 font-semibold uppercase text-[9px] tracking-wider">Tagged</span>
                                   </div>
                                 </div>
                               )}
                             </div>
-                            <span className="text-[9px] text-zinc-400 dark:text-zinc-500 mt-1 px-1 font-medium">
+                            <span className="text-[9px] text-zinc-400 dark:text-zinc-500 mt-1.5 px-1 font-semibold">
                               {msg.created_at ? msg.created_at.split(' ')[1] || msg.created_at : ''}
                             </span>
                           </div>
@@ -450,39 +544,42 @@ export default function Chat() {
                     
                     {/* Tagged Product Preview Bar */}
                     {taggedProd && (
-                      <div className="mb-2 px-3 py-1.5 bg-zinc-50 dark:bg-zinc-850 text-zinc-700 dark:text-zinc-300 text-[11px] rounded-lg border border-zinc-200 dark:border-zinc-800 flex justify-between items-center animate-slide-up">
+                      <div className="mb-2 px-3 py-1.5 bg-zinc-50 dark:bg-zinc-850 text-zinc-700 dark:text-zinc-300 text-[11px] rounded-lg border border-zinc-200 dark:border-zinc-800 flex justify-between items-center animate-slide-up shadow-sm">
                         <span className="truncate font-semibold flex items-center gap-1.5 text-zinc-600 dark:text-zinc-300">
                           <span>🏷️</span> Tagged: {taggedProd.name}
                         </span>
                         <button
                           onClick={() => setTaggedProducts(prev => ({ ...prev, [userId]: null }))}
-                          className="text-zinc-400 hover:text-zinc-750 dark:hover:text-white font-bold ml-2 text-xs transition-colors"
+                          className="text-zinc-400 hover:text-zinc-700 dark:hover:text-white font-bold ml-2 text-xs transition-colors"
                         >
-                          ✕
+                          <XIcon className="w-3 h-3" />
                         </button>
                       </div>
                     )}
 
                     {/* Product Selection Dropdown Popover */}
                     {showProdDropdown && (
-                      <div className="absolute bottom-full left-2 right-2 mb-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-2xl p-2.5 z-50 flex flex-col gap-2 animate-slide-up">
-                        <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800/80 pb-2">
+                      <div className="absolute bottom-full left-2 right-2 mb-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-850 rounded-xl shadow-2xl p-2.5 z-50 flex flex-col gap-2 animate-slide-up">
+                        <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800/60 pb-2">
                           <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Tag Product Item</span>
                           <button
                             onClick={() => setShowProductDropdown(prev => ({ ...prev, [userId]: false }))}
-                            className="text-zinc-400 hover:text-zinc-650 dark:hover:text-white text-xs"
+                            className="text-zinc-450 hover:text-zinc-750 dark:hover:text-white"
                           >
-                            ✕
+                            <XIcon className="w-3.5 h-3.5" />
                           </button>
                         </div>
-                        <input
-                          type="text"
-                          placeholder="Search product name..."
-                          value={prodSearch}
-                          onChange={(e) => setSearchProductQuery(prev => ({ ...prev, [userId]: e.target.value }))}
-                          className="w-full text-xs px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-850 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:focus:ring-zinc-700 focus:border-transparent transition-all"
-                          autoFocus
-                        />
+                        <div className="relative flex items-center">
+                          <SearchIcon className="absolute left-2.5 text-zinc-400 w-3.5 h-3.5" />
+                          <input
+                            type="text"
+                            placeholder="Search product..."
+                            value={prodSearch}
+                            onChange={(e) => setSearchProductQuery(prev => ({ ...prev, [userId]: e.target.value }))}
+                            className="w-full text-xs pl-8 pr-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:focus:ring-zinc-700 transition-all"
+                            autoFocus
+                          />
+                        </div>
                         <div className="max-h-36 overflow-y-auto mt-1 flex flex-col divide-y divide-zinc-100 dark:divide-zinc-800/40 custom-scrollbar">
                           {filteredProducts.length === 0 ? (
                             <div className="text-[10px] text-zinc-450 text-center py-3">No products found</div>
@@ -497,8 +594,8 @@ export default function Chat() {
                                 }}
                                 className="text-left text-xs px-2 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-850/60 rounded-lg flex flex-col gap-0.5 truncate transition-all"
                               >
-                                <span className="font-semibold text-zinc-800 dark:text-zinc-200 truncate">{p.name}</span>
-                                <span className="text-[10px] text-zinc-400 dark:text-zinc-500">Model: {p.model} | Stock: {p.current_stock}</span>
+                                <span className="font-bold text-zinc-800 dark:text-zinc-200 truncate">{p.name}</span>
+                                <span className="text-[10px] text-zinc-450 dark:text-zinc-500 font-medium">Model: {p.model} | Stock: {p.current_stock}</span>
                               </button>
                             ))
                           )}
@@ -511,9 +608,9 @@ export default function Chat() {
                       <button
                         onClick={() => setShowProductDropdown(prev => ({ ...prev, [userId]: !prev[userId] }))}
                         title="Tag a product item"
-                        className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-zinc-100 dark:hover:bg-zinc-800/80 text-zinc-500 hover:text-zinc-850 dark:text-zinc-400 dark:hover:text-zinc-200 transition-all active:scale-95"
+                        className="w-8.5 h-8.5 rounded-lg flex items-center justify-center hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200 transition-all active:scale-95"
                       >
-                        🏷️
+                        <TagIcon className="w-4.5 h-4.5" />
                       </button>
                       <input
                         type="text"
@@ -521,14 +618,14 @@ export default function Chat() {
                         value={inputVal}
                         onChange={(e) => setChatInputs(prev => ({ ...prev, [userId]: e.target.value }))}
                         onKeyDown={(e) => handleKeyDown(e, userId)}
-                        className="flex-1 px-4 py-2 text-xs rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:focus:ring-zinc-700 focus:border-transparent text-zinc-900 dark:text-zinc-100 placeholder-zinc-450 transition-all"
+                        className="flex-1 px-3.5 py-2 text-xs rounded-lg border border-zinc-200 dark:border-zinc-850 bg-zinc-50 dark:bg-zinc-950 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:focus:ring-zinc-700 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 transition-all"
                       />
                       <button
                         onClick={() => sendMessage(userId)}
                         disabled={!inputVal.trim() && !taggedProd}
-                        className="w-8 h-8 rounded-lg bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 flex items-center justify-center hover:bg-zinc-800 dark:hover:bg-zinc-200 disabled:opacity-40 disabled:hover:bg-zinc-900 dark:disabled:hover:bg-zinc-100 transition-all active:scale-95"
+                        className="w-8.5 h-8.5 rounded-lg bg-zinc-950 dark:bg-zinc-100 text-white dark:text-zinc-900 flex items-center justify-center hover:bg-zinc-900 dark:hover:bg-zinc-200 disabled:opacity-45 disabled:hover:bg-zinc-950 dark:disabled:hover:bg-zinc-100 transition-all active:scale-95"
                       >
-                        ➔
+                        <SendIcon className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
@@ -539,114 +636,68 @@ export default function Chat() {
         })}
 
         {/* Contacts Roster/List Dock or Plus Button */}
-        {contacts.length === 0 ? (
-          /* User never chatted to anyone: Show float round "+" Button */
-          <div className="pointer-events-auto relative mb-4 mr-2">
-            {showUserSelector && (
-              <div className="absolute bottom-full right-0 mb-3 w-64 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-2xl p-2.5 z-50 animate-slide-up flex flex-col gap-2">
-                <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-850 pb-2">
-                  <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Start a chat with...</span>
+        <div className="pointer-events-auto relative flex flex-col items-end">
+          
+          {/* Main Roster Card */}
+          {contactsExpanded && (
+            <div className="absolute bottom-16 right-0 w-72 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800/80 rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-slide-up h-96">
+              {/* Roster Header */}
+              <div className="bg-zinc-950 dark:bg-zinc-900 text-white px-4 py-3 flex items-center justify-between border-b border-zinc-800/40">
+                <span className="font-bold text-xs tracking-wider uppercase text-zinc-100">Conversations</span>
+                <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
                   <button
-                    onClick={() => setShowUserSelector(false)}
-                    className="text-zinc-400 hover:text-zinc-650 dark:hover:text-white text-xs"
+                    onClick={() => setShowUserSelector(prev => !prev)}
+                    title="New Conversation"
+                    className="hover:bg-white/10 w-7 h-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-white transition-all active:scale-95"
                   >
-                    ✕
+                    <PlusIcon className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setContactsExpanded(false)}
+                    className="hover:bg-white/10 w-7 h-7 flex items-center justify-center rounded-lg text-zinc-400 hover:text-white transition-all"
+                  >
+                    <ChevronDownIcon className="w-4 h-4" />
                   </button>
                 </div>
-                <input
-                  type="text"
-                  placeholder="Search username..."
-                  value={searchUserQuery}
-                  onChange={(e) => setSearchUserQuery(e.target.value)}
-                  className="w-full text-xs px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-850 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-zinc-450 transition-all"
-                  autoFocus
-                />
-                <div className="max-h-48 overflow-y-auto mt-1 flex flex-col gap-1 custom-scrollbar">
-                  {filteredUsers.length === 0 ? (
-                    <div className="text-xs text-zinc-400 text-center py-4">No users found</div>
-                  ) : (
-                    filteredUsers.map(u => (
-                      <button
-                        key={u.id}
-                        onClick={() => openChat(u.id)}
-                        className="text-left text-xs px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 rounded-lg flex items-center gap-2 font-medium transition-all"
-                      >
-                        <span className="w-1.5 h-1.5 rounded-full bg-zinc-300 dark:bg-zinc-650"></span>
-                        {u.username}
-                      </button>
-                    ))
-                  )}
-                </div>
               </div>
-            )}
-            <button
-              onClick={() => setShowUserSelector(prev => !prev)}
-              title="Start new chat conversation"
-              className="w-12 h-12 rounded-full bg-zinc-950 dark:bg-zinc-100 hover:scale-105 active:scale-95 text-white dark:text-zinc-900 flex items-center justify-center shadow-xl transition-all cursor-pointer font-bold text-xl"
-            >
-              +
-            </button>
-          </div>
-        ) : (
-          /* User already talked to someone: Show Facebook style chat bar roster */
-          <div
-            className={`pointer-events-auto w-64 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800/80 rounded-t-xl shadow-2xl flex flex-col transition-all duration-300 ${
-              contactsExpanded ? 'h-80' : 'h-11'
-            }`}
-          >
-            {/* Roster Header */}
-            <div
-              onClick={() => setContactsExpanded(prev => !prev)}
-              className="bg-zinc-950 dark:bg-zinc-850 text-white px-4 py-3 flex items-center justify-between rounded-t-xl cursor-pointer hover:bg-zinc-900 dark:hover:bg-zinc-800 transition-colors"
-            >
-              <span className="font-semibold text-[10px] tracking-wider uppercase text-zinc-200">Conversations</span>
-              <div className="flex items-center gap-2.5" onClick={e => e.stopPropagation()}>
-                <button
-                  onClick={() => setShowUserSelector(prev => !prev)}
-                  title="New Conversation"
-                  className="hover:bg-white/10 w-5 h-5 flex items-center justify-center rounded-md text-sm font-bold text-zinc-400 hover:text-white transition-all active:scale-95"
-                >
-                  +
-                </button>
-                <span className="text-[10px] text-zinc-400">{contactsExpanded ? '▼' : '▲'}</span>
-              </div>
-            </div>
 
-            {/* Roster Contact List */}
-            {contactsExpanded && (
-              <div className="flex-1 overflow-y-auto p-1.5 relative flex flex-col custom-scrollbar">
+              {/* Contact list & user selector wrapper */}
+              <div className="flex-1 overflow-y-auto p-2 relative flex flex-col custom-scrollbar">
                 
                 {/* User Selector Dropdown in Contact List */}
                 {showUserSelector && (
-                  <div className="absolute top-1 left-1.5 right-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-2xl p-2.5 z-50 flex flex-col gap-2 animate-slide-down">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider">New Message</span>
+                  <div className="absolute top-2 left-2 right-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-2xl p-2.5 z-50 flex flex-col gap-2 animate-slide-down">
+                    <div className="flex items-center justify-between pb-1">
+                      <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Start a chat</span>
                       <button
                         onClick={() => setShowUserSelector(false)}
-                        className="text-zinc-450 hover:text-zinc-700 dark:hover:text-white text-xs"
+                        className="text-zinc-400 hover:text-zinc-750 dark:hover:text-white"
                       >
-                        ✕
+                        <XIcon className="w-3.5 h-3.5" />
                       </button>
                     </div>
-                    <input
-                      type="text"
-                      placeholder="Type username..."
-                      value={searchUserQuery}
-                      onChange={(e) => setSearchUserQuery(e.target.value)}
-                      className="w-full text-xs px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-850 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-zinc-450 transition-all"
-                      autoFocus
-                    />
-                    <div className="max-h-32 overflow-y-auto flex flex-col gap-0.5 mt-1 custom-scrollbar">
+                    <div className="relative flex items-center">
+                      <SearchIcon className="absolute left-2.5 text-zinc-400 w-3.5 h-3.5" />
+                      <input
+                        type="text"
+                        placeholder="Type username..."
+                        value={searchUserQuery}
+                        onChange={(e) => setSearchUserQuery(e.target.value)}
+                        className="w-full text-xs pl-8 pr-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-850 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 focus:outline-none"
+                        autoFocus
+                      />
+                    </div>
+                    <div className="max-h-40 overflow-y-auto flex flex-col gap-0.5 mt-1 custom-scrollbar">
                       {filteredUsers.length === 0 ? (
-                        <div className="text-[10px] text-zinc-400 text-center py-2">No users found</div>
+                        <div className="text-[10px] text-zinc-400 text-center py-2.5">No users found</div>
                       ) : (
                         filteredUsers.map(u => (
                           <button
                             key={u.id}
                             onClick={() => openChat(u.id)}
-                            className="text-left text-xs px-2.5 py-1.5 hover:bg-zinc-50 dark:hover:bg-zinc-850 rounded-lg flex items-center gap-2 font-medium transition-all"
+                            className="text-left text-xs px-2.5 py-1.5 hover:bg-zinc-50 dark:hover:bg-zinc-850 rounded-lg flex items-center gap-2 font-semibold transition-all text-zinc-800 dark:text-zinc-200"
                           >
-                            <span className="w-1.5 h-1.5 rounded-full bg-zinc-300 dark:bg-zinc-650"></span>
+                            <UserIcon className="w-3.5 h-3.5 text-zinc-400" />
                             {u.username}
                           </button>
                         ))
@@ -657,45 +708,78 @@ export default function Chat() {
 
                 {/* Contact List */}
                 <div className="flex flex-col gap-1">
-                  {contacts.map(c => {
-                    const isOpen = activeChats.includes(c.id);
-                    return (
-                      <button
-                        key={c.id}
-                        onClick={() => openChat(c.id)}
-                        className={`w-full text-left p-2 hover:bg-zinc-50 dark:hover:bg-zinc-850/40 transition-all flex items-center justify-between rounded-lg ${
-                          isOpen ? 'bg-zinc-100/60 dark:bg-zinc-800/40 border border-zinc-150 dark:border-zinc-800' : 'border border-transparent'
-                        }`}
+                  {contacts.length === 0 ? (
+                    <div className="text-center text-xs text-zinc-450 dark:text-zinc-500 py-10 flex flex-col items-center gap-2">
+                      <MessageSquareIcon className="w-8 h-8 text-zinc-300 dark:text-zinc-700 stroke-[1.5]" />
+                      <span>No active chats yet.</span>
+                      <button 
+                        onClick={() => setShowUserSelector(true)}
+                        className="mt-2 text-xs font-bold text-zinc-900 dark:text-zinc-100 hover:underline bg-zinc-100 dark:bg-zinc-800 px-3 py-1.5 rounded-lg"
                       >
-                        <div className="flex items-center gap-2.5 truncate">
-                          <span className="relative flex h-2 w-2 flex-shrink-0">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                          </span>
-                          <div className="truncate">
-                            <div className="font-semibold text-xs text-zinc-800 dark:text-zinc-200 truncate">
-                              {c.username}
+                        Start a conversation
+                      </button>
+                    </div>
+                  ) : (
+                    contacts.map(c => {
+                      const isOpen = activeChats.includes(c.id);
+                      return (
+                        <button
+                          key={c.id}
+                          onClick={() => openChat(c.id)}
+                          className={`w-full text-left p-2.5 hover:bg-zinc-50 dark:hover:bg-zinc-850/50 transition-all flex items-center justify-between rounded-xl border ${
+                            isOpen 
+                              ? 'bg-zinc-100/60 dark:bg-zinc-800/40 border-zinc-150 dark:border-zinc-800/80 shadow-inner' 
+                              : 'border-transparent'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3 truncate">
+                            <div className="relative flex-shrink-0">
+                              <div className="w-8 h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center font-bold text-xs uppercase text-zinc-600 dark:text-zinc-300">
+                                {c.username.slice(0, 2)}
+                              </div>
+                              <span className="absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full ring-2 ring-white dark:ring-zinc-900 bg-emerald-500"></span>
                             </div>
-                            <div className="text-[10px] text-zinc-400 dark:text-zinc-500 truncate mt-0.5 font-medium leading-normal">
-                              {c.last_message || 'Start conversation...'}
+                            <div className="truncate">
+                              <div className="font-bold text-xs text-zinc-800 dark:text-zinc-200 truncate">
+                                {c.username}
+                              </div>
+                              <div className="text-[10px] text-zinc-400 dark:text-zinc-500 truncate mt-0.5 font-medium">
+                                {c.last_message || 'Start conversation...'}
+                              </div>
                             </div>
                           </div>
-                        </div>
 
-                        {/* Unread badge */}
-                        {c.unread_count > 0 && (
-                          <span className="bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full min-w-4 text-center shadow-sm">
-                            {c.unread_count}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
+                          {/* Unread badge */}
+                          {c.unread_count > 0 && (
+                            <span className="bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full min-w-4 text-center shadow-md animate-pulse">
+                              {c.unread_count}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })
+                  )}
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Floating Circle Button Trigger */}
+          <button
+            onClick={() => setContactsExpanded(prev => !prev)}
+            title="Open Chat"
+            className="w-14 h-14 rounded-full bg-zinc-950 dark:bg-zinc-100 hover:scale-105 active:scale-95 text-white dark:text-zinc-900 flex items-center justify-center shadow-2xl transition-all cursor-pointer border border-zinc-800/50 dark:border-zinc-200/50 relative hover:shadow-zinc-950/25"
+          >
+            <MessageSquareIcon className="w-6 h-6 stroke-[2]" />
+            
+            {/* Total Unread Badge on the circle */}
+            {totalUnread > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg border-2 border-white dark:border-zinc-950 animate-bounce">
+                {totalUnread}
+              </span>
             )}
-          </div>
-        )}
+          </button>
+        </div>
 
       </div>
     </>
