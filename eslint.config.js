@@ -68,7 +68,7 @@ export default [
       react: reactPlugin,
     },
     rules: {
-      'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+      'no-unused-vars': 'off',
       'no-undef': 'error',
     },
   },

@@ -431,10 +431,10 @@ export default function Chat() {
       </div>
 
       {/* Floating Chat System */}
-      <div className="fixed bottom-6 right-6 z-50 flex items-end gap-4 pointer-events-none select-none">
+      <div className="fixed bottom-4 right-4 left-4 md:bottom-6 md:right-6 md:left-auto z-50 flex items-end justify-end gap-4 pointer-events-none select-none max-w-full md:max-w-none">
         
         {/* Active Chat Windows (Facebook style) */}
-        {activeChats.map(userId => {
+        {activeChats.map((userId, index) => {
           const otherUser = allUsers.find(u => u.id === userId) || contacts.find(u => u.id === userId);
           const name = otherUser?.username || `User #${userId}`;
           const isMinimized = minimizedChats.includes(userId);
@@ -450,12 +450,15 @@ export default function Chat() {
             p.model.toLowerCase().includes(prodSearch.toLowerCase())
           ).slice(0, 5);
 
+          // On mobile, if contacts list is open or there are multiple active chats, only show the last active chat
+          const isHiddenOnMobile = contactsExpanded || index < activeChats.length - 1;
+
           return (
             <div
               key={userId}
-              className={`pointer-events-auto w-80 bg-white dark:bg-zinc-900/95 backdrop-blur-md border-2 border-zinc-950 dark:border-zinc-100 rounded-2xl shadow-2xl flex flex-col transition-all duration-300 overflow-hidden z-10 ${
+              className={`pointer-events-auto w-full md:w-80 bg-white dark:bg-zinc-900/95 backdrop-blur-md border-2 border-zinc-950 dark:border-zinc-100 rounded-2xl shadow-2xl flex flex-col transition-all duration-300 overflow-hidden z-10 flex-shrink-0 ${
                 isMinimized ? 'h-12' : 'h-[28rem]'
-              }`}
+              } ${isHiddenOnMobile ? 'hidden md:flex' : 'flex'}`}
             >
               {/* Chat Header */}
               <div
@@ -574,13 +577,13 @@ export default function Chat() {
                           </button>
                         </div>
                         <div className="relative flex items-center">
-                          <SearchIcon className="absolute left-2.5 text-zinc-400 w-3.5 h-3.5" />
+                          <SearchIcon className="absolute left-3.5 text-zinc-400 w-4 h-4" />
                           <input
                             type="text"
                             placeholder="Search product..."
                             value={prodSearch}
                             onChange={(e) => setSearchProductQuery(prev => ({ ...prev, [userId]: e.target.value }))}
-                            className="w-full text-xs pl-8 pr-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:focus:ring-zinc-700 transition-all"
+                            className="w-full text-xs pl-10 pr-4 py-2.5 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-950/10 dark:focus:ring-zinc-100/10 transition-all"
                             autoFocus
                           />
                         </div>
@@ -622,7 +625,7 @@ export default function Chat() {
                         value={inputVal}
                         onChange={(e) => setChatInputs(prev => ({ ...prev, [userId]: e.target.value }))}
                         onKeyDown={(e) => handleKeyDown(e, userId)}
-                        className="flex-1 px-3 py-2 text-xs rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 focus:outline-none focus:ring-1 focus:ring-zinc-400 dark:focus:ring-zinc-700 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 transition-all"
+                        className="flex-1 pl-4 pr-3 py-2.5 text-sm rounded-xl border border-zinc-350 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-950/10 dark:focus:ring-zinc-100/10 transition-all shadow-inner font-medium"
                       />
                       <button
                         onClick={() => sendMessage(userId)}
@@ -644,7 +647,7 @@ export default function Chat() {
           
           {/* Main Roster Card */}
           {contactsExpanded ? (
-            <div className="w-72 bg-white dark:bg-zinc-900 border-2 border-zinc-950 dark:border-zinc-100 rounded-2xl shadow-2xl flex flex-col overflow-hidden h-96">
+            <div className="w-full md:w-72 bg-white dark:bg-zinc-900 border-2 border-zinc-950 dark:border-zinc-100 rounded-2xl shadow-2xl flex flex-col overflow-hidden h-96 flex-shrink-0">
               {/* Roster Header */}
               <div className="bg-zinc-950 dark:bg-zinc-900 text-white px-4 py-3 flex items-center justify-between border-b border-zinc-800">
                 <span className="font-bold text-xs tracking-wider uppercase text-zinc-100">Conversations</span>
@@ -681,13 +684,13 @@ export default function Chat() {
                       </button>
                     </div>
                     <div className="relative flex items-center">
-                      <SearchIcon className="absolute left-2.5 text-zinc-400 w-3.5 h-3.5" />
+                      <SearchIcon className="absolute left-3.5 text-zinc-400 w-4 h-4" />
                       <input
                         type="text"
                         placeholder="Type username..."
                         value={searchUserQuery}
                         onChange={(e) => setSearchUserQuery(e.target.value)}
-                        className="w-full text-xs pl-8 pr-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 focus:outline-none"
+                        className="w-full text-xs pl-10 pr-4 py-2.5 rounded-xl border border-zinc-350 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-zinc-950/10 dark:focus:ring-zinc-100/10 transition-all"
                         autoFocus
                       />
                     </div>
