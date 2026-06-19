@@ -14,6 +14,7 @@ new_sqlite_classes = ["StockRoom"]
 [vars]
 VITE_CLERK_PUBLISHABLE_KEY = "pk_test_ZmFzdC1oZXJyaW5nLTE5LmNsZXJrLmFjY291bnRzLmRldiQ"
 CLERK_PUBLISHABLE_KEY = "pk_test_ZmFzdC1oZXJyaW5nLTE5LmNsZXJrLmFjY291bnRzLmRldiQ"
+MIGRATE_KEY = "mig_key_c9a173bd8e08fc45b6db"
 
 [assets]
 binding = "ASSETS"

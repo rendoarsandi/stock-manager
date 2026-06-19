@@ -165,6 +165,41 @@ export const app = {
         const path = url.pathname;
         const method = request.method.toUpperCase();
 
+        // Local development DB migration endpoint
+        if (path === '/api/dev/migrate' && method === 'POST') {
+          const isLocalhost = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+          const authHeader = request.headers.get('Authorization');
+          const isAuthorized = isLocalhost || (env && env.MIGRATE_KEY && authHeader === `Bearer ${env.MIGRATE_KEY}`);
+          
+          if (!isAuthorized) {
+            return new Response(JSON.stringify({ error: "Unauthorized" }), {
+              status: 403,
+              headers: { 'Content-Type': 'application/json' }
+            });
+          }
+          try {
+            const payload = await request.json();
+            const sqlStatements = payload.statements || [];
+            
+            let results = [];
+            if (sqlStatements.length > 0) {
+              const id = env.STOCK_ROOM.idFromName('global');
+              const stub = env.STOCK_ROOM.get(id);
+              const queries = sqlStatements.map(sql => ({ sql, params: [] }));
+              results = await stub.executeTransaction(queries);
+            }
+            
+            return new Response(JSON.stringify({ success: true, count: results.length }), {
+              headers: { 'Content-Type': 'application/json' }
+            });
+          } catch (err) {
+            return new Response(JSON.stringify({ success: false, error: err.message }), {
+              status: 500,
+              headers: { 'Content-Type': 'application/json' }
+            });
+          }
+        }
+
         const isGetApi = method === 'GET' && path.startsWith('/api/') && path !== '/api/health';
         if (isGetApi) {
           const cached = apiCache.get(path);

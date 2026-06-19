@@ -13,8 +13,8 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     
-    // 1. Handle WebSocket handshake
-    if (url.pathname === '/ws') {
+    // 1. Handle WebSocket handshake or dev migration endpoint
+    if (url.pathname === '/ws' || url.pathname === '/api/dev/migrate') {
       return app.fetch(request, env, ctx);
     }
     
