@@ -201,7 +201,34 @@ for (const [, m] of movements) {
   lines.push(`INSERT INTO stock_movements (id, product_id, quantity_change, movement_type, reference, user_id, created_at) VALUES (${m.id}, ${m.product_id}, ${m.quantity_change}, ${escape(m.movement_type)}, ${escape(m.reference)}, ${m.user_id}, ${escape(m.created_at)});`);
 }
 lines.push('');
+
+// SKU Mappings
+lines.push('-- ============================================');
+lines.push('-- SKU Mappings');
+lines.push('-- ============================================');
+const skuMappings = Object.entries(db)
+  .filter(([k]) => k.startsWith('sku_mapping:'))
+  .sort((a, b) => a[0].localeCompare(b[0]));
+
+for (const [, sm] of skuMappings) {
+  lines.push(`INSERT INTO sku_mappings (sku_code, product_id, quantity) VALUES (${escape(sm.sku_code)}, ${sm.product_id}, ${sm.quantity});`);
+}
+lines.push('');
+
+// Product Aliases
+lines.push('-- ============================================');
+lines.push('-- Product Aliases');
+lines.push('-- ============================================');
+const productAliases = Object.entries(db)
+  .filter(([k]) => k.startsWith('product_alias:'))
+  .sort((a, b) => a[0].localeCompare(b[0]));
+
+for (const [, pa] of productAliases) {
+  lines.push(`INSERT INTO product_aliases (clean_text, product_id) VALUES (${escape(pa.clean_text)}, ${pa.product_id});`);
+}
+lines.push('');
+
 lines.push('-- End of migration');
 
 fs.writeFileSync('./data/migrate.sql', lines.join('\n'), 'utf8');
-console.log('Done! Records: users=' + users.length + ' products=' + products.length + ' movements=' + movements.length);
+console.log('Done! Records: users=' + users.length + ' products=' + products.length + ' movements=' + movements.length + ' sku_mappings=' + skuMappings.length + ' product_aliases=' + productAliases.length);

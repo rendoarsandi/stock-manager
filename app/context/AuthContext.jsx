@@ -121,7 +121,7 @@ export function AuthProvider({ children }) {
     if (loading) {
       const timer = setTimeout(() => {
         setShowDiagnostics(true);
-      }, 4000);
+      }, 25000);
       return () => clearTimeout(timer);
     } else {
       setShowDiagnostics(false);
