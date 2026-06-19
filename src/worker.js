@@ -201,15 +201,13 @@ export class StockRoom extends DurableObject {
     this.broadcastOnlineCount();
   }
 
-  webSocketOpen(ws) {
-    this.broadcastOnlineCount();
-  }
-
   // WebSocket handshake
   async fetch(request) {
     if (request.headers.get("Upgrade") === "websocket") {
       const pair = new WebSocketPair();
       this.ctx.acceptWebSocket(pair[1]);
+      
+      this.broadcastOnlineCount();
       
       return new Response(null, {
         status: 101,

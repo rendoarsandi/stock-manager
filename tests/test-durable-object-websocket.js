@@ -135,6 +135,78 @@ async function runTests() {
 
     console.log("✅ Private chat filtering verified: no leaks to bystander or unidentified connections.");
 
+    // 4. Test WebSocket handshake in fetch()
+    let acceptCalled = false;
+    const mockState = {
+      storage: {
+        sql: mockSql
+      },
+      websockets: [...websockets],
+      getWebSockets() {
+        return this.websockets;
+      },
+      setWebSocketAttachment(ws, data) {
+        ws.attachment = data;
+      },
+      getWebSocketAttachment(ws) {
+        return ws.attachment;
+      },
+      acceptWebSocket(ws) {
+        acceptCalled = true;
+        this.websockets.push(ws);
+      }
+    };
+    
+    // Clear sent buffers
+    websockets.forEach(ws => ws.sent = []);
+    
+    const stockRoomForFetch = new StockRoom(mockState, mockEnv);
+    
+    // Mock WebSocketPair global
+    globalThis.WebSocketPair = class {
+      constructor() {
+        return [new MockWebSocket('client-new-pair-0'), new MockWebSocket('client-new-pair-1')];
+      }
+    };
+
+    // Mock Response global to allow status 101 in Node.js testing environment
+    const OriginalResponse = globalThis.Response;
+    globalThis.Response = class MockResponse extends OriginalResponse {
+      constructor(body, init) {
+        if (init && init.status === 101) {
+          super(body, { ...init, status: 200 });
+          Object.defineProperty(this, 'status', { value: 101, writable: false });
+        } else {
+          super(body, init);
+        }
+      }
+    };
+    
+    const handshakeReq = {
+      headers: {
+        get(name) {
+          if (name.toLowerCase() === 'upgrade') return 'websocket';
+          return null;
+        }
+      }
+    };
+    
+    let response;
+    try {
+      response = await stockRoomForFetch.fetch(handshakeReq);
+    } finally {
+      // Restore original Response global immediately
+      globalThis.Response = OriginalResponse;
+    }
+    
+    assert.strictEqual(response.status, 101);
+    assert.ok(acceptCalled, "acceptWebSocket should be called during handshake");
+    
+    // Verify that broadcastOnlineCount was triggered and sent the new count to the new socket
+    const lastSocket = mockState.websockets[mockState.websockets.length - 1];
+    assert.ok(lastSocket.sent.some(msg => msg.includes('"type":"ONLINE_COUNT"')), "Should broadcast online count on connection open");
+    console.log("✅ WebSocket handshake and connection open broadcast verified.");
+
     console.log("✅ All Durable Object WebSocket security checks passed successfully!");
     
     // Clean up temporary mock file
