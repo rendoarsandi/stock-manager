@@ -1178,8 +1178,12 @@ async function handleReturnedOrders(req) {
     const ordersList = await db.orders.list();
     const orderItemsList = await db.orderItems.list();
     const productsList = await db.products.list();
+    const sessionsList = await db.sessions.list();
+    const templatesList = await db.templates.list();
 
     const productMap = new Map(productsList.map(p => [p.id, p]));
+    const templateMap = new Map(templatesList.map(t => [t.id, t]));
+    const sessionMap = new Map(sessionsList.map(s => [s.id, s]));
     
     const itemsByOrder = new Map();
     for (const item of orderItemsList) {
@@ -1199,10 +1203,15 @@ async function handleReturnedOrders(req) {
 
     const filtered = ordersList
       .filter(o => o.system_status === 'resolved' && o.resolution === 'returned')
-      .map(o => ({
-        ...o,
-        items: itemsByOrder.get(o.id) || []
-      }));
+      .map(o => {
+        const session = o.import_session_id ? sessionMap.get(o.import_session_id) : null;
+        const template = session && session.template_id ? templateMap.get(session.template_id) : null;
+        return {
+          ...o,
+          channel_mp: template ? template.name : 'Unknown',
+          items: itemsByOrder.get(o.id) || []
+        };
+      });
 
     filtered.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     return json(filtered);

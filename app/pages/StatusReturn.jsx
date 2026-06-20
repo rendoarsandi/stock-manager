@@ -73,19 +73,22 @@ export default function StatusReturn() {
           <table>
             <thead>
               <tr>
-                <th>Order ID</th>
+                <th>No Order</th>
+                <th>Date</th>
+                <th>Channel MP</th>
                 <th>Customer Info</th>
-                <th>Raw Order Details</th>
+                <th>Item Name (Raw)</th>
                 <th>Qty</th>
+                <th>Description</th>
+                <th>Status Item</th>
                 <th>Resolved Items (Mapped)</th>
-                <th>Return Resolution Notes</th>
                 <th>Time Resolved</th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', py: '2.5rem', color: 'var(--text-muted)' }}>
+                  <td colSpan={10} style={{ textAlign: 'center', py: '2.5rem', color: 'var(--text-muted)' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem', padding: '2rem 0' }}>
                       <div className="loading-spinner" style={{ width: '1.5rem', height: '1.5rem' }} />
                       <span style={{ fontSize: '0.85rem' }}>Retrieving logs...</span>
@@ -94,13 +97,13 @@ export default function StatusReturn() {
                 </tr>
               ) : filteredOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', py: '2rem', color: 'var(--text-muted)', fontSize: '0.85rem', padding: '3rem 0' }}>
+                  <td colSpan={10} style={{ textAlign: 'center', py: '2rem', color: 'var(--text-muted)', fontSize: '0.85rem', padding: '3rem 0' }}>
                     No returned orders found.
                   </td>
                 </tr>
               ) : (
                 filteredOrders.map((o) => {
-                  const resolvedItemsText = o.items && o.items.length > 0 ? (
+                   const resolvedItemsText = o.items && o.items.length > 0 ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                       {o.items.map(item => (
                         <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.25rem 0.5rem', backgroundColor: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius-sm)', fontSize: '0.75rem' }}>
@@ -119,6 +122,21 @@ export default function StatusReturn() {
                       <td style={{ fontFamily: 'monospace', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-primary)' }}>
                         {o.order_id}
                       </td>
+                      <td style={{ fontSize: '0.8rem', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
+                        {o.order_date || '-'}
+                      </td>
+                      <td style={{ fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: '500' }}>
+                        <span style={{
+                          padding: '0.25rem 0.5rem',
+                          borderRadius: 'var(--border-radius-sm)',
+                          fontSize: '0.75rem',
+                          fontWeight: '600',
+                          backgroundColor: o.channel_mp?.toLowerCase() === 'shopee' ? '#ff572220' : o.channel_mp?.toLowerCase() === 'tokopedia' ? '#4caf5020' : 'var(--bg-primary)',
+                          color: o.channel_mp?.toLowerCase() === 'shopee' ? '#ff5722' : o.channel_mp?.toLowerCase() === 'tokopedia' ? '#4caf50' : 'var(--text-primary)'
+                        }}>
+                          {o.channel_mp || 'Unknown'}
+                        </span>
+                      </td>
                       <td>
                         <div style={{ fontWeight: '600', fontSize: '0.85rem', color: 'var(--text-primary)' }}>{o.customer_name || 'Anonymous Customer'}</div>
                         <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.1rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
@@ -135,12 +153,15 @@ export default function StatusReturn() {
                         {o.product_name_raw}
                       </td>
                       <td style={{ fontWeight: '700', fontSize: '0.85rem', color: 'var(--text-primary)' }}>{o.quantity}</td>
-                      <td>{resolvedItemsText}</td>
                       <td>
                         <div style={{ fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: '500', padding: '0.4rem 0.6rem', backgroundColor: 'var(--accent-light)', border: '1px solid rgba(var(--accent-color-rgb), 0.15)', borderRadius: 'var(--border-radius-md)', maxWidth: '280px', lineHeight: '1.4' }}>
                           {o.resolution_notes || 'No return notes provided.'}
                         </div>
                       </td>
+                      <td style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                        {o.order_status || '-'}
+                      </td>
+                      <td>{resolvedItemsText}</td>
                       <td style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                         {o.resolved_at || o.created_at || 'Recently'}
                       </td>
