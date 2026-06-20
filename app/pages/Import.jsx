@@ -3,6 +3,83 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { showToast } from '../utils/toast';
 
+// Helper to parse order dates from various e-commerce formats
+function parseOrderDate(dateStr) {
+  if (!dateStr) return null;
+  const s = String(dateStr).trim();
+  if (s === '') return null;
+
+  // If it's already a standard timestamp/ISO format, e.g. YYYY-MM-DD...
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+    try {
+      const parts = s.split(/[- :]/);
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      const hour = parts[3] ? parseInt(parts[3], 10) : 0;
+      const minute = parts[4] ? parseInt(parts[4], 10) : 0;
+      const second = parts[5] ? parseInt(parts[5], 10) : 0;
+      return new Date(year, month, day, hour, minute, second);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // If it is DD-MM-YYYY or DD/MM/YYYY
+  const dmyMatch = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
+  if (dmyMatch) {
+    const [_, day, month, year, hour = '00', minute = '00', second = '00'] = dmyMatch;
+    return new Date(
+      parseInt(year, 10),
+      parseInt(month, 10) - 1,
+      parseInt(day, 10),
+      parseInt(hour, 10),
+      parseInt(minute, 10),
+      parseInt(second, 10)
+    );
+  }
+
+  // Handle wordy Indonesian formats, e.g. "07 Jun 2026 08:30"
+  const months = {
+    jan: 0, feb: 1, mar: 2, apr: 3, mei: 4, jun: 5,
+    jul: 6, agu: 7, sep: 8, okt: 9, nov: 10, des: 11,
+    january: 0, february: 1, march: 2, april: 3, may: 4, june: 5,
+    july: 6, august: 7, september: 8, october: 9, november: 10, december: 11
+  };
+
+  const wordMatch = s.match(/^(\d{1,2})\s+([a-zA-Z]+)\s+(\d{4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
+  if (wordMatch) {
+    const [_, day, monthWord, year, hour = '00', minute = '00', second = '00'] = wordMatch;
+    const month = months[monthWord.toLowerCase().substring(0, 3)] || 0;
+    return new Date(
+      parseInt(year, 10),
+      month,
+      parseInt(day, 10),
+      parseInt(hour, 10),
+      parseInt(minute, 10),
+      parseInt(second, 10)
+    );
+  }
+
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function parseOpnameDate(dateStr) {
+  if (!dateStr) return null;
+  const parts = dateStr.split(/[- :]/);
+  if (parts.length >= 3) {
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const day = parseInt(parts[2], 10);
+    const hour = parts[3] ? parseInt(parts[3], 10) : 0;
+    const minute = parts[4] ? parseInt(parts[4], 10) : 0;
+    const second = parts[5] ? parseInt(parts[5], 10) : 0;
+    return new Date(year, month, day, hour, minute, second);
+  }
+  return null;
+}
+
 // SearchableSelect Component
 function SearchableSelect({ selectedId, products, onChange, id, name }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -647,6 +724,15 @@ export default function Import() {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                               {order.splits.map((split, splitIdx) => {
                                 const fuzzySuggestion = !split.product_id ? split.fuzzy_suggestion : null;
+                                const matchedProduct = products.find(p => p.id === split.product_id);
+                                let isSkipped = false;
+                                if (matchedProduct && matchedProduct.last_opname_at && order.order_date) {
+                                  const oDate = parseOrderDate(order.order_date);
+                                  const opDate = parseOpnameDate(matchedProduct.last_opname_at);
+                                  if (oDate && opDate && oDate <= opDate) {
+                                    isSkipped = true;
+                                  }
+                                }
                                 return (
                                   <div key={splitIdx} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -666,6 +752,11 @@ export default function Import() {
                                         products={products}
                                         onChange={(pId) => handleSplitProductChange(originalIndex, splitIdx, pId)}
                                       />
+                                      {isSkipped && (
+                                        <span className="status-tag info" style={{ fontSize: '0.7rem', padding: '0.15rem 0.35rem', whiteSpace: 'nowrap' }} title={`This order date (${order.order_date}) is before/at the last Stock Opname (${matchedProduct.last_opname_at}) for this product. Stock will NOT be deducted.`}>
+                                          ✓ Opname Skip
+                                        </span>
+                                      )}
                                       {order.splits.length > 1 && (
                                         <button
                                           type="button"

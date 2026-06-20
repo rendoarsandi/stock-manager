@@ -431,8 +431,28 @@ async function handleDeleteUser(req, params) {
 async function handleListProducts(req) {
   try {
     const list = await db.products.list();
-    list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-    return json(list);
+    const activeStorage = getActiveStorage();
+    const lastOpnames = await activeStorage.query(`
+      SELECT soi.product_id, MAX(so.created_at) as last_opname_at
+      FROM stock_opname_items soi
+      JOIN stock_opnames so ON soi.opname_id = so.id
+      GROUP BY soi.product_id
+    `);
+
+    const lastOpnameMap = new Map();
+    if (lastOpnames && Array.isArray(lastOpnames)) {
+      for (const row of lastOpnames) {
+        lastOpnameMap.set(row.product_id, row.last_opname_at);
+      }
+    }
+
+    const listWithOpname = list.map(p => ({
+      ...p,
+      last_opname_at: lastOpnameMap.get(p.id) || null
+    }));
+
+    listWithOpname.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    return json(listWithOpname);
   } catch (err) {
     console.error("List products error:", err);
     return json({ message: 'Failed to retrieve products' }, 500);
@@ -729,6 +749,83 @@ async function handleDeleteTemplate(req, params) {
   }
 }
 
+// Helper to parse order dates from various e-commerce formats
+function parseOrderDate(dateStr) {
+  if (!dateStr) return null;
+  const s = String(dateStr).trim();
+  if (s === '') return null;
+
+  // If it's already a standard timestamp/ISO format, e.g. YYYY-MM-DD...
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+    try {
+      const parts = s.split(/[- :]/);
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      const hour = parts[3] ? parseInt(parts[3], 10) : 0;
+      const minute = parts[4] ? parseInt(parts[4], 10) : 0;
+      const second = parts[5] ? parseInt(parts[5], 10) : 0;
+      return new Date(year, month, day, hour, minute, second);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // If it is DD-MM-YYYY or DD/MM/YYYY
+  const dmyMatch = s.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
+  if (dmyMatch) {
+    const [_, day, month, year, hour = '00', minute = '00', second = '00'] = dmyMatch;
+    return new Date(
+      parseInt(year, 10),
+      parseInt(month, 10) - 1,
+      parseInt(day, 10),
+      parseInt(hour, 10),
+      parseInt(minute, 10),
+      parseInt(second, 10)
+    );
+  }
+
+  // Handle wordy Indonesian formats, e.g. "07 Jun 2026 08:30"
+  const months = {
+    jan: 0, feb: 1, mar: 2, apr: 3, mei: 4, jun: 5,
+    jul: 6, agu: 7, sep: 8, okt: 9, nov: 10, des: 11,
+    january: 0, february: 1, march: 2, april: 3, may: 4, june: 5,
+    july: 6, august: 7, september: 8, october: 9, november: 10, december: 11
+  };
+
+  const wordMatch = s.match(/^(\d{1,2})\s+([a-zA-Z]+)\s+(\d{4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
+  if (wordMatch) {
+    const [_, day, monthWord, year, hour = '00', minute = '00', second = '00'] = wordMatch;
+    const month = months[monthWord.toLowerCase().substring(0, 3)] || 0;
+    return new Date(
+      parseInt(year, 10),
+      month,
+      parseInt(day, 10),
+      parseInt(hour, 10),
+      parseInt(minute, 10),
+      parseInt(second, 10)
+    );
+  }
+
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function parseOpnameDate(dateStr) {
+  if (!dateStr) return null;
+  const parts = dateStr.split(/[- :]/);
+  if (parts.length >= 3) {
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const day = parseInt(parts[2], 10);
+    const hour = parts[3] ? parseInt(parts[3], 10) : 0;
+    const minute = parts[4] ? parseInt(parts[4], 10) : 0;
+    const second = parts[5] ? parseInt(parts[5], 10) : 0;
+    return new Date(year, month, day, hour, minute, second);
+  }
+  return null;
+}
+
 async function handleUploadExcel(req) {
   try {
     const formData = await req.clone().formData();
@@ -747,6 +844,21 @@ async function handleUploadExcel(req) {
 
     const catalog = await db.products.list();
     const skuMappings = await db.skuMappings.list();
+
+    const activeStorage = getActiveStorage();
+    const lastOpnames = await activeStorage.query(`
+      SELECT soi.product_id, MAX(so.created_at) as last_opname_at
+      FROM stock_opname_items soi
+      JOIN stock_opnames so ON soi.opname_id = so.id
+      GROUP BY soi.product_id
+    `);
+
+    const lastOpnameMap = new Map();
+    if (lastOpnames && Array.isArray(lastOpnames)) {
+      for (const row of lastOpnames) {
+        lastOpnameMap.set(row.product_id, row.last_opname_at);
+      }
+    }
 
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
@@ -825,6 +937,19 @@ async function handleUploadExcel(req) {
 
       const hasAmbiguous = suggestedSplits.some(s => s.product_id === null) || suggestedSplits.length > 1;
 
+      for (const split of suggestedSplits) {
+        if (split.product_id) {
+          const lastOpnameAt = lastOpnameMap.get(split.product_id);
+          if (lastOpnameAt && row.order_date) {
+            const oDate = parseOrderDate(row.order_date);
+            const opDate = parseOpnameDate(lastOpnameAt);
+            if (oDate && opDate && oDate <= opDate) {
+              split.skip_deduction = true;
+            }
+          }
+        }
+      }
+
       previewOrders.push({
         order_id: row.order_id,
         resi_number: row.resi_number || '',
@@ -902,6 +1027,21 @@ async function handleConfirmImport(req) {
     let appliedCount = 0;
     let flaggedCount = 0;
 
+    const activeStorage = getActiveStorage();
+    const lastOpnames = await activeStorage.query(`
+      SELECT soi.product_id, MAX(so.created_at) as last_opname_at
+      FROM stock_opname_items soi
+      JOIN stock_opnames so ON soi.opname_id = so.id
+      GROUP BY soi.product_id
+    `);
+
+    const lastOpnameMap = new Map();
+    if (lastOpnames && Array.isArray(lastOpnames)) {
+      for (const row of lastOpnames) {
+        lastOpnameMap.set(row.product_id, row.last_opname_at);
+      }
+    }
+
     const queries = [];
 
     for (const order of orders) {
@@ -957,24 +1097,36 @@ async function handleConfirmImport(req) {
           }
 
           if (order.system_status === 'normal' && split.product_id) {
-            queries.push({
-              sql: "INSERT INTO stock_movements (product_id, quantity_change, movement_type, reference, user_id, created_at) VALUES (?, ?, ?, ?, ?, datetime('now', 'localtime'))",
-              params: [
-                parseInt(split.product_id, 10),
-                -parseInt(split.quantity, 10),
-                'sale',
-                `Order ID: ${order.order_id}`,
-                user.id
-              ]
-            });
+            let isSkipped = false;
+            const lastOpnameAt = lastOpnameMap.get(parseInt(split.product_id, 10));
+            if (lastOpnameAt && order.order_date) {
+              const oDate = parseOrderDate(order.order_date);
+              const opDate = parseOpnameDate(lastOpnameAt);
+              if (oDate && opDate && oDate <= opDate) {
+                isSkipped = true;
+              }
+            }
 
-            queries.push({
-              sql: "UPDATE products SET current_stock = current_stock - ?, updated_at = datetime('now', 'localtime') WHERE id = ?",
-              params: [
-                parseInt(split.quantity, 10),
-                parseInt(split.product_id, 10)
-              ]
-            });
+            if (!isSkipped) {
+              queries.push({
+                sql: "INSERT INTO stock_movements (product_id, quantity_change, movement_type, reference, user_id, created_at) VALUES (?, ?, ?, ?, ?, datetime('now', 'localtime'))",
+                params: [
+                  parseInt(split.product_id, 10),
+                  -parseInt(split.quantity, 10),
+                  'sale',
+                  `Order ID: ${order.order_id}`,
+                  user.id
+                ]
+              });
+
+              queries.push({
+                sql: "UPDATE products SET current_stock = current_stock - ?, updated_at = datetime('now', 'localtime') WHERE id = ?",
+                params: [
+                  parseInt(split.quantity, 10),
+                  parseInt(split.product_id, 10)
+                ]
+              });
+            }
           }
         }
       }
@@ -997,7 +1149,6 @@ async function handleConfirmImport(req) {
       ]
     });
 
-    const activeStorage = getActiveStorage();
     await activeStorage.executeTransaction(queries);
 
     const { broadcast } = await import('../ws/broker.js');

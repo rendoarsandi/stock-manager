@@ -1,0 +1,4 @@
+every input is usually from the next first date like 00: 00 and date 1
+but the issue is sometimes the last date from SO input is only about09: 00
+how to preventing the double input from the last date week inputed
+to the next week for examle 7 date to 14 but started from 09: 00 to 00: 00
