@@ -12,10 +12,10 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as StockHistoryRouteImport } from './routes/stock-history'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ReviewRouteImport } from './routes/review'
-import { Route as ProductsRouteImport } from './routes/products'
 import { Route as OpnameRouteImport } from './routes/opname'
 import { Route as ImportRouteImport } from './routes/import'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ProductsIndexRouteImport } from './routes/products/index'
 import { Route as SignUpSplatRouteImport } from './routes/sign-up.$'
 import { Route as ProductsStatusReturnRouteImport } from './routes/products/status-return'
 import { Route as ApiProductsRouteImport } from './routes/api/products'
@@ -68,11 +68,6 @@ const ReviewRoute = ReviewRouteImport.update({
   path: '/review',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ProductsRoute = ProductsRouteImport.update({
-  id: '/products',
-  path: '/products',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const OpnameRoute = OpnameRouteImport.update({
   id: '/opname',
   path: '/opname',
@@ -88,15 +83,20 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProductsIndexRoute = ProductsIndexRouteImport.update({
+  id: '/products/',
+  path: '/products/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SignUpSplatRoute = SignUpSplatRouteImport.update({
   id: '/sign-up/$',
   path: '/sign-up/$',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProductsStatusReturnRoute = ProductsStatusReturnRouteImport.update({
-  id: '/status-return',
-  path: '/status-return',
-  getParentRoute: () => ProductsRoute,
+  id: '/products/status-return',
+  path: '/products/status-return',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiProductsRoute = ApiProductsRouteImport.update({
   id: '/api/products',
@@ -275,7 +275,6 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/import': typeof ImportRoute
   '/opname': typeof OpnameRoute
-  '/products': typeof ProductsRouteWithChildren
   '/review': typeof ReviewRoute
   '/settings': typeof SettingsRoute
   '/stock-history': typeof StockHistoryRoute
@@ -284,6 +283,7 @@ export interface FileRoutesByFullPath {
   '/api/products': typeof ApiProductsRouteWithChildren
   '/products/status-return': typeof ProductsStatusReturnRoute
   '/sign-up/$': typeof SignUpSplatRoute
+  '/products/': typeof ProductsIndexRoute
   '/api/auth/clerk-webhook': typeof ApiAuthClerkWebhookRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
@@ -320,7 +320,6 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/import': typeof ImportRoute
   '/opname': typeof OpnameRoute
-  '/products': typeof ProductsRouteWithChildren
   '/review': typeof ReviewRoute
   '/settings': typeof SettingsRoute
   '/stock-history': typeof StockHistoryRoute
@@ -329,6 +328,7 @@ export interface FileRoutesByTo {
   '/api/products': typeof ApiProductsRouteWithChildren
   '/products/status-return': typeof ProductsStatusReturnRoute
   '/sign-up/$': typeof SignUpSplatRoute
+  '/products': typeof ProductsIndexRoute
   '/api/auth/clerk-webhook': typeof ApiAuthClerkWebhookRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
@@ -366,7 +366,6 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/import': typeof ImportRoute
   '/opname': typeof OpnameRoute
-  '/products': typeof ProductsRouteWithChildren
   '/review': typeof ReviewRoute
   '/settings': typeof SettingsRoute
   '/stock-history': typeof StockHistoryRoute
@@ -375,6 +374,7 @@ export interface FileRoutesById {
   '/api/products': typeof ApiProductsRouteWithChildren
   '/products/status-return': typeof ProductsStatusReturnRoute
   '/sign-up/$': typeof SignUpSplatRoute
+  '/products/': typeof ProductsIndexRoute
   '/api/auth/clerk-webhook': typeof ApiAuthClerkWebhookRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
@@ -413,7 +413,6 @@ export interface FileRouteTypes {
     | '/'
     | '/import'
     | '/opname'
-    | '/products'
     | '/review'
     | '/settings'
     | '/stock-history'
@@ -422,6 +421,7 @@ export interface FileRouteTypes {
     | '/api/products'
     | '/products/status-return'
     | '/sign-up/$'
+    | '/products/'
     | '/api/auth/clerk-webhook'
     | '/api/auth/login'
     | '/api/auth/logout'
@@ -458,7 +458,6 @@ export interface FileRouteTypes {
     | '/'
     | '/import'
     | '/opname'
-    | '/products'
     | '/review'
     | '/settings'
     | '/stock-history'
@@ -467,6 +466,7 @@ export interface FileRouteTypes {
     | '/api/products'
     | '/products/status-return'
     | '/sign-up/$'
+    | '/products'
     | '/api/auth/clerk-webhook'
     | '/api/auth/login'
     | '/api/auth/logout'
@@ -503,7 +503,6 @@ export interface FileRouteTypes {
     | '/'
     | '/import'
     | '/opname'
-    | '/products'
     | '/review'
     | '/settings'
     | '/stock-history'
@@ -512,6 +511,7 @@ export interface FileRouteTypes {
     | '/api/products'
     | '/products/status-return'
     | '/sign-up/$'
+    | '/products/'
     | '/api/auth/clerk-webhook'
     | '/api/auth/login'
     | '/api/auth/logout'
@@ -549,14 +549,15 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ImportRoute: typeof ImportRoute
   OpnameRoute: typeof OpnameRoute
-  ProductsRoute: typeof ProductsRouteWithChildren
   ReviewRoute: typeof ReviewRoute
   SettingsRoute: typeof SettingsRoute
   StockHistoryRoute: typeof StockHistoryRoute
   ApiSplatRoute: typeof ApiSplatRoute
   ApiHealthRoute: typeof ApiHealthRoute
   ApiProductsRoute: typeof ApiProductsRouteWithChildren
+  ProductsStatusReturnRoute: typeof ProductsStatusReturnRoute
   SignUpSplatRoute: typeof SignUpSplatRoute
+  ProductsIndexRoute: typeof ProductsIndexRoute
   ApiAuthClerkWebhookRoute: typeof ApiAuthClerkWebhookRoute
   ApiAuthLoginRoute: typeof ApiAuthLoginRoute
   ApiAuthLogoutRoute: typeof ApiAuthLogoutRoute
@@ -605,13 +606,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReviewRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/products': {
-      id: '/products'
-      path: '/products'
-      fullPath: '/products'
-      preLoaderRoute: typeof ProductsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/opname': {
       id: '/opname'
       path: '/opname'
@@ -633,6 +627,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/products/': {
+      id: '/products/'
+      path: '/products'
+      fullPath: '/products/'
+      preLoaderRoute: typeof ProductsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/sign-up/$': {
       id: '/sign-up/$'
       path: '/sign-up/$'
@@ -642,10 +643,10 @@ declare module '@tanstack/react-router' {
     }
     '/products/status-return': {
       id: '/products/status-return'
-      path: '/status-return'
+      path: '/products/status-return'
       fullPath: '/products/status-return'
       preLoaderRoute: typeof ProductsStatusReturnRouteImport
-      parentRoute: typeof ProductsRoute
+      parentRoute: typeof rootRouteImport
     }
     '/api/products': {
       id: '/api/products'
@@ -888,18 +889,6 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface ProductsRouteChildren {
-  ProductsStatusReturnRoute: typeof ProductsStatusReturnRoute
-}
-
-const ProductsRouteChildren: ProductsRouteChildren = {
-  ProductsStatusReturnRoute: ProductsStatusReturnRoute,
-}
-
-const ProductsRouteWithChildren = ProductsRoute._addFileChildren(
-  ProductsRouteChildren,
-)
-
 interface ApiProductsIdRouteChildren {
   ApiProductsIdAdjustStockRoute: typeof ApiProductsIdAdjustStockRoute
   ApiProductsIdLedgerRoute: typeof ApiProductsIdLedgerRoute
@@ -981,14 +970,15 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ImportRoute: ImportRoute,
   OpnameRoute: OpnameRoute,
-  ProductsRoute: ProductsRouteWithChildren,
   ReviewRoute: ReviewRoute,
   SettingsRoute: SettingsRoute,
   StockHistoryRoute: StockHistoryRoute,
   ApiSplatRoute: ApiSplatRoute,
   ApiHealthRoute: ApiHealthRoute,
   ApiProductsRoute: ApiProductsRouteWithChildren,
+  ProductsStatusReturnRoute: ProductsStatusReturnRoute,
   SignUpSplatRoute: SignUpSplatRoute,
+  ProductsIndexRoute: ProductsIndexRoute,
   ApiAuthClerkWebhookRoute: ApiAuthClerkWebhookRoute,
   ApiAuthLoginRoute: ApiAuthLoginRoute,
   ApiAuthLogoutRoute: ApiAuthLogoutRoute,
