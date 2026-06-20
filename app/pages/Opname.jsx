@@ -10,8 +10,16 @@ export default function Opname() {
   const [selectedOpnameId, setSelectedOpnameId] = useState(null);
   const [isFormInitialized, setIsFormInitialized] = useState(false);
 
+  // Helper to get local date/time string formatted for datetime-local
+  const getLocalDatetimeString = () => {
+    const now = new Date();
+    const tzOffset = now.getTimezoneOffset() * 60000;
+    return (new Date(now - tzOffset)).toISOString().slice(0, 16);
+  };
+
   // Form states (New Opname)
   const [notes, setNotes] = useState('');
+  const [customDate, setCustomDate] = useState(getLocalDatetimeString());
   const [physicalCounts, setPhysicalCounts] = useState({}); // { [productId]: count }
   const [productSearch, setProductSearch] = useState('');
 
@@ -111,6 +119,7 @@ export default function Opname() {
     setProductSearch('');
     setPhysicalCounts({});
     setIsFormInitialized(false);
+    setCustomDate(getLocalDatetimeString());
     setActiveModal('new');
   };
 
@@ -156,8 +165,11 @@ export default function Opname() {
       return;
     }
 
+    const formattedCreatedAt = customDate ? customDate.replace('T', ' ') + ':00' : undefined;
+
     createOpnameMutation.mutate({
       notes: notes.trim(),
+      created_at: formattedCreatedAt,
       items,
     });
   };
@@ -266,6 +278,30 @@ export default function Opname() {
             </div>
             <div className="modal-body">
               <form id="new-opname-form" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }} onSubmit={handleNewOpnameSubmit}>
+                <div className="form-group">
+                  <label htmlFor="opname-date">Date & Time of Count</label>
+                  <input
+                    type="datetime-local"
+                    id="opname-date"
+                    required
+                    value={customDate}
+                    onChange={(e) => setCustomDate(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.6rem 1rem',
+                      fontSize: '0.85rem',
+                      borderRadius: 'var(--border-radius-md)',
+                      border: '1px solid var(--border-color)',
+                      backgroundColor: 'var(--bg-secondary)',
+                      color: 'var(--text-primary)',
+                      transition: 'var(--transition)'
+                    }}
+                  />
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                    Specify the exact date and time when the physical inventory count took place.
+                  </span>
+                </div>
+
                 <div className="form-group">
                   <label htmlFor="opname-notes">Audit Notes</label>
                   <textarea

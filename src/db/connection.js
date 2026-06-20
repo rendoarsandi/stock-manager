@@ -383,13 +383,17 @@ export const db = {
     },
     async insert(movement) {
       const db = getActiveDb();
-      const rows = await db.insert(stockMovements).values({
+      const insertValues = {
         product_id: parseInt(movement.product_id, 10),
         quantity_change: parseInt(movement.quantity_change, 10),
         movement_type: movement.movement_type,
         reference: movement.reference || null,
         user_id: movement.user_id ? parseInt(movement.user_id, 10) : null
-      }).returning();
+      };
+      if (movement.created_at) {
+        insertValues.created_at = movement.created_at;
+      }
+      const rows = await db.insert(stockMovements).values(insertValues).returning();
       const newMovement = rows[0] || null;
       if (newMovement) {
         broadcast({ type: 'MOVEMENT_CREATED', payload: newMovement });
@@ -620,10 +624,14 @@ export const db = {
     },
     async insert(opname) {
       const db = getActiveDb();
-      const rows = await db.insert(stockOpnames).values({
+      const insertValues = {
         user_id: parseInt(opname.user_id, 10),
         notes: opname.notes || null
-      }).returning();
+      };
+      if (opname.created_at) {
+        insertValues.created_at = opname.created_at;
+      }
+      const rows = await db.insert(stockOpnames).values(insertValues).returning();
       const newOpname = rows[0] || null;
       if (newOpname) {
         broadcast({ type: 'OPNAME_CREATED', payload: newOpname });

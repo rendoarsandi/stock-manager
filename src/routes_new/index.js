@@ -1656,7 +1656,7 @@ async function handleGetOpnameDetails(req, params) {
 
 async function handleCreateOpname(req) {
   try {
-    const { notes, items } = await readJson(req);
+    const { notes, items, created_at } = await readJson(req);
     const user = req.user;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
@@ -1680,7 +1680,8 @@ async function handleCreateOpname(req) {
 
     const newOpname = await db.opnames.insert({
       user_id: user.id,
-      notes: notes || ''
+      notes: notes || '',
+      created_at: created_at || undefined
     });
 
     const opnameId = newOpname.id;
@@ -1715,7 +1716,8 @@ async function handleCreateOpname(req) {
         quantity_change: variance,
         movement_type: 'manual_adjust',
         reference: `Stock Opname #${opnameId}`,
-        user_id: user.id
+        user_id: user.id,
+        created_at: newOpname.created_at
       });
     }
 
