@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS products (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,
-    model TEXT NOT NULL,
+    model TEXT,
     master_sku TEXT,
     description TEXT,
     current_stock INTEGER DEFAULT 0,
@@ -185,7 +185,7 @@ const products = Object.entries(db)
   .sort((a, b) => a[1].id - b[1].id);
 
 for (const [, p] of products) {
-  lines.push(`INSERT INTO products (id, name, model, master_sku, description, current_stock, low_stock_threshold, created_at, updated_at) VALUES (${p.id}, ${escape(p.name)}, ${escape(p.model)}, ${escape(p.master_sku)}, ${escape(p.description)}, ${p.current_stock}, ${p.low_stock_threshold}, ${escape(p.created_at)}, ${escape(p.updated_at)});`);
+  lines.push(`INSERT INTO products (id, name, model, master_sku, description, current_stock, low_stock_threshold, created_at, updated_at) VALUES (${p.id}, ${escape(p.name)}, ${escape(p.model || null)}, NULL, ${escape(p.description)}, ${p.current_stock}, ${p.low_stock_threshold}, ${escape(p.created_at)}, ${escape(p.updated_at)});`);
 }
 lines.push('');
 

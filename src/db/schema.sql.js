@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS products (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,
-    model TEXT NOT NULL,
+    model TEXT,
     master_sku TEXT,
     description TEXT,
     current_stock INTEGER DEFAULT 0,

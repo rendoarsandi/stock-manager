@@ -12,7 +12,7 @@ export const users = sqliteTable('users', {
 export const products = sqliteTable('products', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull().unique(),
-  model: text('model').notNull(),
+  model: text('model'),
   master_sku: text('master_sku'),
   description: text('description'),
   current_stock: integer('current_stock').default(0),

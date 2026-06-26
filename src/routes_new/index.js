@@ -23,8 +23,8 @@ const createUserSchema = z.object({
 });
 
 const createProductSchema = z.object({
-  name: z.string().min(1, 'Product name and model are required'),
-  model: z.string().min(1, 'Product name and model are required'),
+  name: z.string().min(1, 'Product name is required'),
+  model: z.string().optional().nullable(),
   master_sku: z.string().optional().nullable(),
   description: z.string().optional().nullable(),
   initial_stock: z.union([z.number(), z.string()]).transform(val => parseInt(val, 10)).pipe(z.number().int().min(0)).optional().default(0),
@@ -32,8 +32,8 @@ const createProductSchema = z.object({
 });
 
 const updateProductSchema = z.object({
-  name: z.string().min(1, 'Product name and model are required'),
-  model: z.string().min(1, 'Product name and model are required'),
+  name: z.string().min(1, 'Product name is required'),
+  model: z.string().optional().nullable(),
   master_sku: z.string().optional().nullable(),
   description: z.string().optional().nullable(),
   low_stock_threshold: z.union([z.number(), z.string()]).transform(val => parseInt(val, 10)).pipe(z.number().int().min(0)).optional().default(10),
@@ -507,7 +507,7 @@ async function handleCreateProduct(req) {
 
     const inserted = await db.products.insert({
       name,
-      model,
+      model: model || null,
       master_sku: master_sku || null,
       description: description || '',
       current_stock: stock,
@@ -652,7 +652,7 @@ async function handleUpdateProduct(req, params) {
 
     await db.products.update(id, {
       name,
-      model,
+      model: model || null,
       master_sku: master_sku || null,
       description: description || '',
       low_stock_threshold: threshold

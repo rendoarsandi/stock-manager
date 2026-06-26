@@ -774,7 +774,6 @@ export default function Products() {
                   <input
                     type="text"
                     id="p-model"
-                    required
                     placeholder="e.g. CROBAR_1S"
                     value={formModel}
                     onChange={(e) => setFormModel(e.target.value)}
@@ -856,7 +855,6 @@ export default function Products() {
                   <input
                     type="text"
                     id="p-edit-model"
-                    required
                     value={formModel}
                     onChange={(e) => setFormModel(e.target.value)}
                   />

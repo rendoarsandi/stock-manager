@@ -314,7 +314,7 @@ export const db = {
       const rows = await db.insert(products).values({
         id: targetId,
         name: product.name,
-        model: product.model,
+        model: product.model || null,
         master_sku: product.master_sku || null,
         description: product.description || null,
         current_stock: product.current_stock || 0,
@@ -330,8 +330,8 @@ export const db = {
       const db = getActiveDb();
       const setValues = {};
       if (updates.name !== undefined) setValues.name = updates.name;
-      if (updates.model !== undefined) setValues.model = updates.model;
-      if (updates.master_sku !== undefined) setValues.master_sku = updates.master_sku;
+      if (updates.model !== undefined) setValues.model = updates.model || null;
+      if (updates.master_sku !== undefined) setValues.master_sku = updates.master_sku || null;
       if (updates.description !== undefined) setValues.description = updates.description;
       if (updates.current_stock !== undefined) {
         const parsed = parseInt(updates.current_stock, 10);
