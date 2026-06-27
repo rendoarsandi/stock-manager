@@ -21,8 +21,12 @@ export const PRODUCT_ALIASES = {
   'c.flexie': 'CROCKIE FLEXIE - Blue',
   'c.flexie.w': 'CROCKIE FLEXIE WINDPROOF',
   'c.powerjet': 'CROCKIE POWER JET - Blue',
-  'g.butane': 'CROCKIE GAS BUTANE - Blue',
-  'gas butane': 'CROCKIE GAS BUTANE - Blue',
+  'g.butane': 'CROCKIE GAS BUTANE',
+  'gas butane': 'CROCKIE GAS BUTANE',
+  'crockie refill gas butane pemantik korek api - 1 pcs': 'CROCKIE GAS BUTANE',
+  'crockie refill gas butane pemantik korek api': 'CROCKIE GAS BUTANE',
+  'crockie refill gas butane': 'CROCKIE GAS BUTANE',
+  'crokie refill gas butane': 'CROCKIE GAS BUTANE',
   'crokie original': 'CROCKIE ORIGINAL',
   'crokie magnet super': 'CROCKIE MAGNET SUPER',
   'crokie bara turbo': 'CROCKIE BARA TURBO',
@@ -31,7 +35,7 @@ export const PRODUCT_ALIASES = {
   'crokie flexie windproof': 'CROCKIE FLEXIE WINDPROOF',
   'crokie idea': 'CROCKIE IDEA',
   'crokie power jet': 'CROCKIE POWER JET - Blue',
-  'crokie gas butane': 'CROCKIE GAS BUTANE - Blue',
+  'crokie gas butane': 'CROCKIE GAS BUTANE',
   'crockie original': 'CROCKIE ORIGINAL',
   'crockie magnet super': 'CROCKIE MAGNET SUPER',
   'crockie bara turbo': 'CROCKIE BARA TURBO',
@@ -61,11 +65,11 @@ export const BUNDLE_MAPPINGS = {
   'croflex_4s': [{ name: 'CROCKIE FLEXIE - Blue', qty: 4 }],
   'croflexiew_4s': [{ name: 'CROCKIE FLEXIE WINDPROOF', qty: 4 }],
   'crojet_4s': [{ name: 'CROCKIE POWER JET - Blue', qty: 4 }],
-  'crogas_5s': [{ name: 'CROCKIE GAS BUTANE - Blue', qty: 5 }],
+  'crogas_5s': [{ name: 'CROCKIE GAS BUTANE', qty: 5 }],
   'cro50s': [{ name: 'CROCKIE ORIGINAL', qty: 50 }],
   'cromag_box': [{ name: 'CROCKIE MAGNET SUPER', qty: 50 }],
   'crob25s': [{ name: 'CROCKIE BARA TURBO', qty: 25 }],
-  'crog25s': [{ name: 'CROCKIE GAS BUTANE - Blue', qty: 25 }],
+  'crog25s': [{ name: 'CROCKIE GAS BUTANE', qty: 25 }],
   'croid16s': [{ name: 'CROCKIE IDEA', qty: 16 }],
   'cbh(box)': [{ name: 'CROCKIE BARA TURBO', qty: 25 }],
   'cc01': [{ name: 'CROCKIE ORIGINAL', qty: 500 }],
@@ -73,7 +77,7 @@ export const BUNDLE_MAPPINGS = {
   'cc03': [{ name: 'CROCKIE MAGNET SUPER PLAIN BLACK', qty: 500 }],
   'cc04': [{ name: 'CROCKIE MAGNET SUPER PLAIN WHITE', qty: 500 }],
   'cc05': [{ name: 'CROCKIE BARA TURBO', qty: 500 }],
-  'cc06': [{ name: 'CROCKIE GAS BUTANE - Blue', qty: 300 }],
+  'cc06': [{ name: 'CROCKIE GAS BUTANE', qty: 300 }],
   'cropak_ori5': [{ name: 'CROCKIE ORIGINAL', qty: 6 }],
   'cropak_super5': [{ name: 'CROCKIE MAGNET SUPER', qty: 6 }],
   'cropak_turbo5': [{ name: 'CROCKIE BARA TURBO', qty: 6 }],
@@ -104,49 +108,49 @@ export const BUNDLE_MAPPINGS = {
   ],
   'cromix_idea4': [
     { name: 'CROCKIE IDEA', qty: 5 },
-    { name: 'CROCKIE GAS BUTANE - Blue', qty: 1 }
+    { name: 'CROCKIE GAS BUTANE', qty: 1 }
   ],
   'cromix_superjet1': [
     { name: 'CROCKIE SUPER JET - Blue', qty: 2 },
     { name: 'CROCKIE FLEXIE - Blue', qty: 2 },
-    { name: 'CROCKIE GAS BUTANE - Blue', qty: 1 }
+    { name: 'CROCKIE GAS BUTANE', qty: 1 }
   ],
   'cromix_superjet2': [
     { name: 'CROCKIE SUPER JET - Blue', qty: 2 },
     { name: 'CROCKIE FLEXIE WINDPROOF', qty: 2 },
-    { name: 'CROCKIE GAS BUTANE - Blue', qty: 1 }
+    { name: 'CROCKIE GAS BUTANE', qty: 1 }
   ],
   'cromix_superjet3': [
     { name: 'CROCKIE SUPER JET - Blue', qty: 2 },
     { name: 'CROCKIE IDEA', qty: 2 },
-    { name: 'CROCKIE GAS BUTANE - Blue', qty: 1 }
+    { name: 'CROCKIE GAS BUTANE', qty: 1 }
   ],
   'crocset_idea': [
     { name: 'CROCKIE IDEA', qty: 4 },
-    { name: 'CROCKIE GAS BUTANE - Blue', qty: 1 }
+    { name: 'CROCKIE GAS BUTANE', qty: 1 }
   ],
   'crocbox_super': [{ name: 'CROCKIE MAGNET SUPER', qty: 55 }],
   'crocbox_turbo': [
     { name: 'CROCKIE BARA TURBO', qty: 25 },
-    { name: 'CROCKIE GAS BUTANE - Blue', qty: 2 }
+    { name: 'CROCKIE GAS BUTANE', qty: 2 }
   ],
   'crocset_powerjet': [
     { name: 'CROCKIE POWER JET - Blue', qty: 4 },
-    { name: 'CROCKIE GAS BUTANE - Blue', qty: 1 }
+    { name: 'CROCKIE GAS BUTANE', qty: 1 }
   ],
   'crocset_flexie': [
     { name: 'CROCKIE FLEXIE - Blue', qty: 4 },
-    { name: 'CROCKIE GAS BUTANE - Blue', qty: 1 }
+    { name: 'CROCKIE GAS BUTANE', qty: 1 }
   ],
   'crocset_flexiew': [
     { name: 'CROCKIE FLEXIE WINDPROOF', qty: 4 },
-    { name: 'CROCKIE GAS BUTANE - Blue', qty: 1 }
+    { name: 'CROCKIE GAS BUTANE', qty: 1 }
   ],
   'crocbox_black': [{ name: 'CROCKIE MAGNET SUPER PLAIN BLACK', qty: 55 }],
   'crocbox_superwhite': [{ name: 'CROCKIE MAGNET SUPER PLAIN WHITE', qty: 55 }],
   'csuper1': [
     { name: 'CROCKIE SUPER JET - Blue', qty: 1 },
-    { name: 'CROCKIE GAS BUTANE - Blue', qty: 1 }
+    { name: 'CROCKIE GAS BUTANE', qty: 1 }
   ],
 
   // ICQ Packs & Bundles by SKU
@@ -196,7 +200,7 @@ export const BUNDLE_MAPPINGS = {
   ],
   'icqgas1': [
     { name: 'ICQ BARA TURBO', qty: 5 },
-    { name: 'CROCKIE GAS BUTANE - Blue', qty: 1 }
+    { name: 'CROCKIE GAS BUTANE', qty: 1 }
   ],
   'icqcl4': [{ name: 'ICQ CLASSIE', qty: 4 }],
 
@@ -262,7 +266,7 @@ export const BUNDLE_MAPPINGS = {
   'hi013': [{ name: 'HIMUJI ONIX XL', qty: 4 }],
   'hig1': [
     { name: 'HIMUJI GOMAX', qty: 5 },
-    { name: 'CROCKIE GAS BUTANE - Blue', qty: 1 }
+    { name: 'CROCKIE GAS BUTANE', qty: 1 }
   ]
 };
 
@@ -281,16 +285,17 @@ export function resolvePromoProductToBaseItems(skuRef, productNameRaw, orderQty,
 
   // 1. Check DB SKU mappings first if provided
   if (dbMappings && dbMappings.length > 0) {
-    // Check match by skuRef
-    let matchedDb = dbMappings.filter(m => m.sku_code.toLowerCase() === cleanSku);
+    let matchedDb = dbMappings.filter(m => m.sku_code && m.sku_code.toLowerCase() === cleanSku);
     
     // If not found, try matching by cleanName containing or matching sku_code
     if (matchedDb.length === 0) {
-      const bestMatchKey = dbMappings.map(m => m.sku_code.toLowerCase()).find(key => {
+      const sortedKeys = [...new Set(dbMappings.map(m => m.sku_code ? m.sku_code.toLowerCase() : '').filter(Boolean))]
+        .sort((a, b) => b.length - a.length);
+      const bestMatchKey = sortedKeys.find(key => {
         return cleanName === key || (key.length >= 4 && cleanName.includes(key));
       });
       if (bestMatchKey) {
-        matchedDb = dbMappings.filter(m => m.sku_code.toLowerCase() === bestMatchKey);
+        matchedDb = dbMappings.filter(m => m.sku_code && m.sku_code.toLowerCase() === bestMatchKey);
       }
     }
 
@@ -324,10 +329,10 @@ export function resolvePromoProductToBaseItems(skuRef, productNameRaw, orderQty,
 
   // Also check if catalog name or model is a mapped SKU
   if (!mapping && catalog) {
-    const matchedCatalogProduct = catalog.find(p => p.name.toLowerCase() === cleanName || p.model.toLowerCase() === cleanSku);
+    const matchedCatalogProduct = catalog.find(p => (p.name || '').toLowerCase() === cleanName || (p.model || '').toLowerCase() === cleanSku);
     if (matchedCatalogProduct) {
-      const modelLower = matchedCatalogProduct.model.toLowerCase();
-      if (BUNDLE_MAPPINGS[modelLower]) {
+      const modelLower = (matchedCatalogProduct.model || '').toLowerCase();
+      if (modelLower && BUNDLE_MAPPINGS[modelLower]) {
         mapping = BUNDLE_MAPPINGS[modelLower];
       }
     }
@@ -336,7 +341,7 @@ export function resolvePromoProductToBaseItems(skuRef, productNameRaw, orderQty,
   if (mapping) {
     return mapping.map(item => {
       // Find base product in catalog
-      const catalogProd = catalog.find(p => p.name.toLowerCase() === item.name.toLowerCase());
+      const catalogProd = catalog.find(p => (p.name || '').toLowerCase() === (item.name || '').toLowerCase());
       return {
         product_id: catalogProd ? catalogProd.id : null,
         product_name: catalogProd ? catalogProd.name : item.name,
@@ -445,8 +450,8 @@ export function findProductInCatalog(text, catalog) {
   let longestMatchLength = 0;
 
   for (const product of catalog) {
-    const pName = product.name.toLowerCase();
-    const pModel = product.model.toLowerCase();
+    const pName = (product.name || '').toLowerCase();
+    const pModel = (product.model || '').toLowerCase();
 
     // Check if product name or model matches text exactly, or is contained within the text
     if (normalizedText === pName || normalizedText === pModel) {

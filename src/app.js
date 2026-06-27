@@ -200,7 +200,7 @@ export const app = {
           }
         }
 
-        const isGetApi = method === 'GET' && path.startsWith('/api/') && path !== '/api/health';
+        const isGetApi = method === 'GET' && path.startsWith('/api/') && path !== '/api/health' && !path.startsWith('/api/auth/');
         if (isGetApi) {
           const cached = apiCache.get(path);
           if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {

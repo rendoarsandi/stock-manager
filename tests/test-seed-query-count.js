@@ -27,8 +27,8 @@ async function runTest() {
     process.env.NODE_ENV = originalEnv;
 
     console.log(`Production/Dev Environment queries executed: ${queryCount}`);
-    if (queryCount !== 1) {
-      throw new Error(`Expected exactly 1 query in production (SELECT * FROM products LIMIT 1), but got ${queryCount}`);
+    if (queryCount !== 2) {
+      throw new Error(`Expected exactly 2 queries in production (SELECT * FROM products LIMIT 1 and SELECT * FROM import_templates LIMIT 1), but got ${queryCount}`);
     }
   }
 
@@ -59,8 +59,8 @@ async function runTest() {
     process.env.NODE_ENV = originalEnv;
 
     console.log(`Test Environment queries executed: ${queryCount}`);
-    if (queryCount !== 3) {
-      throw new Error(`Expected exactly 3 queries in test environment (2 user checks + 1 product check), but got ${queryCount}`);
+    if (queryCount !== 4) {
+      throw new Error(`Expected exactly 4 queries in test environment (2 user checks + 1 product check + 1 template check), but got ${queryCount}`);
     }
   }
 

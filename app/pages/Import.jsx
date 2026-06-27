@@ -174,6 +174,7 @@ export default function Import() {
   const [selectedTemplate, setSelectedTemplate] = useState('');
   const [file, setFile] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef(null);
 
   // Active Session states
   const [currentSessionId, setCurrentSessionId] = useState(null);
@@ -214,7 +215,11 @@ export default function Import() {
       .then((data) => {
         if (data) {
           setCurrentSessionId(data.session_id);
-          setCurrentOrders(data.orders || []);
+          const mappedOrders = (data.orders || []).map((o, idx) => ({
+            ...o,
+            id: o.id || `${o.order_id}-${idx}`
+          }));
+          setCurrentOrders(mappedOrders);
           setTotalRows(data.total_rows || 0);
           setFlaggedRows(data.flagged_rows || 0);
         }
@@ -266,8 +271,9 @@ export default function Import() {
       const data = await res.json();
       setCurrentSessionId(data.session_id);
       const rawOrders = data.orders || [];
-      const ordersWithSelection = rawOrders.map((o) => ({
+      const ordersWithSelection = rawOrders.map((o, idx) => ({
         ...o,
+        id: `${o.order_id}-${idx}`,
         is_selected: !o.is_duplicate,
       }));
       setCurrentOrders(ordersWithSelection);
@@ -301,6 +307,9 @@ export default function Import() {
       setFlaggedRows(0);
       setFile(null);
       setSelectedTemplate('');
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
       showToast('Discarded', 'Import session cancelled', 'info');
     } catch (err) {
       console.error(err);
@@ -366,6 +375,9 @@ export default function Import() {
         setFlaggedRows(0);
         setFile(null);
         setSelectedTemplate('');
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
         queryClient.invalidateQueries({ queryKey: ['products'] });
 
         if (result.flagged_rows > 0) {
@@ -484,18 +496,18 @@ export default function Import() {
 
   // Filtering / Sorting logic for preview table
   const unmappedCount = currentOrders.filter((o) =>
-    o.splits && o.splits.some((s) => s.product_id === null)
+    o.splits && o.splits.some((s) => !s.product_id)
   ).length;
 
   const processedOrders = (() => {
     let list = [...currentOrders];
     if (filterMode === 'unmapped') {
-      list = list.filter((o) => o.splits && o.splits.some((s) => s.product_id === null));
+      list = list.filter((o) => o.splits && o.splits.some((s) => !s.product_id));
     }
     if (sortUnmappedToTop) {
       list.sort((a, b) => {
-        const aNeeds = a.splits && a.splits.some((s) => s.product_id === null);
-        const bNeeds = b.splits && b.splits.some((s) => s.product_id === null);
+        const aNeeds = a.splits && a.splits.some((s) => !s.product_id);
+        const bNeeds = b.splits && b.splits.some((s) => !s.product_id);
         if (aNeeds && !bNeeds) return -1;
         if (!aNeeds && bNeeds) return 1;
         return 0;
@@ -534,6 +546,7 @@ export default function Import() {
           <div className="form-group">
             <label htmlFor="excel-file-input">Select Excel File (.xlsx, .xls)</label>
             <input
+              ref={fileInputRef}
               type="file"
               id="excel-file-input"
               accept=".xlsx, .xls"
@@ -679,7 +692,7 @@ export default function Import() {
                   </tr>
                 ) : (
                   processedOrders.map((order) => {
-                    const originalIndex = currentOrders.findIndex((o) => o.order_id === order.order_id);
+                    const originalIndex = currentOrders.findIndex((o) => o.id === order.id);
                     const isRowDuplicate = order.is_duplicate;
 
                     let statusTagClass = 'info';
@@ -690,7 +703,7 @@ export default function Import() {
                     }
 
                     return (
-                      <tr key={order.order_id} style={isRowDuplicate ? { backgroundColor: 'var(--danger-light)' } : {}}>
+                      <tr key={order.id} style={isRowDuplicate ? { backgroundColor: 'var(--danger-light)' } : {}}>
                         <td style={{ textAlign: 'center', verticalAlign: 'top' }}>
                           <input
                             type="checkbox"

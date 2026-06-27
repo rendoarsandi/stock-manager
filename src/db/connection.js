@@ -39,7 +39,11 @@ export async function seedIfNeeded(storage) {
     const existingUsers = await storage.query("SELECT * FROM users WHERE username = ?", ['admin']);
     if (!existingUsers || existingUsers.length === 0) {
       wasEmpty = true;
-      const adminHash = hashPassword(process.env.SEED_ADMIN_PASSWORD || 'admin123');
+      const seedPassword = process.env.SEED_ADMIN_PASSWORD;
+      if (!seedPassword) {
+        throw new Error("SEED_ADMIN_PASSWORD environment variable is required in test mode.");
+      }
+      const adminHash = hashPassword(seedPassword);
       await storage.execute("INSERT INTO users (id, username, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?)", [1, 'admin', adminHash, 'admin', now]);
     }
     const existingStaff = await storage.query("SELECT * FROM users WHERE username = ?", ['staff']);
@@ -113,6 +117,32 @@ export async function seedIfNeeded(storage) {
         );
       }
 
+      console.log("Database seeded successfully.");
+    }
+
+    // Attempt to seed SKU mappings during initial database seeding
+    try {
+      const { BUNDLE_MAPPINGS } = await import('../services/ambiguous-parser.js');
+      for (const [skuCode, items] of Object.entries(BUNDLE_MAPPINGS)) {
+        for (const item of items) {
+          const prodRows = await storage.query("SELECT id FROM products WHERE LOWER(name) = ? OR LOWER(model) = ?", [item.name.toLowerCase(), item.name.toLowerCase()]);
+          if (prodRows && prodRows[0]) {
+            await storage.execute(
+              "INSERT OR IGNORE INTO sku_mappings (sku_code, product_id, quantity) VALUES (?, ?, ?)",
+              [skuCode.toLowerCase(), prodRows[0].id, item.qty]
+            );
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Error seeding SKU mappings:", err);
+    }
+  }
+
+  // Seed templates if they are empty
+  try {
+    const existingTemplates = await storage.query("SELECT * FROM import_templates LIMIT 1");
+    if (!existingTemplates || existingTemplates.length === 0) {
       const shopeeMapping = {
         order_id: "No. Pesanan",
         resi_number: "No. Resi",
@@ -148,27 +178,10 @@ export async function seedIfNeeded(storage) {
         "INSERT OR IGNORE INTO import_templates (id, name, column_mapping, created_at) VALUES (?, ?, ?, ?)",
         [2, 'Tokopedia', JSON.stringify(tokopediaMapping), now]
       );
-
-      console.log("Database seeded successfully.");
+      console.log("Templates seeded successfully.");
     }
-
-    // Attempt to seed SKU mappings during initial database seeding
-    try {
-      const { BUNDLE_MAPPINGS } = await import('../services/ambiguous-parser.js');
-      for (const [skuCode, items] of Object.entries(BUNDLE_MAPPINGS)) {
-        for (const item of items) {
-          const prodRows = await storage.query("SELECT id FROM products WHERE LOWER(name) = ? OR LOWER(model) = ?", [item.name.toLowerCase(), item.name.toLowerCase()]);
-          if (prodRows && prodRows[0]) {
-            await storage.execute(
-              "INSERT OR IGNORE INTO sku_mappings (sku_code, product_id, quantity) VALUES (?, ?, ?)",
-              [skuCode.toLowerCase(), prodRows[0].id, item.qty]
-            );
-          }
-        }
-      }
-    } catch (err) {
-      console.error("Error seeding SKU mappings:", err);
-    }
+  } catch (err) {
+    console.error("Error seeding templates:", err);
   }
 }
 

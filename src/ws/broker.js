@@ -2,7 +2,13 @@ import { WebSocketServer } from 'ws';
 import { getActiveStorage, storageContext, getActiveEnv } from '../db/context.js';
 import { verifyJwt } from '../utils/crypto.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret_key';
+let JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  if (process.env.NODE_ENV === 'production' && process.env.npm_lifecycle_event !== 'build') {
+    throw new Error("JWT_SECRET env variable is required in production.");
+  }
+  JWT_SECRET = 'dev_secret_key';
+}
 const localClients = new Set();
 let localWss = null;
 

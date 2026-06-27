@@ -20,6 +20,7 @@ export default function Layout({ children }) {
   const { currentUser, logout } = useAuth();
   const { onlineCount, isConnected } = useWebSocket();
   const location = useLocation();
+  const { pathname } = location;
 
   const [isCollapsed, setIsCollapsed] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -30,14 +31,14 @@ export default function Layout({ children }) {
   const [isMobileVisible, setIsMobileVisible] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [isProductsSubmenuOpen, setIsProductsSubmenuOpen] = useState(() => {
-    return location.pathname.startsWith('/products');
+    return pathname.startsWith('/products');
   });
 
   useEffect(() => {
-    if (location.pathname.startsWith('/products')) {
+    if (pathname.startsWith('/products')) {
       setIsProductsSubmenuOpen(true);
     }
-  }, [location.pathname]);
+  }, [pathname]);
 
   const fetchPendingCount = useCallback(async () => {
     try {
@@ -73,9 +74,9 @@ export default function Layout({ children }) {
   // Close mobile sidebar on navigation
   useEffect(() => {
     setIsMobileVisible(false);
-  }, [location.pathname]);
+  }, [pathname]);
 
-  const pageTitle = pageTitles[location.pathname] || 'Not Found';
+  const pageTitle = pageTitles[pathname] || 'Not Found';
 
   return (
     <div className="app-layout">
@@ -114,7 +115,7 @@ export default function Layout({ children }) {
           </Link>
           <div className="nav-item-group" style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
             <div 
-              className={`nav-item ${location.pathname.startsWith('/products') ? 'active' : ''}`}
+              className={`nav-item ${pathname.startsWith('/products') ? 'active' : ''}`}
               style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: '1rem' }}
               onClick={() => setIsProductsSubmenuOpen(prev => !prev)}
             >

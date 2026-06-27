@@ -4,23 +4,9 @@ import { useAuth as useClerkAuth, useUser as useClerkUser } from '@clerk/tanstac
 export const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  let clerkAuth = null;
-  let clerkUser = null;
-  let clerkError = null;
-
-  try {
-    clerkAuth = useClerkAuth();
-  } catch (err) {
-    clerkError = err;
-    console.error("useClerkAuth error:", err);
-  }
-
-  try {
-    clerkUser = useClerkUser();
-  } catch (err) {
-    clerkError = err;
-    console.error("useClerkUser error:", err);
-  }
+  const clerkAuth = useClerkAuth();
+  const clerkUser = useClerkUser();
+  const clerkError = null;
 
   const isAuthLoaded = clerkAuth?.isLoaded;
   const isUserLoaded = clerkUser?.isLoaded;

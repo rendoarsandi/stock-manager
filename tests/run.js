@@ -78,7 +78,7 @@ for (const test of tests) {
   const testPath = path.join(__dirname, test);
   try {
     const output = execSync(`node "${testPath}"`, { 
-      env: { ...process.env, NODE_ENV: 'test' },
+      env: { ...process.env, NODE_ENV: 'test', SEED_ADMIN_PASSWORD: process.env.SEED_ADMIN_PASSWORD || 'admin123' },
       encoding: 'utf8',
       timeout: 20000
     });

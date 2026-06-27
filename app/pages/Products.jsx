@@ -30,6 +30,10 @@ export default function Products() {
   const [formStock, setFormStock] = useState(0);
   const [formThreshold, setFormThreshold] = useState(10);
 
+  // New SKU mapping form states (inside edit modal)
+  const [newMappingSku, setNewMappingSku] = useState('');
+  const [newMappingQty, setNewMappingQty] = useState(1);
+
   // Stock Adjust form states
   const [adjustQty, setAdjustQty] = useState('');
   const [adjustType, setAdjustType] = useState('manual_adjust');
@@ -170,6 +174,62 @@ export default function Products() {
     },
   });
 
+  // Fetch SKU mappings
+  const { data: skuMappings = [], isLoading: isLoadingSkuMappings } = useQuery({
+    queryKey: ['skuMappings'],
+    queryFn: async () => {
+      const res = await fetch('/api/import/sku-mappings');
+      if (!res.ok) throw new Error('Failed to fetch SKU mappings');
+      return res.json();
+    },
+  });
+
+  const addSkuMappingMutation = useMutation({
+    mutationFn: async (newMapping) => {
+      const res = await fetch('/api/import/sku-mappings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newMapping),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to add SKU reference');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      showToast('Success', 'SKU reference added successfully', 'success');
+      queryClient.invalidateQueries({ queryKey: ['skuMappings'] });
+      setNewMappingSku('');
+      setNewMappingQty(1);
+    },
+    onError: (err) => {
+      showToast('Error', err.message, 'error');
+    },
+  });
+
+  const deleteSkuMappingMutation = useMutation({
+    mutationFn: async (mappingToDelete) => {
+      const res = await fetch('/api/import/sku-mappings', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(mappingToDelete),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to delete SKU reference');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      showToast('Success', 'SKU reference deleted successfully', 'success');
+      queryClient.invalidateQueries({ queryKey: ['skuMappings'] });
+    },
+    onError: (err) => {
+      showToast('Error', err.message, 'error');
+    },
+  });
+
   // Modal Openers
   const openAddModal = () => {
     setFormName('');
@@ -188,6 +248,8 @@ export default function Products() {
     setFormModel(product.model || '');
     setFormDesc(product.description || '');
     setFormThreshold(product.low_stock_threshold || 0);
+    setNewMappingSku('');
+    setNewMappingQty(1);
     setActiveModal('edit');
   };
 
@@ -823,62 +885,195 @@ export default function Products() {
       {/* Edit Product Modal */}
       {activeModal === 'edit' && (
         <div className="modal-overlay">
-          <div className="modal">
+          <div className="modal" style={{ maxWidth: '800px' }}>
             <div className="modal-header">
               <h3>Edit Product Details</h3>
               <button className="modal-close" onClick={closeModal}>&times;</button>
             </div>
-            <div className="modal-body">
-              <form id="modal-product-edit-form" className="login-form" style={{ gap: '1rem' }} onSubmit={handleEditSubmit}>
-                <div className="form-group">
-                  <label htmlFor="p-edit-name">Product Name (Unique)</label>
-                  <input
-                    type="text"
-                    id="p-edit-name"
-                    required
-                    value={formName}
-                    onChange={(e) => setFormName(e.target.value)}
-                  />
+            <div className="modal-body" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) minmax(0, 1fr)', gap: '2rem' }}>
+              <div>
+                <form id="modal-product-edit-form" className="login-form" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }} onSubmit={handleEditSubmit}>
+                  <div className="form-group">
+                    <label htmlFor="p-edit-name">Product Name (Unique)</label>
+                    <input
+                      type="text"
+                      id="p-edit-name"
+                      required
+                      value={formName}
+                      onChange={(e) => setFormName(e.target.value)}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="p-edit-master-sku">Master SKU</label>
+                    <input
+                      type="text"
+                      id="p-edit-master-sku"
+                      placeholder="e.g. CROSUP_1S"
+                      value={formMasterSku}
+                      onChange={(e) => setFormMasterSku(e.target.value)}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="p-edit-model">SKU (Reference)</label>
+                    <input
+                      type="text"
+                      id="p-edit-model"
+                      value={formModel}
+                      onChange={(e) => setFormModel(e.target.value)}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="p-edit-desc">Description</label>
+                    <textarea
+                      id="p-edit-desc"
+                      value={formDesc}
+                      onChange={(e) => setFormDesc(e.target.value)}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="p-edit-threshold">Low Stock Alert Threshold</label>
+                    <input
+                      type="number"
+                      id="p-edit-threshold"
+                      required
+                      min="0"
+                      value={formThreshold}
+                      onChange={(e) => setFormThreshold(parseInt(e.target.value, 10) || 0)}
+                    />
+                  </div>
+                </form>
+              </div>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', borderLeft: '1px solid var(--border-color)', paddingLeft: '1.5rem' }}>
+                <h4 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: '1rem', height: '1rem', color: 'var(--accent)' }}>
+                    <path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                  </svg>
+                  Alternative SKU Mappings
+                </h4>
+                
+                <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: '1.4', margin: 0 }}>
+                  Map alternative SKU codes (e.g., from marketplace orders) to this product with an optional quantity multiplier.
+                </p>
+
+                <div style={{ maxHeight: '180px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius-sm)', backgroundColor: 'var(--bg-primary)' }}>
+                  {isLoadingSkuMappings ? (
+                    <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+                      Loading SKU references...
+                    </div>
+                  ) : (() => {
+                    const productMappings = skuMappings.filter(m => m.product_id === selectedProduct?.id);
+                    if (productMappings.length === 0) {
+                      return (
+                        <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
+                          No alternative mappings registered.
+                        </div>
+                      );
+                    }
+                    return (
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                        <thead>
+                          <tr style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: 'rgba(255,255,255,0.02)' }}>
+                            <th style={{ textAlign: 'left', padding: '0.4rem 0.6rem', fontWeight: '500', color: 'var(--text-secondary)' }}>Alternative SKU</th>
+                            <th style={{ textAlign: 'center', padding: '0.4rem 0.6rem', fontWeight: '500', color: 'var(--text-secondary)' }}>Qty</th>
+                            <th style={{ textAlign: 'right', padding: '0.4rem 0.6rem' }}></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {productMappings.map((m) => (
+                            <tr key={m.sku_code} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                              <td style={{ padding: '0.4rem 0.6rem', fontFamily: 'monospace', fontWeight: '500', color: 'var(--text-primary)' }}>
+                                {m.sku_code}
+                              </td>
+                              <td style={{ padding: '0.4rem 0.6rem', textAlign: 'center', fontWeight: '600' }}>
+                                {m.quantity}x
+                              </td>
+                              <td style={{ padding: '0.3rem 0.6rem', textAlign: 'right' }}>
+                                <button
+                                  type="button"
+                                  className="btn btn-danger btn-sm"
+                                  style={{ padding: '0.15rem 0.35rem', fontSize: '0.72rem', minHeight: 'unset', borderRadius: 'var(--border-radius-sm)' }}
+                                  onClick={() => {
+                                    if (confirm(`Delete alternative mapping for "${m.sku_code}"?`)) {
+                                      deleteSkuMappingMutation.mutate({ sku_code: m.sku_code, product_id: selectedProduct.id });
+                                    }
+                                  }}
+                                >
+                                  Delete
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    );
+                  })()}
                 </div>
-                <div className="form-group">
-                  <label htmlFor="p-edit-master-sku">Master SKU</label>
-                  <input
-                    type="text"
-                    id="p-edit-master-sku"
-                    placeholder="e.g. CROSUP_1S"
-                    value={formMasterSku}
-                    onChange={(e) => setFormMasterSku(e.target.value)}
-                  />
+
+                <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  <h5 style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
+                    Add Alternative Mapping
+                  </h5>
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}>
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                      <label style={{ fontSize: '0.7rem', fontWeight: '500', color: 'var(--text-secondary)' }}>SKU Code</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. CROGAS_RED"
+                        value={newMappingSku}
+                        onChange={(e) => setNewMappingSku(e.target.value.toUpperCase())}
+                        style={{
+                          width: '100%',
+                          padding: '0.35rem 0.5rem',
+                          fontSize: '0.8rem',
+                          borderRadius: 'var(--border-radius-sm)',
+                          border: '1px solid var(--border-color)',
+                          backgroundColor: 'var(--bg-primary)',
+                          color: 'var(--text-primary)',
+                        }}
+                      />
+                    </div>
+                    <div style={{ width: '60px', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                      <label style={{ fontSize: '0.7rem', fontWeight: '500', color: 'var(--text-secondary)' }}>Qty</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={newMappingQty}
+                        onChange={(e) => setNewMappingQty(parseInt(e.target.value, 10) || 1)}
+                        style={{
+                          width: '100%',
+                          padding: '0.35rem 0.35rem',
+                          fontSize: '0.8rem',
+                          borderRadius: 'var(--border-radius-sm)',
+                          border: '1px solid var(--border-color)',
+                          backgroundColor: 'var(--bg-primary)',
+                          color: 'var(--text-primary)',
+                          textAlign: 'center',
+                        }}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', height: '30px', minHeight: 'unset', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      onClick={() => {
+                        if (!newMappingSku.trim()) {
+                          showToast('Warning', 'SKU code is required', 'warning');
+                          return;
+                        }
+                        addSkuMappingMutation.mutate({
+                          sku_code: newMappingSku.trim(),
+                          product_id: selectedProduct.id,
+                          quantity: newMappingQty,
+                        });
+                      }}
+                      disabled={addSkuMappingMutation.isPending}
+                    >
+                      {addSkuMappingMutation.isPending ? 'Adding...' : 'Add'}
+                    </button>
+                  </div>
                 </div>
-                <div className="form-group">
-                  <label htmlFor="p-edit-model">SKU (Reference)</label>
-                  <input
-                    type="text"
-                    id="p-edit-model"
-                    value={formModel}
-                    onChange={(e) => setFormModel(e.target.value)}
-                  />
-                </div>
-                <div className="form-group">
-                  <label htmlFor="p-edit-desc">Description</label>
-                  <textarea
-                    id="p-edit-desc"
-                    value={formDesc}
-                    onChange={(e) => setFormDesc(e.target.value)}
-                  />
-                </div>
-                <div className="form-group">
-                  <label htmlFor="p-edit-threshold">Low Stock Alert Threshold</label>
-                  <input
-                    type="number"
-                    id="p-edit-threshold"
-                    required
-                    min="0"
-                    value={formThreshold}
-                    onChange={(e) => setFormThreshold(parseInt(e.target.value, 10) || 0)}
-                  />
-                </div>
-              </form>
+              </div>
             </div>
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={closeModal}>Cancel</button>
