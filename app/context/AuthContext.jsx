@@ -32,7 +32,7 @@ export function AuthProvider({ children }) {
     let isMounted = true;
     setLocalLoading(true);
 
-    fetch('/api/auth/me')
+    fetch('/api/auth/me', { credentials: 'include' })
       .then(res => {
         if (res.status === 401) {
           throw new Error('Unauthorized');
@@ -56,7 +56,9 @@ export function AuthProvider({ children }) {
       })
       .catch(err => {
         if (!isMounted) return;
-        console.error("Auth fetch failed:", err);
+        if (err.message !== 'Unauthorized') {
+          console.error("Auth fetch failed:", err);
+        }
         setLocalUser(null);
         setNeedsRegistration(true);
         setLocalLoading(false);
