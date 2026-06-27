@@ -9,12 +9,17 @@ import { getLocalStore } from '../db/local_sqlite.js';
 import { broadcast } from '../ws/broker.js';
 import { z } from 'zod';
 
-let JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) {
-  if (process.env.NODE_ENV === 'production' && process.env.npm_lifecycle_event !== 'build') {
-    throw new Error("JWT_SECRET env variable is required in production.");
+function getJwtSecret() {
+  const secret = globalThis.MINIMAL_CLOUDFLARE_ENV?.JWT_SECRET || process.env.JWT_SECRET;
+  if (!secret) {
+    if (process.env.NODE_ENV === 'production' && process.env.npm_lifecycle_event !== 'build') {
+      if (!globalThis.MINIMAL_CLOUDFLARE_ENV) {
+        throw new Error("JWT_SECRET env variable is required in production.");
+      }
+    }
+    return 'dev_secret_key';
   }
-  JWT_SECRET = 'dev_secret_key';
+  return secret;
 }
 
 const loginSchema = z.object({
@@ -127,7 +132,7 @@ async function getAuthUser(request) {
   if (process.env.NODE_ENV === 'test') {
     const token = getCookie(request, 'token');
     if (!token) return null;
-    return verifyJwt(token, JWT_SECRET);
+    return verifyJwt(token, getJwtSecret());
   }
 
   const url = new URL(request.url);
@@ -305,7 +310,7 @@ async function handleLogin(req) {
       exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 // 24 hours
     };
 
-    const token = signJwt(payload, JWT_SECRET);
+    const token = signJwt(payload, getJwtSecret());
     const headers = new Headers();
     headers.append('Set-Cookie', `token=${token}; Path=/; HttpOnly; Max-Age=86400`);
 

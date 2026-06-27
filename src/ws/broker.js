@@ -2,12 +2,17 @@ import { WebSocketServer } from 'ws';
 import { getActiveStorage, storageContext, getActiveEnv } from '../db/context.js';
 import { verifyJwt } from '../utils/crypto.js';
 
-let JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) {
-  if (process.env.NODE_ENV === 'production' && process.env.npm_lifecycle_event !== 'build') {
-    throw new Error("JWT_SECRET env variable is required in production.");
+function getJwtSecret() {
+  const secret = globalThis.MINIMAL_CLOUDFLARE_ENV?.JWT_SECRET || process.env.JWT_SECRET;
+  if (!secret) {
+    if (process.env.NODE_ENV === 'production' && process.env.npm_lifecycle_event !== 'build') {
+      if (!globalThis.MINIMAL_CLOUDFLARE_ENV) {
+        throw new Error("JWT_SECRET env variable is required in production.");
+      }
+    }
+    return 'dev_secret_key';
   }
-  JWT_SECRET = 'dev_secret_key';
+  return secret;
 }
 const localClients = new Set();
 let localWss = null;
@@ -39,7 +44,7 @@ export function setupLocalWebSocket(server) {
           const tokenCookie = cookieHeader.split(';').find(c => c.trim().startsWith('token='));
           if (tokenCookie) {
             const token = decodeURIComponent(tokenCookie.split('=')[1] || '').trim();
-            const payload = verifyJwt(token, JWT_SECRET);
+            const payload = verifyJwt(token, getJwtSecret());
             if (payload && payload.id) {
               userId = payload.id;
             }
