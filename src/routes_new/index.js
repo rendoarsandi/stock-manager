@@ -126,10 +126,11 @@ function getClerkClient() {
 
 // Authentication check
 async function getAuthUser(request) {
-  const nodeEnv = typeof process !== 'undefined' && process.env ? process.env.NODE_ENV : 'undefined';
+  const cfEnv = globalThis.MINIMAL_CLOUDFLARE_ENV;
+  const nodeEnv = cfEnv?.NODE_ENV || (typeof process !== 'undefined' && process.env ? process.env.NODE_ENV : 'undefined');
   console.log(`[getAuthUser Debug] getAuthUser called. URL: ${request.url}, NODE_ENV: ${nodeEnv}`);
 
-  if (process.env.NODE_ENV === 'test') {
+  if (nodeEnv === 'test') {
     const token = getCookie(request, 'token');
     if (!token) return null;
     return verifyJwt(token, getJwtSecret());
