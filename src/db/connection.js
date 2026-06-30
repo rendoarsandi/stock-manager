@@ -139,14 +139,6 @@ export async function seedIfNeeded(storage) {
     }
   }
 
-  try {
-    await storage.execute(
-      "UPDATE stock_movements SET created_at = '2026-06-01 00:00:00' WHERE movement_type = 'initial'"
-    );
-  } catch (err) {
-    console.error("Failed to update existing initial movement dates:", err);
-  }
-
   // Seed templates if they are empty
   try {
     const existingTemplates = await storage.query("SELECT * FROM import_templates LIMIT 1");
