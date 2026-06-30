@@ -566,7 +566,8 @@ async function handleCreateProduct(req) {
         quantity_change: stock,
         movement_type: 'initial',
         reference: 'Initial product creation stock',
-        user_id: user.id
+        user_id: user.id,
+        created_at: '2026-06-01 00:00:00'
       });
     }
 
@@ -2109,7 +2110,65 @@ async function handleClerkWebhook({ request }) {
   }
 }
 
+async function handleUpdateMovement(req, params) {
+  try {
+    const id = parseInt(params[0], 10);
+    if (isNaN(id)) return json({ message: "Invalid movement ID" }, 400);
+
+    const body = await readJson(req);
+    const { created_at, reference } = body;
+
+    const movement = await db.movements.get(id);
+    if (!movement) {
+      return json({ message: 'Movement not found' }, 404);
+    }
+
+    const fields = {};
+    if (created_at !== undefined) {
+      let parsedDate = null;
+      const cleanStr = String(created_at).trim();
+      
+      const ddMMyyyyMatch = cleanStr.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})(?:\s+(\d{1,2}):(\d{2}):(\d{2}))?$/);
+      if (ddMMyyyyMatch) {
+        const day = parseInt(ddMMyyyyMatch[1], 10);
+        const month = parseInt(ddMMyyyyMatch[2], 10) - 1;
+        const year = parseInt(ddMMyyyyMatch[3], 10);
+        const hour = ddMMyyyyMatch[4] ? parseInt(ddMMyyyyMatch[4], 10) : 0;
+        const minute = ddMMyyyyMatch[5] ? parseInt(ddMMyyyyMatch[5], 10) : 0;
+        const second = ddMMyyyyMatch[6] ? parseInt(ddMMyyyyMatch[6], 10) : 0;
+        parsedDate = new Date(year, month, day, hour, minute, second);
+      } else {
+        parsedDate = new Date(cleanStr);
+      }
+
+      if (isNaN(parsedDate.getTime())) {
+        return json({ message: 'Invalid date format. Use DD/MM/YYYY or YYYY-MM-DD.' }, 400);
+      }
+
+      const year = parsedDate.getFullYear();
+      const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(parsedDate.getDate()).padStart(2, '0');
+      const hour = String(parsedDate.getHours()).padStart(2, '0');
+      const minute = String(parsedDate.getMinutes()).padStart(2, '0');
+      const second = String(parsedDate.getSeconds()).padStart(2, '0');
+      
+      fields.created_at = `${year}-${month}-${day} ${hour}:${minute}:${second}`;
+    }
+
+    if (reference !== undefined) {
+      fields.reference = reference;
+    }
+
+    const updated = await db.movements.update(id, fields);
+    return json({ success: true, movement: updated });
+  } catch (err) {
+    console.error("Update movement error:", err);
+    return json({ message: 'Failed to update movement' }, 500);
+  }
+}
+
 export {
+  handleUpdateMovement,
   handleHealth,
   handleWsPlaceholder,
   handleLogin,

@@ -47,6 +47,7 @@ import { Route as ApiAuthLogoutRouteImport } from './routes/api/auth/logout'
 import { Route as ApiAuthLoginRouteImport } from './routes/api/auth/login'
 import { Route as ApiAuthClerkWebhookRouteImport } from './routes/api/auth/clerk-webhook'
 import { Route as ApiStockOpnameIdRouteImport } from './routes/api/stock/opname/$id'
+import { Route as ApiStockMovementsIdRouteImport } from './routes/api/stock/movements/$id'
 import { Route as ApiProductsIdLedgerRouteImport } from './routes/api/products/$id/ledger'
 import { Route as ApiProductsIdAdjustStockRouteImport } from './routes/api/products/$id/adjust-stock'
 import { Route as ApiImportTemplatesIdRouteImport } from './routes/api/import/templates/$id'
@@ -243,6 +244,11 @@ const ApiStockOpnameIdRoute = ApiStockOpnameIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => ApiStockOpnameRoute,
 } as any)
+const ApiStockMovementsIdRoute = ApiStockMovementsIdRouteImport.update({
+  id: '/api/stock/movements/$id',
+  path: '/api/stock/movements/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiProductsIdLedgerRoute = ApiProductsIdLedgerRouteImport.update({
   id: '/ledger',
   path: '/ledger',
@@ -314,6 +320,7 @@ export interface FileRoutesByFullPath {
   '/api/import/templates/$id': typeof ApiImportTemplatesIdRoute
   '/api/products/$id/adjust-stock': typeof ApiProductsIdAdjustStockRoute
   '/api/products/$id/ledger': typeof ApiProductsIdLedgerRoute
+  '/api/stock/movements/$id': typeof ApiStockMovementsIdRoute
   '/api/stock/opname/$id': typeof ApiStockOpnameIdRoute
 }
 export interface FileRoutesByTo {
@@ -359,6 +366,7 @@ export interface FileRoutesByTo {
   '/api/import/templates/$id': typeof ApiImportTemplatesIdRoute
   '/api/products/$id/adjust-stock': typeof ApiProductsIdAdjustStockRoute
   '/api/products/$id/ledger': typeof ApiProductsIdLedgerRoute
+  '/api/stock/movements/$id': typeof ApiStockMovementsIdRoute
   '/api/stock/opname/$id': typeof ApiStockOpnameIdRoute
 }
 export interface FileRoutesById {
@@ -405,6 +413,7 @@ export interface FileRoutesById {
   '/api/import/templates/$id': typeof ApiImportTemplatesIdRoute
   '/api/products/$id/adjust-stock': typeof ApiProductsIdAdjustStockRoute
   '/api/products/$id/ledger': typeof ApiProductsIdLedgerRoute
+  '/api/stock/movements/$id': typeof ApiStockMovementsIdRoute
   '/api/stock/opname/$id': typeof ApiStockOpnameIdRoute
 }
 export interface FileRouteTypes {
@@ -452,6 +461,7 @@ export interface FileRouteTypes {
     | '/api/import/templates/$id'
     | '/api/products/$id/adjust-stock'
     | '/api/products/$id/ledger'
+    | '/api/stock/movements/$id'
     | '/api/stock/opname/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -497,6 +507,7 @@ export interface FileRouteTypes {
     | '/api/import/templates/$id'
     | '/api/products/$id/adjust-stock'
     | '/api/products/$id/ledger'
+    | '/api/stock/movements/$id'
     | '/api/stock/opname/$id'
   id:
     | '__root__'
@@ -542,6 +553,7 @@ export interface FileRouteTypes {
     | '/api/import/templates/$id'
     | '/api/products/$id/adjust-stock'
     | '/api/products/$id/ledger'
+    | '/api/stock/movements/$id'
     | '/api/stock/opname/$id'
   fileRoutesById: FileRoutesById
 }
@@ -581,6 +593,7 @@ export interface RootRouteChildren {
   ApiReviewReturnedRoute: typeof ApiReviewReturnedRoute
   ApiStockHistoryRoute: typeof ApiStockHistoryRoute
   ApiStockOpnameRoute: typeof ApiStockOpnameRouteWithChildren
+  ApiStockMovementsIdRoute: typeof ApiStockMovementsIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -851,6 +864,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiStockOpnameIdRouteImport
       parentRoute: typeof ApiStockOpnameRoute
     }
+    '/api/stock/movements/$id': {
+      id: '/api/stock/movements/$id'
+      path: '/api/stock/movements/$id'
+      fullPath: '/api/stock/movements/$id'
+      preLoaderRoute: typeof ApiStockMovementsIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/products/$id/ledger': {
       id: '/api/products/$id/ledger'
       path: '/ledger'
@@ -1002,6 +1022,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiReviewReturnedRoute: ApiReviewReturnedRoute,
   ApiStockHistoryRoute: ApiStockHistoryRoute,
   ApiStockOpnameRoute: ApiStockOpnameRouteWithChildren,
+  ApiStockMovementsIdRoute: ApiStockMovementsIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

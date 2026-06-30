@@ -113,7 +113,7 @@ export async function seedIfNeeded(storage) {
 
         await storage.execute(
           "INSERT INTO stock_movements (product_id, quantity_change, movement_type, reference, user_id, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-          [productId, p.current_stock, 'initial', 'Initial seeding', 1, now]
+          [productId, p.current_stock, 'initial', 'Initial seeding', 1, '2026-06-01 00:00:00']
         );
       }
 
@@ -137,6 +137,14 @@ export async function seedIfNeeded(storage) {
     } catch (err) {
       console.error("Error seeding SKU mappings:", err);
     }
+  }
+
+  try {
+    await storage.execute(
+      "UPDATE stock_movements SET created_at = '2026-06-01 00:00:00' WHERE movement_type = 'initial'"
+    );
+  } catch (err) {
+    console.error("Failed to update existing initial movement dates:", err);
   }
 
   // Seed templates if they are empty
@@ -412,6 +420,31 @@ export const db = {
         broadcast({ type: 'MOVEMENT_CREATED', payload: newMovement });
       }
       return newMovement;
+    },
+    async update(id, fields) {
+      const db = getActiveDb();
+      const updateValues = {};
+      if (fields.created_at !== undefined) {
+        updateValues.created_at = fields.created_at;
+      }
+      if (fields.reference !== undefined) {
+        updateValues.reference = fields.reference;
+      }
+      if (fields.quantity_change !== undefined) {
+        updateValues.quantity_change = parseInt(fields.quantity_change, 10);
+      }
+      if (fields.movement_type !== undefined) {
+        updateValues.movement_type = fields.movement_type;
+      }
+      const rows = await db.update(stockMovements)
+        .set(updateValues)
+        .where(eq(stockMovements.id, parseInt(id, 10)))
+        .returning();
+      const updated = rows[0] || null;
+      if (updated) {
+        broadcast({ type: 'MOVEMENT_UPDATED', payload: updated });
+      }
+      return updated;
     }
   },
 

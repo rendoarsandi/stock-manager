@@ -52,6 +52,37 @@ export default function Products() {
     error: false,
   });
 
+  const [editingMovementId, setEditingMovementId] = useState(null);
+  const [editingDateValue, setEditingDateValue] = useState('');
+
+  const handleSaveDate = async (movementId) => {
+    try {
+      const res = await fetch(`/api/stock/movements/${movementId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ created_at: editingDateValue })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to update date');
+      }
+      
+      showToast('Success', 'Date updated successfully', 'success');
+      setEditingMovementId(null);
+      
+      if (hoverCard.productId) {
+        const ledgerRes = await fetch(`/api/products/${hoverCard.productId}/ledger`);
+        if (ledgerRes.ok) {
+          const movements = await ledgerRes.json();
+          setHoverCard(prev => ({ ...prev, movements }));
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Error', err.message || 'Failed to update date', 'error');
+    }
+  };
+
   const hoverTriggerRef = useRef(null);
 
   // Fetch products
@@ -779,7 +810,51 @@ export default function Products() {
 
                       return (
                         <tr key={m.id || idx}>
-                          <td style={{ textAlign: 'center' }}>{dateStr}</td>
+                          <td style={{ textAlign: 'center' }}>
+                             {editingMovementId === m.id ? (
+                              <input
+                                type="text"
+                                value={editingDateValue}
+                                onChange={(e) => setEditingDateValue(e.target.value)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  e.nativeEvent?.stopImmediatePropagation?.();
+                                }}
+                                onBlur={() => handleSaveDate(m.id)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    handleSaveDate(m.id);
+                                  } else if (e.key === 'Escape') {
+                                    setEditingMovementId(null);
+                                  }
+                                }}
+                                autoFocus
+                                style={{
+                                  width: '90px',
+                                  fontSize: '0.75rem',
+                                  padding: '0.1rem 0.2rem',
+                                  background: 'var(--bg-secondary)',
+                                  color: 'var(--text-primary)',
+                                  border: '1px solid var(--border-color)',
+                                  borderRadius: '3px',
+                                  textAlign: 'center'
+                                }}
+                              />
+                            ) : (
+                              <span
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  e.nativeEvent?.stopImmediatePropagation?.();
+                                  setEditingMovementId(m.id);
+                                  setEditingDateValue(dateStr);
+                                }}
+                                style={{ cursor: 'pointer', borderBottom: '1px dashed var(--text-muted)' }}
+                                title="Click to edit date"
+                              >
+                                {dateStr}
+                              </span>
+                            )}
+                          </td>
                           <td style={{ fontFamily: 'monospace', fontSize: '0.72rem' }}>{noSj}</td>
                           <td>
                             <span className="status-tag info" style={{ fontSize: '0.65rem', padding: '0.1rem 0.35rem', display: 'inline-block' }}>
