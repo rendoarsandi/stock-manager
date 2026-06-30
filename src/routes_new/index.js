@@ -2117,7 +2117,7 @@ async function handleUpdateMovement(req, params) {
     if (isNaN(id)) return json({ message: "Invalid movement ID" }, 400);
 
     const body = await readJson(req);
-    const { created_at, reference } = body;
+    const { created_at, reference, movement_type, quantity_change } = body;
 
     const movement = await db.movements.get(id);
     if (!movement) {
@@ -2158,6 +2158,31 @@ async function handleUpdateMovement(req, params) {
 
     if (reference !== undefined) {
       fields.reference = reference;
+    }
+
+    if (movement_type !== undefined) {
+      if (!['sale', 'return', 'write_off', 'manual_adjust', 'initial'].includes(movement_type)) {
+        return json({ message: 'Invalid movement type' }, 400);
+      }
+      fields.movement_type = movement_type;
+    }
+
+    if (quantity_change !== undefined) {
+      const newQty = parseInt(quantity_change, 10);
+      if (isNaN(newQty)) {
+        return json({ message: 'Invalid quantity change' }, 400);
+      }
+      fields.quantity_change = newQty;
+
+      // Update the product's current stock
+      const product = await db.products.get(movement.product_id);
+      if (product) {
+        const diff = newQty - movement.quantity_change;
+        const newStock = product.current_stock + diff;
+        await db.products.update(movement.product_id, {
+          current_stock: newStock
+        });
+      }
     }
 
     const updated = await db.movements.update(id, fields);

@@ -52,23 +52,35 @@ export default function Products() {
     error: false,
   });
 
-  const [editingMovementId, setEditingMovementId] = useState(null);
-  const [editingDateValue, setEditingDateValue] = useState('');
+  const [editingField, setEditingField] = useState({ movementId: null, field: null });
+  const [editValue, setEditValue] = useState('');
 
-  const handleSaveDate = async (movementId) => {
+  const handleSaveField = async (movementId, fieldName) => {
     try {
+      const body = {};
+      if (fieldName === 'date') body.created_at = editValue;
+      if (fieldName === 'reference') body.reference = editValue;
+      if (fieldName === 'type') body.movement_type = editValue;
+      if (fieldName === 'qty') {
+        const parsedVal = parseInt(editValue, 10);
+        if (isNaN(parsedVal)) throw new Error('Quantity must be a valid number');
+        body.quantity_change = parsedVal;
+      }
+
       const res = await fetch(`/api/stock/movements/${movementId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ created_at: editingDateValue })
+        body: JSON.stringify(body)
       });
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.message || 'Failed to update date');
+        throw new Error(data.message || 'Failed to update field');
       }
       
-      showToast('Success', 'Date updated successfully', 'success');
-      setEditingMovementId(null);
+      showToast('Success', 'Field updated successfully', 'success');
+      setEditingField({ movementId: null, field: null });
+      
+      queryClient.invalidateQueries({ queryKey: ['products'] });
       
       if (hoverCard.productId) {
         const ledgerRes = await fetch(`/api/products/${hoverCard.productId}/ledger`);
@@ -79,7 +91,7 @@ export default function Products() {
       }
     } catch (err) {
       console.error(err);
-      showToast('Error', err.message || 'Failed to update date', 'error');
+      showToast('Error', err.message || 'Failed to update field', 'error');
     }
   };
 
@@ -793,14 +805,14 @@ export default function Products() {
                         if (m.reference && m.reference.includes('Opname')) {
                           keterangan = 'STOCK OPNAME';
                         } else if (m.quantity_change > 0) {
-                          keterangan = 'BARANG MASUK';
+                          keterangan = 'STOCK IN';
                         } else {
-                          keterangan = 'MANUAL ADJUST';
+                          keterangan = 'STOCK OUT';
                         }
                       } else if (m.movement_type === 'sale') {
                         keterangan = m.platform_name ? m.platform_name.toUpperCase() : 'SHOPEE';
                       } else if (m.movement_type === 'return') {
-                        keterangan = 'DIRETUR';
+                        keterangan = 'RETURNED';
                       } else if (m.movement_type === 'write_off') {
                         keterangan = 'WRITE OFF';
                       }
@@ -810,23 +822,21 @@ export default function Products() {
 
                       return (
                         <tr key={m.id || idx}>
+                          {/* Date Column */}
                           <td style={{ textAlign: 'center' }}>
-                             {editingMovementId === m.id ? (
+                            {editingField.movementId === m.id && editingField.field === 'date' ? (
                               <input
                                 type="text"
-                                value={editingDateValue}
-                                onChange={(e) => setEditingDateValue(e.target.value)}
+                                value={editValue}
+                                onChange={(e) => setEditValue(e.target.value)}
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   e.nativeEvent?.stopImmediatePropagation?.();
                                 }}
-                                onBlur={() => handleSaveDate(m.id)}
+                                onBlur={() => handleSaveField(m.id, 'date')}
                                 onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                    handleSaveDate(m.id);
-                                  } else if (e.key === 'Escape') {
-                                    setEditingMovementId(null);
-                                  }
+                                  if (e.key === 'Enter') handleSaveField(m.id, 'date');
+                                  else if (e.key === 'Escape') setEditingField({ movementId: null, field: null });
                                 }}
                                 autoFocus
                                 style={{
@@ -845,8 +855,8 @@ export default function Products() {
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   e.nativeEvent?.stopImmediatePropagation?.();
-                                  setEditingMovementId(m.id);
-                                  setEditingDateValue(dateStr);
+                                  setEditingField({ movementId: m.id, field: 'date' });
+                                  setEditValue(dateStr);
                                 }}
                                 style={{ cursor: 'pointer', borderBottom: '1px dashed var(--text-muted)' }}
                                 title="Click to edit date"
@@ -855,14 +865,188 @@ export default function Products() {
                               </span>
                             )}
                           </td>
-                          <td style={{ fontFamily: 'monospace', fontSize: '0.72rem' }}>{noSj}</td>
+
+                          {/* Ref / Order ID Column */}
                           <td>
-                            <span className="status-tag info" style={{ fontSize: '0.65rem', padding: '0.1rem 0.35rem', display: 'inline-block' }}>
-                              {keterangan}
-                            </span>
+                            {editingField.movementId === m.id && editingField.field === 'reference' ? (
+                              <input
+                                type="text"
+                                value={editValue}
+                                onChange={(e) => setEditValue(e.target.value)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  e.nativeEvent?.stopImmediatePropagation?.();
+                                }}
+                                onBlur={() => handleSaveField(m.id, 'reference')}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleSaveField(m.id, 'reference');
+                                  else if (e.key === 'Escape') setEditingField({ movementId: null, field: null });
+                                }}
+                                autoFocus
+                                style={{
+                                  width: '120px',
+                                  fontSize: '0.75rem',
+                                  padding: '0.1rem 0.2rem',
+                                  background: 'var(--bg-secondary)',
+                                  color: 'var(--text-primary)',
+                                  border: '1px solid var(--border-color)',
+                                  borderRadius: '3px',
+                                  fontFamily: 'monospace'
+                                }}
+                              />
+                            ) : (
+                              <span
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  e.nativeEvent?.stopImmediatePropagation?.();
+                                  setEditingField({ movementId: m.id, field: 'reference' });
+                                  setEditValue(m.reference || '');
+                                }}
+                                style={{ cursor: 'pointer', borderBottom: '1px dashed var(--text-muted)', fontFamily: 'monospace', fontSize: '0.72rem' }}
+                                title="Click to edit Ref / Order ID"
+                              >
+                                {noSj || '-'}
+                              </span>
+                            )}
                           </td>
-                          <td style={{ color: 'var(--success)', fontWeight: 600, textAlign: 'center' }}>{masuk}</td>
-                          <td style={{ color: 'var(--danger)', fontWeight: 600, textAlign: 'center' }}>{keluar}</td>
+
+                          {/* Description Column */}
+                          <td>
+                            {editingField.movementId === m.id && editingField.field === 'type' ? (
+                              <select
+                                value={editValue}
+                                onChange={(e) => setEditValue(e.target.value)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  e.nativeEvent?.stopImmediatePropagation?.();
+                                }}
+                                onBlur={() => handleSaveField(m.id, 'type')}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleSaveField(m.id, 'type');
+                                  else if (e.key === 'Escape') setEditingField({ movementId: null, field: null });
+                                }}
+                                autoFocus
+                                style={{
+                                  fontSize: '0.72rem',
+                                  padding: '0.1rem',
+                                  background: 'var(--bg-secondary)',
+                                  color: 'var(--text-primary)',
+                                  border: '1px solid var(--border-color)',
+                                  borderRadius: '3px'
+                                }}
+                              >
+                                <option value="initial">STOCK OPNAME</option>
+                                <option value="manual_adjust">MANUAL ADJUST</option>
+                                <option value="sale">SALE</option>
+                                <option value="return">RETURNED</option>
+                                <option value="write_off">WRITE OFF</option>
+                              </select>
+                            ) : (
+                              <span
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  e.nativeEvent?.stopImmediatePropagation?.();
+                                  setEditingField({ movementId: m.id, field: 'type' });
+                                  setEditValue(m.movement_type);
+                                }}
+                                style={{ cursor: 'pointer' }}
+                                title="Click to edit type"
+                              >
+                                <span className="status-tag info" style={{ fontSize: '0.65rem', padding: '0.1rem 0.35rem', display: 'inline-block', borderBottom: '1px dashed var(--text-muted)' }}>
+                                  {keterangan}
+                                </span>
+                              </span>
+                            )}
+                          </td>
+
+                          {/* IN Column */}
+                          <td style={{ color: 'var(--success)', fontWeight: 600, textAlign: 'center' }}>
+                            {editingField.movementId === m.id && editingField.field === 'qty' && qty >= 0 ? (
+                              <input
+                                type="number"
+                                value={editValue}
+                                onChange={(e) => setEditValue(e.target.value)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  e.nativeEvent?.stopImmediatePropagation?.();
+                                }}
+                                onBlur={() => handleSaveField(m.id, 'qty')}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleSaveField(m.id, 'qty');
+                                  else if (e.key === 'Escape') setEditingField({ movementId: null, field: null });
+                                }}
+                                autoFocus
+                                style={{
+                                  width: '60px',
+                                  fontSize: '0.75rem',
+                                  padding: '0.1rem 0.2rem',
+                                  background: 'var(--bg-secondary)',
+                                  color: 'var(--text-primary)',
+                                  border: '1px solid var(--border-color)',
+                                  borderRadius: '3px',
+                                  textAlign: 'center'
+                                }}
+                              />
+                            ) : (
+                              <span
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  e.nativeEvent?.stopImmediatePropagation?.();
+                                  setEditingField({ movementId: m.id, field: 'qty' });
+                                  setEditValue(String(qty));
+                                }}
+                                style={{ cursor: 'pointer', borderBottom: qty > 0 ? '1px dashed var(--success)' : 'none' }}
+                                title="Click to edit quantity"
+                              >
+                                {masuk || (qty === 0 ? '0' : '')}
+                              </span>
+                            )}
+                          </td>
+
+                          {/* OUT Column */}
+                          <td style={{ color: 'var(--danger)', fontWeight: 600, textAlign: 'center' }}>
+                            {editingField.movementId === m.id && editingField.field === 'qty' && qty < 0 ? (
+                              <input
+                                type="number"
+                                value={editValue}
+                                onChange={(e) => setEditValue(e.target.value)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  e.nativeEvent?.stopImmediatePropagation?.();
+                                }}
+                                onBlur={() => handleSaveField(m.id, 'qty')}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleSaveField(m.id, 'qty');
+                                  else if (e.key === 'Escape') setEditingField({ movementId: null, field: null });
+                                }}
+                                autoFocus
+                                style={{
+                                  width: '60px',
+                                  fontSize: '0.75rem',
+                                  padding: '0.1rem 0.2rem',
+                                  background: 'var(--bg-secondary)',
+                                  color: 'var(--text-primary)',
+                                  border: '1px solid var(--border-color)',
+                                  borderRadius: '3px',
+                                  textAlign: 'center'
+                                }}
+                              />
+                            ) : (
+                              <span
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  e.nativeEvent?.stopImmediatePropagation?.();
+                                  setEditingField({ movementId: m.id, field: 'qty' });
+                                  setEditValue(String(qty));
+                                }}
+                                style={{ cursor: 'pointer', borderBottom: qty < 0 ? '1px dashed var(--danger)' : 'none' }}
+                                title="Click to edit quantity"
+                              >
+                                {keluar}
+                              </span>
+                            )}
+                          </td>
+
                           <td style={{ fontWeight: 600, color: 'var(--text-primary)', textAlign: 'center' }}>{balance}</td>
                         </tr>
                       );

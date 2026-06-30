@@ -621,14 +621,14 @@ function renderLedgerInCard(card, movements, name, model) {
       if (m.reference && m.reference.includes('Opname')) {
         keterangan = 'STOCK OPNAME';
       } else if (m.quantity_change > 0) {
-        keterangan = 'BARANG MASUK';
+        keterangan = 'STOCK IN';
       } else {
-        keterangan = 'MANUAL ADJUST';
+        keterangan = 'STOCK OUT';
       }
     } else if (m.movement_type === 'sale') {
       keterangan = m.platform_name ? m.platform_name.toUpperCase() : 'SHOPEE';
     } else if (m.movement_type === 'return') {
-      keterangan = 'DIRETUR';
+      keterangan = 'RETURNED';
     } else if (m.movement_type === 'write_off') {
       keterangan = 'WRITE OFF';
     }
