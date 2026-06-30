@@ -18,6 +18,58 @@ export function AuthProvider({ children }) {
   const [localLoading, setLocalLoading] = React.useState(true);
 
   React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const originalFetch = window.fetch;
+    window.fetch = async (input, init) => {
+      const urlStr = typeof input === 'string' ? input : (input instanceof URL ? input.href : input?.url || '');
+      let isLocalApi = false;
+      try {
+        const parsedUrl = new URL(urlStr, window.location.origin);
+        isLocalApi = parsedUrl.origin === window.location.origin && parsedUrl.pathname.startsWith('/api/');
+      } catch (e) {}
+
+      if (isLocalApi && !urlStr.includes('/api/auth/clerk-webhook')) {
+        try {
+          if (clerkAuth && typeof clerkAuth.getToken === 'function') {
+            const token = await clerkAuth.getToken();
+            if (token) {
+              init = init || {};
+              let headers = init.headers;
+              if (!headers) {
+                headers = {};
+              }
+              if (headers instanceof Headers) {
+                if (!headers.has('Authorization')) {
+                  headers.set('Authorization', `Bearer ${token}`);
+                }
+              } else if (Array.isArray(headers)) {
+                const hasAuth = headers.some(([k]) => k.toLowerCase() === 'authorization');
+                if (!hasAuth) {
+                  headers.push(['Authorization', `Bearer ${token}`]);
+                }
+              } else {
+                const hasAuth = Object.keys(headers).some(k => k.toLowerCase() === 'authorization');
+                if (!hasAuth) {
+                  headers['Authorization'] = `Bearer ${token}`;
+                }
+              }
+              init.headers = headers;
+            }
+          }
+        } catch (e) {
+          console.error("Failed to append Clerk token to fetch:", e);
+        }
+      }
+      return originalFetch(input, init);
+    };
+
+    return () => {
+      window.fetch = originalFetch;
+    };
+  }, [clerkAuth]);
+
+  React.useEffect(() => {
     if (!isAuthLoaded || !isUserLoaded) {
       return;
     }

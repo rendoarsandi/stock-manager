@@ -136,7 +136,15 @@ async function getAuthUser(request) {
   }
 
   const url = new URL(request.url);
-  const isLocalDev = url.hostname === 'localhost' || url.hostname === '127.0.0.1' || (typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'development');
+  const hostname = url.hostname.toLowerCase();
+  const isLocalDev = 
+    hostname === 'localhost' || 
+    hostname === '127.0.0.1' || 
+    hostname === '[::1]' || 
+    hostname === '::1' || 
+    hostname === '0.0.0.0' ||
+    (typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'development') ||
+    (globalThis.MINIMAL_CLOUDFLARE_ENV && globalThis.MINIMAL_CLOUDFLARE_ENV.NODE_ENV === 'development');
 
   try {
     const clerk = getClerkClient();
