@@ -661,15 +661,15 @@ function renderLedgerInCard(card, movements, name, model) {
       <table class="hover-ledger-table" style="width: 100%; border-collapse: collapse;">
         <thead>
           <tr>
-            <th rowspan="2" style="text-align: center; vertical-align: middle;">Tanggal</th>
-            <th rowspan="2" style="text-align: center; vertical-align: middle;">No. SJ</th>
-            <th rowspan="2" style="text-align: center; vertical-align: middle;">Keterangan</th>
-            <th colspan="2" style="text-align: center;">Mutasi Barang</th>
-            <th rowspan="2" style="text-align: center; vertical-align: middle;">Stok Akhir</th>
+            <th rowspan="2" style="text-align: center; vertical-align: middle;">Date</th>
+            <th rowspan="2" style="text-align: center; vertical-align: middle;">Ref / Order ID</th>
+            <th rowspan="2" style="text-align: center; vertical-align: middle;">Description</th>
+            <th colspan="2" style="text-align: center;">Stock Movement</th>
+            <th rowspan="2" style="text-align: center; vertical-align: middle;">Final Stock</th>
           </tr>
           <tr>
-            <th style="color: var(--success); text-align: center;">Masuk</th>
-            <th style="color: var(--danger); text-align: center;">Keluar</th>
+            <th style="color: var(--success); text-align: center;">In</th>
+            <th style="color: var(--danger); text-align: center;">Out</th>
           </tr>
         </thead>
         <tbody>

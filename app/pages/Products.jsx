@@ -713,15 +713,15 @@ export default function Products() {
               <table className="hover-ledger-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr>
-                    <th rowSpan={2} style={{ textAlign: 'center', verticalAlign: 'middle' }}>Tanggal</th>
-                    <th rowSpan={2} style={{ textAlign: 'center', verticalAlign: 'middle' }}>No. SJ</th>
-                    <th rowSpan={2} style={{ textAlign: 'center', verticalAlign: 'middle' }}>Keterangan</th>
-                    <th colSpan={2} style={{ textAlign: 'center' }}>Mutasi Barang</th>
-                    <th rowSpan={2} style={{ textAlign: 'center', verticalAlign: 'middle' }}>Stok Akhir</th>
+                    <th rowSpan={2} style={{ textAlign: 'center', verticalAlign: 'middle' }}>Date</th>
+                    <th rowSpan={2} style={{ textAlign: 'center', verticalAlign: 'middle' }}>Ref / Order ID</th>
+                    <th rowSpan={2} style={{ textAlign: 'center', verticalAlign: 'middle' }}>Description</th>
+                    <th colSpan={2} style={{ textAlign: 'center' }}>Stock Movement</th>
+                    <th rowSpan={2} style={{ textAlign: 'center', verticalAlign: 'middle' }}>Final Stock</th>
                   </tr>
                   <tr>
-                    <th style={{ color: 'var(--success)', textAlign: 'center' }}>Masuk</th>
-                    <th style={{ color: 'var(--danger)', textAlign: 'center' }}>Keluar</th>
+                    <th style={{ color: 'var(--success)', textAlign: 'center' }}>In</th>
+                    <th style={{ color: 'var(--danger)', textAlign: 'center' }}>Out</th>
                   </tr>
                 </thead>
                 <tbody>
