@@ -940,14 +940,22 @@ async function handleUploadExcel(req) {
       }
     }
 
+    // Bulk fetch existing order IDs to check duplicates
+    const incomingOrderIds = parsedRows.map(r => r.order_id).filter(Boolean);
+    const existingOrderIdsList = await db.orders.checkExistingOrderIds(incomingOrderIds);
+    const existingOrderIdsSet = new Set(existingOrderIdsList);
+
+    // Bulk fetch all aliases to do in-memory lookups
+    const allAliases = await db.aliases.listAll();
+    const aliasMap = new Map(allAliases.map(a => [a.clean_text.toLowerCase(), a.product_id]));
+
     const previewOrders = [];
     let flaggedRowsCount = 0;
 
     for (const row of parsedRows) {
       if (!row.order_id) continue;
 
-      const existingOrder = await db.orders.getByOrderId(row.order_id);
-      const isDuplicate = !!existingOrder;
+      const isDuplicate = existingOrderIdsSet.has(row.order_id);
 
       const orderStatusNorm = String(row.order_status).toLowerCase();
       const needsReview = orderStatusNorm.includes('batal') || orderStatusNorm.includes('cancel');
@@ -989,7 +997,7 @@ async function handleUploadExcel(req) {
       }
 
       if (!resolvedDirectly) {
-        const aliasProductId = await db.aliases.get(cleanedText);
+        const aliasProductId = aliasMap.get(cleanedText.toLowerCase());
         if (aliasProductId) {
           const matchedProduct = catalog.find(p => p.id === aliasProductId);
           if (matchedProduct) {

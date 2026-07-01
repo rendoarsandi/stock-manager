@@ -200,6 +200,13 @@ export const db = {
         .where(eq(productAliases.clean_text, cleanText.toLowerCase()));
       return rows[0] ? rows[0].productId : undefined;
     },
+    async listAll() {
+      const db = getActiveDb();
+      return await db.select({
+        clean_text: productAliases.clean_text,
+        product_id: productAliases.product_id
+      }).from(productAliases);
+    },
     async set(cleanText, productId) {
       const db = getActiveDb();
       await db.insert(productAliases)
@@ -544,6 +551,20 @@ export const db = {
       const db = getActiveDb();
       const rows = await db.select().from(orders).where(eq(orders.order_id, orderId));
       return rows[0] || null;
+    },
+    async checkExistingOrderIds(orderIds) {
+      if (!orderIds || orderIds.length === 0) return [];
+      const uniqueIds = [...new Set(orderIds)];
+      const db = getActiveDb();
+      const existing = [];
+      for (let i = 0; i < uniqueIds.length; i += 500) {
+        const chunk = uniqueIds.slice(i, i + 500);
+        const rows = await db.select({ order_id: orders.order_id })
+          .from(orders)
+          .where(inArray(orders.order_id, chunk));
+        existing.push(...rows.map(r => r.order_id));
+      }
+      return existing;
     },
     async insert(order) {
       const db = getActiveDb();
