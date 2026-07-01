@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import * as XLSX from 'xlsx';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { showToast } from '../utils/toast';
@@ -185,6 +186,7 @@ export default function Import() {
   // Filter / Sort toolbar states
   const [filterMode, setFilterMode] = useState('all'); // 'all' | 'unmapped'
   const [sortUnmappedToTop, setSortUnmappedToTop] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Queries
   const { data: templates = [] } = useQuery({
@@ -217,7 +219,11 @@ export default function Import() {
           setCurrentSessionId(data.session_id);
           const mappedOrders = (data.orders || []).map((o, idx) => ({
             ...o,
-            id: o.id || `${o.order_id}-${idx}`
+            id: o.id || `${o.order_id}-${idx}`,
+            splits: (o.splits || []).map(s => ({
+              ...s,
+              is_confirmed: s.is_confirmed !== undefined ? s.is_confirmed : (!!s.product_id && s.parse_source !== 'fuzzy_auto')
+            }))
           }));
           setCurrentOrders(mappedOrders);
           setTotalRows(data.total_rows || 0);
@@ -252,20 +258,43 @@ export default function Import() {
       return;
     }
 
-    const formData = new FormData();
-    formData.append('template_id', selectedTemplate);
-    formData.append('file', file);
-
     setIsUploading(true);
     try {
+      // Parse Excel file client-side
+      const rawRows = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          try {
+            const data = new Uint8Array(evt.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            const rows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+            resolve(rows);
+          } catch (err) {
+            reject(new Error('Failed to parse Excel file content in browser: ' + err.message));
+          }
+        };
+        reader.onerror = () => reject(new Error('Failed to read Excel file'));
+        reader.readAsArrayBuffer(file);
+      });
+
+      // Submit parsed JSON to server
       const res = await fetch('/api/import/upload', {
         method: 'POST',
-        body: formData,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          template_id: selectedTemplate,
+          filename: file.name,
+          raw_rows: rawRows,
+        }),
       });
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.message || 'Failed to parse file');
+        throw new Error(err.message || 'Failed to process spreadsheet data');
       }
 
       const data = await res.json();
@@ -275,6 +304,10 @@ export default function Import() {
         ...o,
         id: `${o.order_id}-${idx}`,
         is_selected: !o.is_duplicate,
+        splits: (o.splits || []).map(s => ({
+          ...s,
+          is_confirmed: !!s.product_id && s.parse_source !== 'fuzzy_auto'
+        }))
       }));
       setCurrentOrders(ordersWithSelection);
       setTotalRows(data.total_rows);
@@ -328,6 +361,7 @@ export default function Import() {
 
     let hasUnmapped = false;
     let hasInvalidQty = false;
+    let hasUnconfirmed = false;
 
     for (const o of selectedOrders) {
       if (!o.splits || o.splits.length === 0) {
@@ -338,6 +372,9 @@ export default function Import() {
         if (!s.product_id) {
           hasUnmapped = true;
         }
+        if (!s.is_confirmed) {
+          hasUnconfirmed = true;
+        }
         const qty = parseInt(s.quantity, 10);
         if (isNaN(qty) || qty <= 0) {
           hasInvalidQty = true;
@@ -347,6 +384,11 @@ export default function Import() {
 
     if (hasUnmapped) {
       showToast('Error', 'Please resolve all highlighted yellow dropdowns to map products before importing', 'error');
+      return;
+    }
+
+    if (hasUnconfirmed) {
+      showToast('Error', 'Please confirm the checklist for all mapped items before importing', 'error');
       return;
     }
 
@@ -423,7 +465,26 @@ export default function Import() {
             ...split,
             product_id: productId,
             product_name: selectedProd ? selectedProd.name : '',
-            parse_source: 'manual'
+            parse_source: 'manual',
+            is_confirmed: false
+          };
+        })
+      };
+    });
+    setCurrentOrders(nextOrders);
+    syncSession(nextOrders);
+  };
+
+  const handleSplitConfirmToggle = (orderIdx, splitIdx, isConfirmed) => {
+    const nextOrders = currentOrders.map((order, oIdx) => {
+      if (oIdx !== orderIdx) return order;
+      return {
+        ...order,
+        splits: order.splits.map((split, sIdx) => {
+          if (sIdx !== splitIdx) return split;
+          return {
+            ...split,
+            is_confirmed: isConfirmed
           };
         })
       };
@@ -485,7 +546,8 @@ export default function Import() {
             ...split,
             product_id: product.id,
             product_name: product.name,
-            parse_source: 'manual'
+            parse_source: 'manual',
+            is_confirmed: true
           };
         })
       };
@@ -496,18 +558,30 @@ export default function Import() {
 
   // Filtering / Sorting logic for preview table
   const unmappedCount = currentOrders.filter((o) =>
-    o.splits && o.splits.some((s) => !s.product_id)
+    o.splits && o.splits.some((s) => !s.product_id || !s.is_confirmed)
   ).length;
 
   const processedOrders = (() => {
     let list = [...currentOrders];
     if (filterMode === 'unmapped') {
-      list = list.filter((o) => o.splits && o.splits.some((s) => !s.product_id));
+      list = list.filter((o) => o.splits && o.splits.some((s) => !s.product_id || !s.is_confirmed));
     }
+    
+    if (searchQuery.trim() !== '') {
+      const q = searchQuery.toLowerCase();
+      list = list.filter((o) =>
+        (o.order_id || '').toLowerCase().includes(q) ||
+        (o.product_name_raw || '').toLowerCase().includes(q) ||
+        (o.customer_name || '').toLowerCase().includes(q) ||
+        (o.resi_number || '').toLowerCase().includes(q) ||
+        (o.sku_ref || '').toLowerCase().includes(q)
+      );
+    }
+
     if (sortUnmappedToTop) {
       list.sort((a, b) => {
-        const aNeeds = a.splits && a.splits.some((s) => !s.product_id);
-        const bNeeds = b.splits && b.splits.some((s) => !s.product_id);
+        const aNeeds = a.splits && a.splits.some((s) => !s.product_id || !s.is_confirmed);
+        const bNeeds = b.splits && b.splits.some((s) => !s.product_id || !s.is_confirmed);
         if (aNeeds && !bNeeds) return -1;
         if (!aNeeds && bNeeds) return 1;
         return 0;
@@ -653,6 +727,45 @@ export default function Import() {
                   ⚠️ Needs Mapping (<span>{unmappedCount}</span>)
                 </button>
               </div>
+
+              {/* Search Input */}
+              <div style={{ position: 'relative', display: 'inline-block' }}>
+                <input
+                  type="text"
+                  placeholder="Search orders (ID, Product, Resi)..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{
+                    padding: '0.35rem 0.75rem 0.35rem 2rem',
+                    borderRadius: 'var(--border-radius-sm)',
+                    border: '1px solid var(--border-color)',
+                    background: 'var(--bg-secondary)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.8rem',
+                    width: '240px'
+                  }}
+                />
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{
+                    position: 'absolute',
+                    left: '0.6rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    width: '14px',
+                    height: '14px',
+                    color: 'var(--text-muted)'
+                  }}
+                >
+                  <circle cx="11" cy="11" r="8" />
+                  <path d="m21 21-4.3-4.3" />
+                </svg>
+              </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <label htmlFor="sort-unmapped-top" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)', cursor: 'pointer', userSelect: 'none' }}>
@@ -765,6 +878,39 @@ export default function Import() {
                                         products={products}
                                         onChange={(pId) => handleSplitProductChange(originalIndex, splitIdx, pId)}
                                       />
+                                      <label
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '0.25rem',
+                                          fontSize: '0.72rem',
+                                          fontWeight: 600,
+                                          cursor: split.product_id ? 'pointer' : 'not-allowed',
+                                          userSelect: 'none',
+                                          color: split.is_confirmed ? 'var(--success)' : 'var(--warning)',
+                                          background: split.is_confirmed ? 'var(--success-light)' : 'var(--warning-light)',
+                                          padding: '0.15rem 0.35rem',
+                                          borderRadius: '3px',
+                                          border: split.is_confirmed ? '1px solid var(--success)' : '1px solid var(--warning)',
+                                          whiteSpace: 'nowrap'
+                                        }}
+                                        title={split.product_id ? "Confirm mapping" : "Please select product first"}
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          checked={!!split.is_confirmed}
+                                          disabled={!split.product_id}
+                                          onChange={(e) => handleSplitConfirmToggle(originalIndex, splitIdx, e.target.checked)}
+                                          style={{
+                                            cursor: split.product_id ? 'pointer' : 'not-allowed',
+                                            accentColor: 'var(--success)',
+                                            width: '13px',
+                                            height: '13px',
+                                            margin: 0
+                                          }}
+                                        />
+                                        {split.is_confirmed ? 'Confirmed' : 'Confirm'}
+                                      </label>
                                       {isSkipped && (
                                         <span className="status-tag info" style={{ fontSize: '0.7rem', padding: '0.15rem 0.35rem', whiteSpace: 'nowrap' }} title={`This order date (${order.order_date}) is before/at the last Stock Opname (${matchedProduct.last_opname_at}) for this product. Stock will NOT be deducted.`}>
                                           ✓ Opname Skip

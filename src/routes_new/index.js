@@ -2,7 +2,7 @@ import { createClerkClient } from '@clerk/backend';
 import crypto from 'crypto';
 import { db, seedIfNeeded } from '../db/connection.js';
 import { verifyPassword, hashPassword, signJwt, verifyJwt } from '../utils/crypto.js';
-import { parseExcel } from '../services/excel-parser.js';
+import { parseExcel, mapRawRows } from '../services/excel-parser.js';
 import { parseAmbiguousDescription, extractSameProductPromo, extractPackMultiplier, resolvePromoProductToBaseItems } from '../services/ambiguous-parser.js';
 import { getActiveStorage, getActiveEnv, storageContext } from '../db/context.js';
 import { getLocalStore } from '../db/local_sqlite.js';
@@ -876,19 +876,51 @@ function parseOpnameDate(dateStr) {
 
 async function handleUploadExcel(req) {
   try {
-    const formData = await req.clone().formData();
-    const file = formData.get('file');
-    const templateId = parseInt(formData.get('template_id'), 10);
+    let templateId;
+    let filename;
+    let parsedRows;
 
-    if (!file || typeof file.arrayBuffer !== 'function' || !templateId || isNaN(templateId)) {
-      return json({ message: 'Excel file and template selection are required' }, 400);
-    }
+    const contentType = req.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      const body = await readJson(req);
+      templateId = parseInt(body.template_id, 10);
+      filename = body.filename || 'upload.xlsx';
 
-    const template = await db.templates.get(templateId);
-    if (!template) {
-      return json({ message: 'Template not found' }, 404);
+      if (!templateId || isNaN(templateId)) {
+        return json({ message: 'Template selection is required' }, 400);
+      }
+
+      const rawRows = body.raw_rows;
+      if (!rawRows || !Array.isArray(rawRows)) {
+        return json({ message: 'raw_rows must be a valid array' }, 400);
+      }
+
+      const template = await db.templates.get(templateId);
+      if (!template) {
+        return json({ message: 'Template not found' }, 404);
+      }
+      const mapping = JSON.parse(template.column_mapping);
+      parsedRows = mapRawRows(rawRows, mapping);
+    } else {
+      const formData = await req.clone().formData();
+      const file = formData.get('file');
+      templateId = parseInt(formData.get('template_id'), 10);
+      filename = file ? file.name : 'upload.xlsx';
+
+      if (!file || typeof file.arrayBuffer !== 'function' || !templateId || isNaN(templateId)) {
+        return json({ message: 'Excel file and template selection are required' }, 400);
+      }
+
+      const template = await db.templates.get(templateId);
+      if (!template) {
+        return json({ message: 'Template not found' }, 404);
+      }
+      const mapping = JSON.parse(template.column_mapping);
+
+      const arrayBuffer = await file.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      parsedRows = await parseExcel(buffer, mapping);
     }
-    const mapping = JSON.parse(template.column_mapping);
 
     const catalog = await db.products.list();
     const skuMappings = await db.skuMappings.list();
@@ -908,11 +940,6 @@ async function handleUploadExcel(req) {
       }
     }
 
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
-    const parsedRows = await parseExcel(buffer, mapping);
-    
     const previewOrders = [];
     let flaggedRowsCount = 0;
 
@@ -1032,7 +1059,7 @@ async function handleUploadExcel(req) {
     const insertedSession = await db.sessions.insert({
       template_id: templateId,
       user_id: user.id,
-      filename: file.name,
+      filename: filename,
       status: 'previewing',
       total_rows: previewOrders.length,
       flagged_rows: flaggedRowsCount,
@@ -1041,7 +1068,7 @@ async function handleUploadExcel(req) {
 
     return json({
       session_id: insertedSession.id,
-      filename: file.name,
+      filename: filename,
       total_rows: previewOrders.length,
       flagged_rows: flaggedRowsCount,
       orders: previewOrders

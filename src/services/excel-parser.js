@@ -1,16 +1,8 @@
 import * as xlsxLib from 'xlsx';
 
-export async function parseExcel(fileBuffer, columnMapping) {
-  if (!fileBuffer) throw new Error("File buffer is required");
+export function mapRawRows(rawRows, columnMapping) {
   if (!columnMapping) throw new Error("Column mapping template is required");
-
-  // Read Excel file
-  const workbook = xlsxLib.read(fileBuffer, { type: 'buffer' });
-  const firstSheetName = workbook.SheetNames[0];
-  const worksheet = workbook.Sheets[firstSheetName];
-  
-  // Convert sheet to JSON array
-  const rawRows = xlsxLib.utils.sheet_to_json(worksheet, { defval: '' });
+  if (!rawRows || !Array.isArray(rawRows)) return [];
 
   return rawRows.map((row, index) => {
     const mappedOrder = {};
@@ -65,4 +57,19 @@ export async function parseExcel(fileBuffer, columnMapping) {
     
     return mappedOrder;
   });
+}
+
+export async function parseExcel(fileBuffer, columnMapping) {
+  if (!fileBuffer) throw new Error("File buffer is required");
+  if (!columnMapping) throw new Error("Column mapping template is required");
+
+  // Read Excel file
+  const workbook = xlsxLib.read(fileBuffer, { type: 'buffer' });
+  const firstSheetName = workbook.SheetNames[0];
+  const worksheet = workbook.Sheets[firstSheetName];
+  
+  // Convert sheet to JSON array
+  const rawRows = xlsxLib.utils.sheet_to_json(worksheet, { defval: '' });
+
+  return mapRawRows(rawRows, columnMapping);
 }
