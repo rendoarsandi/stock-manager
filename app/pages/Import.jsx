@@ -229,7 +229,7 @@ export default function Import() {
             id: o.id || `${o.order_id}-${idx}`,
             splits: (o.splits || []).map(s => ({
               ...s,
-              is_confirmed: s.is_confirmed !== undefined ? s.is_confirmed : (!!s.product_id && s.parse_source !== 'fuzzy_auto')
+              is_confirmed: s.is_confirmed !== undefined ? s.is_confirmed : !!s.product_id
             }))
           }));
           setCurrentOrders(mappedOrders);
@@ -313,7 +313,7 @@ export default function Import() {
         is_selected: !o.is_duplicate,
         splits: (o.splits || []).map(s => ({
           ...s,
-          is_confirmed: !!s.product_id && s.parse_source !== 'fuzzy_auto'
+          is_confirmed: !!s.product_id
         }))
       }));
       setCurrentOrders(ordersWithSelection);
@@ -565,13 +565,13 @@ export default function Import() {
 
   // Filtering / Sorting logic for preview table
   const unmappedCount = currentOrders.filter((o) =>
-    o.splits && o.splits.some((s) => !s.product_id || !s.is_confirmed)
+    o.splits && o.splits.some((s) => !s.product_id)
   ).length;
 
   const processedOrders = (() => {
     let list = [...currentOrders];
     if (filterMode === 'unmapped') {
-      list = list.filter((o) => o.splits && o.splits.some((s) => !s.product_id || !s.is_confirmed));
+      list = list.filter((o) => o.splits && o.splits.some((s) => !s.product_id));
     } else if (filterMode === 'cancelled') {
       list = list.filter((o) => (o.order_status || '').toLowerCase() === 'cancelled');
     } else if (filterMode === 'completed') {
@@ -596,8 +596,8 @@ export default function Import() {
 
     if (sortUnmappedToTop) {
       list.sort((a, b) => {
-        const aNeeds = a.splits && a.splits.some((s) => !s.product_id || !s.is_confirmed);
-        const bNeeds = b.splits && b.splits.some((s) => !s.product_id || !s.is_confirmed);
+        const aNeeds = a.splits && a.splits.some((s) => !s.product_id);
+        const bNeeds = b.splits && b.splits.some((s) => !s.product_id);
         if (aNeeds && !bNeeds) return -1;
         if (!aNeeds && bNeeds) return 1;
         return 0;

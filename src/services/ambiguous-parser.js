@@ -58,6 +58,27 @@ export const PRODUCT_ALIASES = {
 
 export const BUNDLE_MAPPINGS = {
   // Crockie Packs & Bundles by SKU
+  'cos01': [{ name: 'CROCKIE SERI', qty: 5 }],
+  'cos02': [{ name: 'CROCKIE SERI', qty: 5 }],
+  'cos03': [{ name: 'CROCKIE SERI', qty: 5 }],
+  'cos04': [{ name: 'CROCKIE SERI', qty: 5 }],
+  'cos05': [{ name: 'CROCKIE SERI', qty: 5 }],
+  'cos06': [{ name: 'CROCKIE SERI', qty: 5 }],
+  'cos07': [{ name: 'CROCKIE SERI', qty: 5 }],
+  'cos08': [{ name: 'CROCKIE SERI', qty: 5 }],
+  'cos09': [{ name: 'CROCKIE SERI', qty: 5 }],
+  'cos10': [{ name: 'CROCKIE SERI', qty: 5 }],
+  'his01(box)': [{ name: 'CROCKIE SERI', qty: 50 }],
+  'his02(box)': [{ name: 'CROCKIE SERI', qty: 50 }],
+  'his03(box)': [{ name: 'CROCKIE SERI', qty: 50 }],
+  'his04(box)': [{ name: 'CROCKIE SERI', qty: 50 }],
+  'his05(box)': [{ name: 'CROCKIE SERI', qty: 50 }],
+  'his06(box)': [{ name: 'CROCKIE SERI', qty: 50 }],
+  'his07(box)': [{ name: 'CROCKIE SERI', qty: 50 }],
+  'his08(box)': [{ name: 'CROCKIE SERI', qty: 50 }],
+  'his09(box)': [{ name: 'CROCKIE SERI', qty: 50 }],
+  'his10(box)': [{ name: 'CROCKIE SERI', qty: 50 }],
+  'hismix(box)': [{ name: 'CROCKIE SERI', qty: 50 }],
   'croor_5s': [{ name: 'CROCKIE ORIGINAL', qty: 5 }],
   'cromag_5s': [{ name: 'CROCKIE MAGNET SUPER', qty: 5 }],
   'crobar_5s': [{ name: 'CROCKIE BARA TURBO', qty: 5 }],
@@ -308,7 +329,8 @@ export function resolvePromoProductToBaseItems(skuRef, productNameRaw, orderQty,
           model: catalogProd ? catalogProd.model : item.product_model,
           quantity: item.quantity * orderQty,
           parse_source: 'auto_split',
-          original_text: productNameRaw
+          original_text: productNameRaw,
+          is_confirmed: !!catalogProd
         };
       });
     }
@@ -348,7 +370,8 @@ export function resolvePromoProductToBaseItems(skuRef, productNameRaw, orderQty,
         model: catalogProd ? catalogProd.model : '',
         quantity: item.qty * orderQty,
         parse_source: 'auto_split',
-        original_text: productNameRaw
+        original_text: productNameRaw,
+        is_confirmed: !!catalogProd
       };
     });
   }
@@ -559,7 +582,8 @@ export function parseAmbiguousDescription(rawText, orderQty, catalog) {
       quantity: qty,
       parse_source: finalSource,
       original_text: orig,
-      fuzzy_suggestion: fuzzySuggestion
+      fuzzy_suggestion: fuzzySuggestion,
+      is_confirmed: !!finalProduct
     });
   };
 
@@ -648,19 +672,27 @@ export function parseAmbiguousDescription(rawText, orderQty, catalog) {
     const parts = cleanText.split(/\s*(?:\+|\&|dan|and)\s*/i);
     
     if (parts.length > 1) {
-      parts.forEach(part => {
+      const allPartsMatch = parts.every(part => {
         const partMatch = part.match(/^(\d+)\s*[xX]\s*(.+)$/i);
-        if (partMatch) {
-          const partMult = parseInt(partMatch[1], 10);
-          const partItem = partMatch[2];
-          const product = findProductInCatalog(partItem, catalog);
-          addSplit(product, baseMultiplier * partMult * orderQty, 'auto_split', partItem);
-        } else {
-          const product = findProductInCatalog(part, catalog);
-          addSplit(product, baseMultiplier * 1 * orderQty, 'auto_split', part);
-        }
+        const partItem = partMatch ? partMatch[2] : part;
+        return findProductInCatalog(partItem, catalog) !== null;
       });
-      return splits;
+
+      if (allPartsMatch) {
+        parts.forEach(part => {
+          const partMatch = part.match(/^(\d+)\s*[xX]\s*(.+)$/i);
+          if (partMatch) {
+            const partMult = parseInt(partMatch[1], 10);
+            const partItem = partMatch[2];
+            const product = findProductInCatalog(partItem, catalog);
+            addSplit(product, baseMultiplier * partMult * orderQty, 'auto_split', partItem);
+          } else {
+            const product = findProductInCatalog(part, catalog);
+            addSplit(product, baseMultiplier * 1 * orderQty, 'auto_split', part);
+          }
+        });
+        return splits;
+      }
     }
   }
 

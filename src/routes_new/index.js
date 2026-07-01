@@ -54,6 +54,7 @@ const adjustStockSchema = z.object({
   quantity_change: z.union([z.number(), z.string()]).transform(val => parseInt(val, 10)).pipe(z.number().int({ message: 'Valid quantity change is required' })),
   movement_type: z.string().optional().default('manual_adjust'),
   reference: z.string().optional().default('Manual stock adjustment'),
+  created_at: z.string().optional(),
 });
 
 // Helper for parsing cookies
@@ -658,12 +659,44 @@ async function handleAdjustStock(req, params) {
     if (!parsed.success) {
       return json({ message: parsed.error.errors[0].message }, 400);
     }
-    const { quantity_change, movement_type, reference } = parsed.data;
+    const { quantity_change, movement_type, reference, created_at } = parsed.data;
 
     const change = quantity_change;
     const type = movement_type;
     const ref = reference;
     const user = req.user;
+
+    let insertCreatedAt = undefined;
+    if (created_at !== undefined && created_at !== '') {
+      let parsedDate = null;
+      const cleanStr = String(created_at).trim();
+      
+      const ddMMyyyyMatch = cleanStr.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})(?:\s+(\d{1,2}):(\d{2}):(\d{2}))?$/);
+      if (ddMMyyyyMatch) {
+        const day = parseInt(ddMMyyyyMatch[1], 10);
+        const month = parseInt(ddMMyyyyMatch[2], 10) - 1;
+        const year = parseInt(ddMMyyyyMatch[3], 10);
+        const hour = ddMMyyyyMatch[4] ? parseInt(ddMMyyyyMatch[4], 10) : 0;
+        const minute = ddMMyyyyMatch[5] ? parseInt(ddMMyyyyMatch[5], 10) : 0;
+        const second = ddMMyyyyMatch[6] ? parseInt(ddMMyyyyMatch[6], 10) : 0;
+        parsedDate = new Date(year, month, day, hour, minute, second);
+      } else {
+        parsedDate = new Date(cleanStr);
+      }
+
+      if (isNaN(parsedDate.getTime())) {
+        return json({ message: 'Invalid date format. Use DD/MM/YYYY or YYYY-MM-DD.' }, 400);
+      }
+
+      const y = parsedDate.getFullYear();
+      const m = String(parsedDate.getMonth() + 1).padStart(2, '0');
+      const d = String(parsedDate.getDate()).padStart(2, '0');
+      const hr = String(parsedDate.getHours()).padStart(2, '0');
+      const min = String(parsedDate.getMinutes()).padStart(2, '0');
+      const sec = String(parsedDate.getSeconds()).padStart(2, '0');
+      
+      insertCreatedAt = `${y}-${m}-${d} ${hr}:${min}:${sec}`;
+    }
 
     const product = await db.products.get(id);
     if (!product) {
@@ -675,7 +708,8 @@ async function handleAdjustStock(req, params) {
       quantity_change: change,
       movement_type: type,
       reference: ref,
-      user_id: user.id
+      user_id: user.id,
+      created_at: insertCreatedAt
     });
 
     const newStock = product.current_stock + change;
@@ -1034,7 +1068,8 @@ async function handleUploadExcel(req) {
             model: matchedProduct.model,
             quantity: totalQuantity,
             parse_source: 'direct',
-            original_text: row.product_name_raw
+            original_text: row.product_name_raw,
+            is_confirmed: true
           });
           resolvedDirectly = true;
         }
@@ -1051,7 +1086,8 @@ async function handleUploadExcel(req) {
               model: matchedProduct.model,
               quantity: totalQuantity,
               parse_source: 'alias',
-              original_text: row.product_name_raw
+              original_text: row.product_name_raw,
+              is_confirmed: true
             });
             resolvedDirectly = true;
           }
@@ -1862,6 +1898,163 @@ async function handleCreateOpname(req) {
   }
 }
 
+async function handleDeleteOpname(req, params) {
+  try {
+    const id = parseInt(params[0], 10);
+    if (isNaN(id)) return json({ message: "Invalid opname ID" }, 400);
+
+    const report = await db.opnames.get(id);
+    if (!report) {
+      return json({ message: 'Stock opname report not found' }, 404);
+    }
+
+    const opnameItemsList = await db.opnameItems.getByOpnameId(id);
+
+    // Revert stock adjustments for each product
+    for (const item of opnameItemsList) {
+      const product = await db.products.get(item.product_id);
+      if (product) {
+        const revertedStock = product.current_stock - item.variance;
+        await db.products.update(item.product_id, {
+          current_stock: revertedStock
+        });
+      }
+    }
+
+    // Delete associated stock movements
+    const activeStorage = getActiveStorage();
+    await activeStorage.execute(
+      `DELETE FROM stock_movements WHERE reference = ?`,
+      [`Stock Opname #${id}`]
+    );
+
+    // Delete opname report (cascades to items)
+    await db.opnames.delete(id);
+
+    return json({ success: true });
+  } catch (err) {
+    console.error("Delete stock opname error:", err);
+    return json({ message: 'Failed to delete stock opname' }, 500);
+  }
+}
+
+async function handleUpdateOpname(req, params) {
+  try {
+    const id = parseInt(params[0], 10);
+    if (isNaN(id)) return json({ message: "Invalid opname ID" }, 400);
+
+    const report = await db.opnames.get(id);
+    if (!report) {
+      return json({ message: 'Stock opname report not found' }, 404);
+    }
+
+    const { notes, items, created_at } = await readJson(req);
+    const activeStorage = getActiveStorage();
+
+    // 1. Update notes and date
+    const fieldsToUpdate = {};
+    if (notes !== undefined) fieldsToUpdate.notes = notes;
+    if (created_at !== undefined) {
+      let parsedDate = null;
+      const cleanStr = String(created_at).trim();
+      
+      const ddMMyyyyMatch = cleanStr.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})(?:\s+(\d{1,2}):(\d{2}):(\d{2}))?$/);
+      if (ddMMyyyyMatch) {
+        const day = parseInt(ddMMyyyyMatch[1], 10);
+        const month = parseInt(ddMMyyyyMatch[2], 10) - 1;
+        const year = parseInt(ddMMyyyyMatch[3], 10);
+        const hour = ddMMyyyyMatch[4] ? parseInt(ddMMyyyyMatch[4], 10) : 0;
+        const minute = ddMMyyyyMatch[5] ? parseInt(ddMMyyyyMatch[5], 10) : 0;
+        const second = ddMMyyyyMatch[6] ? parseInt(ddMMyyyyMatch[6], 10) : 0;
+        parsedDate = new Date(year, month, day, hour, minute, second);
+      } else {
+        parsedDate = new Date(cleanStr);
+      }
+
+      if (!isNaN(parsedDate.getTime())) {
+        const y = parsedDate.getFullYear();
+        const m = String(parsedDate.getMonth() + 1).padStart(2, '0');
+        const d = String(parsedDate.getDate()).padStart(2, '0');
+        const hr = String(parsedDate.getHours()).padStart(2, '0');
+        const min = String(parsedDate.getMinutes()).padStart(2, '0');
+        const sec = String(parsedDate.getSeconds()).padStart(2, '0');
+        fieldsToUpdate.created_at = `${y}-${m}-${d} ${hr}:${min}:${sec}`;
+      }
+    }
+
+    await db.opnames.update(id, fieldsToUpdate);
+    const newCreatedAt = fieldsToUpdate.created_at || report.created_at;
+
+    // 2. Update stock movements' dates
+    if (fieldsToUpdate.created_at) {
+      await activeStorage.execute(
+        `UPDATE stock_movements SET created_at = ? WHERE reference = ?`,
+        [newCreatedAt, `Stock Opname #${id}`]
+      );
+    }
+
+    // 3. Update physical stock counts and adjust product stocks/movements if provided
+    if (items && Array.isArray(items)) {
+      const oldItems = await db.opnameItems.getByOpnameId(id);
+      const oldItemMap = new Map(oldItems.map(item => [item.product_id, item]));
+
+      for (const item of items) {
+        const prodId = parseInt(item.product_id, 10);
+        const newPhysStock = parseInt(item.physical_stock, 10);
+        if (isNaN(prodId) || isNaN(newPhysStock)) continue;
+
+        const oldItem = oldItemMap.get(prodId);
+        if (oldItem && oldItem.physical_stock !== newPhysStock) {
+          const systemStock = oldItem.system_stock;
+          const newVariance = newPhysStock - systemStock;
+          const oldVariance = oldItem.variance;
+          const diff = newVariance - oldVariance;
+
+          // Update stock opname item
+          await activeStorage.execute(
+            `UPDATE stock_opname_items SET physical_stock = ?, variance = ? WHERE id = ?`,
+            [newPhysStock, newVariance, oldItem.id]
+          );
+
+          // Adjust product stock
+          const product = await db.products.get(prodId);
+          if (product) {
+            await db.products.update(prodId, {
+              current_stock: product.current_stock + diff
+            });
+          }
+
+          // Update or insert stock movement
+          const movementRows = await activeStorage.query(
+            `SELECT id FROM stock_movements WHERE reference = ? AND product_id = ?`,
+            [`Stock Opname #${id}`, prodId]
+          );
+          if (movementRows && movementRows.length > 0) {
+            await activeStorage.execute(
+              `UPDATE stock_movements SET quantity_change = ?, created_at = ? WHERE id = ?`,
+              [newVariance, newCreatedAt, movementRows[0].id]
+            );
+          } else {
+            await db.movements.insert({
+              product_id: prodId,
+              quantity_change: newVariance,
+              movement_type: 'manual_adjust',
+              reference: `Stock Opname #${id}`,
+              user_id: report.user_id,
+              created_at: newCreatedAt
+            });
+          }
+        }
+      }
+    }
+
+    return json({ success: true });
+  } catch (err) {
+    console.error("Update stock opname error:", err);
+    return json({ message: err.message || 'Failed to update stock opname' }, 500);
+  }
+}
+
 async function handleGetChatMessages(req) {
   try {
     const user = req.user;
@@ -2279,8 +2472,35 @@ async function handleUpdateMovement(req, params) {
   }
 }
 
+async function handleDeleteMovement(req, params) {
+  try {
+    const id = parseInt(params[0], 10);
+    if (isNaN(id)) return json({ message: "Invalid movement ID" }, 400);
+
+    const movement = await db.movements.get(id);
+    if (!movement) {
+      return json({ message: 'Movement not found' }, 404);
+    }
+
+    const product = await db.products.get(movement.product_id);
+    if (product) {
+      const newStock = product.current_stock - movement.quantity_change;
+      await db.products.update(movement.product_id, {
+        current_stock: newStock
+      });
+    }
+
+    await db.movements.delete(id);
+    return json({ success: true });
+  } catch (err) {
+    console.error("Delete movement error:", err);
+    return json({ message: 'Failed to delete movement' }, 500);
+  }
+}
+
 export {
   handleUpdateMovement,
+  handleDeleteMovement,
   handleHealth,
   handleWsPlaceholder,
   handleLogin,
@@ -2318,6 +2538,8 @@ export {
   handleListOpname,
   handleGetOpnameDetails,
   handleCreateOpname,
+  handleDeleteOpname,
+  handleUpdateOpname,
   handleGetChatMessages,
   handleGetChatContacts,
   handleSendChatMessage,

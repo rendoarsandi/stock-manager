@@ -10,6 +10,7 @@ const pageTitles = {
   '/products': 'Products',
   '/products/order': 'Orders',
   '/products/status-return': 'Status Return',
+  '/products/in-out': 'In & Out',
   '/import': 'Import Excel',
   '/review': 'Pending Review',
   '/stock-history': 'Stock History',
@@ -152,6 +153,14 @@ export default function Layout({ children }) {
                     </svg>
                   </span>
                   <span className="submenu-text" style={{ display: isCollapsed ? 'none' : 'inline' }}>Status Return</span>
+                </Link>
+                <Link to="/products/in-out" className="submenu-item" activeProps={{ className: 'submenu-item active' }} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', textDecoration: 'none', fontSize: '0.85rem', fontWeight: '500', borderRadius: 'var(--border-radius-md)', transition: 'var(--transition)' }}>
+                  <span className="submenu-icon" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '14px', height: '14px' }}>
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+                    </svg>
+                  </span>
+                  <span className="submenu-text" style={{ display: isCollapsed ? 'none' : 'inline' }}>In & Out</span>
                 </Link>
               </div>
             )}

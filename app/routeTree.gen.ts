@@ -19,6 +19,7 @@ import { Route as ProductsIndexRouteImport } from './routes/products/index'
 import { Route as SignUpSplatRouteImport } from './routes/sign-up.$'
 import { Route as ProductsStatusReturnRouteImport } from './routes/products/status-return'
 import { Route as ProductsOrderRouteImport } from './routes/products/order'
+import { Route as ProductsInOutRouteImport } from './routes/products/in-out'
 import { Route as ApiProductsRouteImport } from './routes/api/products'
 import { Route as ApiOrdersRouteImport } from './routes/api/orders'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
@@ -104,6 +105,11 @@ const ProductsStatusReturnRoute = ProductsStatusReturnRouteImport.update({
 const ProductsOrderRoute = ProductsOrderRouteImport.update({
   id: '/products/order',
   path: '/products/order',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProductsInOutRoute = ProductsInOutRouteImport.update({
+  id: '/products/in-out',
+  path: '/products/in-out',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiProductsRoute = ApiProductsRouteImport.update({
@@ -300,6 +306,7 @@ export interface FileRoutesByFullPath {
   '/api/health': typeof ApiHealthRoute
   '/api/orders': typeof ApiOrdersRoute
   '/api/products': typeof ApiProductsRouteWithChildren
+  '/products/in-out': typeof ProductsInOutRoute
   '/products/order': typeof ProductsOrderRoute
   '/products/status-return': typeof ProductsStatusReturnRoute
   '/sign-up/$': typeof SignUpSplatRoute
@@ -348,6 +355,7 @@ export interface FileRoutesByTo {
   '/api/health': typeof ApiHealthRoute
   '/api/orders': typeof ApiOrdersRoute
   '/api/products': typeof ApiProductsRouteWithChildren
+  '/products/in-out': typeof ProductsInOutRoute
   '/products/order': typeof ProductsOrderRoute
   '/products/status-return': typeof ProductsStatusReturnRoute
   '/sign-up/$': typeof SignUpSplatRoute
@@ -397,6 +405,7 @@ export interface FileRoutesById {
   '/api/health': typeof ApiHealthRoute
   '/api/orders': typeof ApiOrdersRoute
   '/api/products': typeof ApiProductsRouteWithChildren
+  '/products/in-out': typeof ProductsInOutRoute
   '/products/order': typeof ProductsOrderRoute
   '/products/status-return': typeof ProductsStatusReturnRoute
   '/sign-up/$': typeof SignUpSplatRoute
@@ -447,6 +456,7 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/api/orders'
     | '/api/products'
+    | '/products/in-out'
     | '/products/order'
     | '/products/status-return'
     | '/sign-up/$'
@@ -495,6 +505,7 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/api/orders'
     | '/api/products'
+    | '/products/in-out'
     | '/products/order'
     | '/products/status-return'
     | '/sign-up/$'
@@ -543,6 +554,7 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/api/orders'
     | '/api/products'
+    | '/products/in-out'
     | '/products/order'
     | '/products/status-return'
     | '/sign-up/$'
@@ -592,6 +604,7 @@ export interface RootRouteChildren {
   ApiHealthRoute: typeof ApiHealthRoute
   ApiOrdersRoute: typeof ApiOrdersRoute
   ApiProductsRoute: typeof ApiProductsRouteWithChildren
+  ProductsInOutRoute: typeof ProductsInOutRoute
   ProductsOrderRoute: typeof ProductsOrderRoute
   ProductsStatusReturnRoute: typeof ProductsStatusReturnRoute
   SignUpSplatRoute: typeof SignUpSplatRoute
@@ -692,6 +705,13 @@ declare module '@tanstack/react-router' {
       path: '/products/order'
       fullPath: '/products/order'
       preLoaderRoute: typeof ProductsOrderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/products/in-out': {
+      id: '/products/in-out'
+      path: '/products/in-out'
+      fullPath: '/products/in-out'
+      preLoaderRoute: typeof ProductsInOutRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/products': {
@@ -1037,6 +1057,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHealthRoute: ApiHealthRoute,
   ApiOrdersRoute: ApiOrdersRoute,
   ApiProductsRoute: ApiProductsRouteWithChildren,
+  ProductsInOutRoute: ProductsInOutRoute,
   ProductsOrderRoute: ProductsOrderRoute,
   ProductsStatusReturnRoute: ProductsStatusReturnRoute,
   SignUpSplatRoute: SignUpSplatRoute,

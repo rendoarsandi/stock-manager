@@ -17,11 +17,24 @@ export default function Opname() {
     return (new Date(now - tzOffset)).toISOString().slice(0, 16);
   };
 
+  const formatToDatetimeLocal = (dateStr) => {
+    if (!dateStr) return '';
+    const clean = dateStr.replace(' ', 'T');
+    if (clean.length > 16) return clean.slice(0, 16);
+    return clean;
+  };
+
   // Form states (New Opname)
   const [notes, setNotes] = useState('');
   const [customDate, setCustomDate] = useState(getLocalDatetimeString());
   const [physicalCounts, setPhysicalCounts] = useState({}); // { [productId]: count }
   const [productSearch, setProductSearch] = useState('');
+
+  // Edit states (Existing Opname)
+  const [isEditing, setIsEditing] = useState(false);
+  const [editNotes, setEditNotes] = useState('');
+  const [editDate, setEditDate] = useState('');
+  const [editPhysicalCounts, setEditPhysicalCounts] = useState({});
 
   // Fetch all opname audit history
   const { data: opnames = [], isLoading, error } = useQuery({
@@ -113,6 +126,53 @@ export default function Opname() {
     },
   });
 
+  const deleteOpnameMutation = useMutation({
+    mutationFn: async (id) => {
+      const res = await fetch(`/api/stock/opname/${id}`, {
+        method: 'DELETE'
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to delete stock opname');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      showToast('Success', 'Stock opname deleted successfully', 'success');
+      queryClient.invalidateQueries({ queryKey: ['opnames'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      closeModal();
+    },
+    onError: (err) => {
+      showToast('Error', err.message, 'error');
+    }
+  });
+
+  const updateOpnameMutation = useMutation({
+    mutationFn: async ({ id, payload }) => {
+      const res = await fetch(`/api/stock/opname/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to update stock opname');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      showToast('Success', 'Stock opname updated successfully', 'success');
+      queryClient.invalidateQueries({ queryKey: ['opnames'] });
+      queryClient.invalidateQueries({ queryKey: ['opnameDetails', selectedOpnameId] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      setIsEditing(false);
+    },
+    onError: (err) => {
+      showToast('Error', err.message, 'error');
+    }
+  });
+
   // Modal triggers
   const openNewOpnameModal = () => {
     setNotes('');
@@ -132,6 +192,8 @@ export default function Opname() {
     setActiveModal(null);
     setSelectedOpnameId(null);
     setIsFormInitialized(false);
+    setIsEditing(false);
+    setEditPhysicalCounts({});
   };
 
   const handlePhysicalCountChange = (productId, val) => {
@@ -171,6 +233,38 @@ export default function Opname() {
       notes: notes.trim(),
       created_at: formattedCreatedAt,
       items,
+    });
+  };
+
+  const handleSaveEdit = () => {
+    const payloadItems = opnameDetails.items.map(item => {
+      return {
+        product_id: item.product_id,
+        physical_stock: editPhysicalCounts[item.product_id] !== undefined ? editPhysicalCounts[item.product_id] : item.physical_stock
+      };
+    });
+    
+    let formattedDate = undefined;
+    if (editDate) {
+      const dt = new Date(editDate);
+      if (!isNaN(dt.getTime())) {
+        const y = dt.getFullYear();
+        const m = String(dt.getMonth() + 1).padStart(2, '0');
+        const d = String(dt.getDate()).padStart(2, '0');
+        const hr = String(dt.getHours()).padStart(2, '0');
+        const min = String(dt.getMinutes()).padStart(2, '0');
+        const sec = String(dt.getSeconds()).padStart(2, '0');
+        formattedDate = `${y}-${m}-${d} ${hr}:${min}:${sec}`;
+      }
+    }
+
+    updateOpnameMutation.mutate({
+      id: selectedOpnameId,
+      payload: {
+        notes: editNotes,
+        created_at: formattedDate,
+        items: payloadItems
+      }
     });
   };
 
@@ -252,13 +346,21 @@ export default function Opname() {
                   <td><span className="status-tag info">{item.username || 'Unknown'}</span></td>
                   <td><span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{item.notes || '-'}</span></td>
                   <td><span className="status-tag success">{item.items_count} products</span></td>
-                  <td>
+                  <td style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                     <button className="btn btn-secondary btn-sm btn-view-details" onClick={() => openDetailsModal(item.id)}>
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
                         <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
                         <circle cx="12" cy="12" r="3" />
                       </svg>
                       View Details
+                    </button>
+                    <button className="btn btn-sm btn-danger" style={{ backgroundColor: 'var(--danger)', color: 'white', borderColor: 'var(--danger)' }} onClick={(e) => {
+                      e.stopPropagation();
+                      if (window.confirm('Are you sure you want to delete this stock opname report? Product stock changes will be reverted.')) {
+                        deleteOpnameMutation.mutate(item.id);
+                      }
+                    }} disabled={deleteOpnameMutation.isPending}>
+                      Delete
                     </button>
                   </td>
                 </tr>
@@ -378,7 +480,7 @@ export default function Opname() {
         <div className="modal-overlay">
           <div className="modal" style={{ maxWidth: '750px' }}>
             <div className="modal-header">
-              <h3>Stock Opname Report #{selectedOpnameId}</h3>
+              <h3>{isEditing ? 'Edit Stock Opname Report' : `Stock Opname Report #${selectedOpnameId}`}</h3>
               <button className="modal-close" onClick={closeModal}>&times;</button>
             </div>
             <div className="modal-body">
@@ -390,7 +492,106 @@ export default function Opname() {
                 <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--danger)' }}>
                   Failed to load report details.
                 </div>
+              ) : isEditing ? (
+                /* EDIT MODE DETAILS FORM */
+                <div>
+                  <div className="form-group" style={{ marginBottom: '1rem' }}>
+                    <label>Date & Time of Count</label>
+                    <input
+                      type="datetime-local"
+                      required
+                      value={editDate}
+                      onChange={(e) => setEditDate(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '0.6rem 1rem',
+                        fontSize: '0.85rem',
+                        borderRadius: 'var(--border-radius-md)',
+                        border: '1px solid var(--border-color)',
+                        backgroundColor: 'var(--bg-secondary)',
+                        color: 'var(--text-primary)',
+                      }}
+                    />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+                    <label>Notes</label>
+                    <textarea
+                      value={editNotes}
+                      onChange={(e) => setEditNotes(e.target.value)}
+                      placeholder="Add audit notes..."
+                      style={{
+                        width: '100%',
+                        padding: '0.6rem 1rem',
+                        fontSize: '0.85rem',
+                        borderRadius: 'var(--border-radius-md)',
+                        border: '1px solid var(--border-color)',
+                        backgroundColor: 'var(--bg-secondary)',
+                        color: 'var(--text-primary)',
+                        minHeight: '60px'
+                      }}
+                    />
+                  </div>
+
+                  <div className="table-wrapper">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Product Name</th>
+                          <th>SKU</th>
+                          <th style={{ textAlign: 'right' }}>System Stock</th>
+                          <th style={{ textAlign: 'right' }}>Physical Stock</th>
+                          <th style={{ textAlign: 'right' }}>Variance</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {opnameDetails.items &&
+                          opnameDetails.items.map((item) => {
+                            const currentVal = editPhysicalCounts[item.product_id] !== undefined
+                              ? editPhysicalCounts[item.product_id]
+                              : item.physical_stock;
+                            const varVal = currentVal - item.system_stock;
+                            const varText = varVal > 0 ? `+${varVal}` : `${varVal}`;
+                            let varColor = 'var(--text-secondary)';
+                            if (varVal > 0) varColor = 'var(--success)';
+                            if (varVal < 0) varColor = 'var(--danger)';
+
+                            return (
+                              <tr key={item.id || item.product_id}>
+                                <td>{item.name}</td>
+                                <td><span className="status-tag info">{item.model}</span></td>
+                                <td style={{ textAlign: 'right' }}>{item.system_stock}</td>
+                                <td style={{ textAlign: 'right' }}>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={currentVal}
+                                    onChange={(e) => {
+                                      const val = parseInt(e.target.value, 10) || 0;
+                                      setEditPhysicalCounts(prev => ({ ...prev, [item.product_id]: val }));
+                                    }}
+                                    style={{
+                                      width: '80px',
+                                      textAlign: 'right',
+                                      padding: '0.2rem 0.4rem',
+                                      border: '1px solid var(--border-color)',
+                                      borderRadius: '3px',
+                                      backgroundColor: 'var(--bg-secondary)',
+                                      color: 'var(--text-primary)',
+                                    }}
+                                  />
+                                </td>
+                                <td style={{ textAlign: 'right', fontWeight: 600, color: varColor }}>
+                                  {varText}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               ) : (
+                /* VIEW DETAILS MODE (READ-ONLY) */
                 <div className="print-report-container">
                   <div className="print-header" style={{ marginBottom: '1.5rem' }}>
                     <h2 className="print-only-title" style={{ display: 'none', marginBottom: '0.5rem', borderBottom: '2px solid var(--text-primary)', paddingBottom: '0.5rem' }}>
@@ -442,15 +643,49 @@ export default function Opname() {
                 </div>
               )}
             </div>
-            <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={closeModal}>Close</button>
-              <button className="btn btn-primary" onClick={() => window.print()} disabled={!opnameDetails}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                  <path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
-                  <path d="M6 14h12v8H6z" />
-                </svg>
-                Print Report
-              </button>
+            <div className="modal-footer" style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', width: '100%' }}>
+              {isEditing ? (
+                <>
+                  <button className="btn btn-secondary" onClick={() => setIsEditing(false)}>Cancel</button>
+                  <button className="btn btn-primary" onClick={handleSaveEdit} disabled={updateOpnameMutation.isPending}>
+                    {updateOpnameMutation.isPending ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button className="btn btn-secondary" onClick={closeModal}>Close</button>
+                  {opnameDetails && (
+                    <>
+                      <button className="btn btn-secondary" onClick={() => {
+                        setEditNotes(opnameDetails.notes || '');
+                        setEditDate(formatToDatetimeLocal(opnameDetails.created_at));
+                        const counts = {};
+                        opnameDetails.items.forEach(item => {
+                          counts[item.product_id] = item.physical_stock;
+                        });
+                        setEditPhysicalCounts(counts);
+                        setIsEditing(true);
+                      }}>
+                        Edit
+                      </button>
+                      <button className="btn btn-danger" style={{ backgroundColor: 'var(--danger)', color: 'white', borderColor: 'var(--danger)' }} onClick={() => {
+                        if (window.confirm('Are you sure you want to delete this stock opname report? Product stock changes will be reverted.')) {
+                          deleteOpnameMutation.mutate(selectedOpnameId);
+                        }
+                      }} disabled={deleteOpnameMutation.isPending}>
+                        {deleteOpnameMutation.isPending ? 'Deleting...' : 'Delete'}
+                      </button>
+                      <button className="btn btn-primary" onClick={() => window.print()}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                          <path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                          <path d="M6 14h12v8H6z" />
+                        </svg>
+                        Print Report
+                      </button>
+                    </>
+                  )}
+                </>
+              )}
             </div>
           </div>
         </div>

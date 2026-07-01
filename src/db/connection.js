@@ -449,7 +449,15 @@ export const db = {
       if (updated) {
         broadcast({ type: 'MOVEMENT_UPDATED', payload: updated });
       }
-      return updated;
+    },
+    async delete(id) {
+      const db = getActiveDb();
+      const rows = await db.delete(stockMovements).where(eq(stockMovements.id, parseInt(id, 10))).returning();
+      const deleted = rows[0] || null;
+      if (deleted) {
+        broadcast({ type: 'MOVEMENT_DELETED', payload: { id } });
+      }
+      return deleted;
     }
   },
 
@@ -735,6 +743,24 @@ export const db = {
         broadcast({ type: 'OPNAME_CREATED', payload: newOpname });
       }
       return newOpname;
+    },
+    async update(id, fields) {
+      const db = getActiveDb();
+      const rows = await db.update(stockOpnames).set(fields).where(eq(stockOpnames.id, parseInt(id, 10))).returning();
+      const updated = rows[0] || null;
+      if (updated) {
+        broadcast({ type: 'OPNAME_UPDATED', payload: updated });
+      }
+      return updated;
+    },
+    async delete(id) {
+      const db = getActiveDb();
+      const rows = await db.delete(stockOpnames).where(eq(stockOpnames.id, parseInt(id, 10))).returning();
+      const deleted = rows[0] || null;
+      if (deleted) {
+        broadcast({ type: 'OPNAME_DELETED', payload: { id } });
+      }
+      return deleted;
     }
   },
 
@@ -757,6 +783,15 @@ export const db = {
         variance: parseInt(item.variance, 10)
       }).returning();
       return rows[0] || null;
+    },
+    async update(id, fields) {
+      const db = getActiveDb();
+      const rows = await db.update(stockOpnameItems).set(fields).where(eq(stockOpnameItems.id, parseInt(id, 10))).returning();
+      return rows[0] || null;
+    },
+    async deleteByOpnameId(opnameId) {
+      const db = getActiveDb();
+      return await db.delete(stockOpnameItems).where(eq(stockOpnameItems.opname_id, parseInt(opnameId, 10))).returning();
     }
   },
 
