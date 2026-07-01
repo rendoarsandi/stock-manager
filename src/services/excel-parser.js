@@ -1,7 +1,7 @@
 import * as xlsxLib from 'xlsx';
-import { Effect } from 'effect';
+import { Effect, Schema } from 'effect';
 
-// Define typed custom errors for compile-time safety
+// Custom Errors
 export class MissingMappingError extends Error {
   constructor() {
     super("Column mapping template is required");
@@ -17,9 +17,75 @@ export class ExcelParseError extends Error {
   }
 }
 
-/**
- * Effect-based row mapper.
- */
+// Custom Transformers
+const StringTransform = Schema.transform(
+  Schema.Unknown,
+  Schema.String,
+  {
+    decode: (val) => String(val !== undefined && val !== null ? val : '').trim(),
+    encode: (val) => val
+  }
+);
+
+const QuantityTransform = Schema.transform(
+  Schema.Unknown,
+  Schema.Number,
+  {
+    decode: (val) => {
+      if (typeof val === 'number') return val;
+      const parsed = parseInt(String(val).trim(), 10);
+      return isNaN(parsed) ? 1 : parsed;
+    },
+    encode: (val) => val
+  }
+);
+
+const PriceTransform = Schema.transform(
+  Schema.Unknown,
+  Schema.Number,
+  {
+    decode: (val) => {
+      if (typeof val === 'number') return val;
+      let value = String(val).trim();
+      let cleanPrice = value.replace(/Rp\.?|rp\.?|\s+/g, '');
+      if (cleanPrice.includes(',') && cleanPrice.includes('.')) {
+        cleanPrice = cleanPrice.replace(/\./g, '').replace(/,/g, '.');
+      } else if (cleanPrice.includes(',')) {
+        if (cleanPrice.split(',')[1].length === 3) {
+          cleanPrice = cleanPrice.replace(/,/g, '');
+        } else {
+          cleanPrice = cleanPrice.replace(/,/g, '.');
+        }
+      } else if (cleanPrice.includes('.')) {
+        if (cleanPrice.split('.')[1].length === 3) {
+          cleanPrice = cleanPrice.replace(/\./g, '');
+        }
+      }
+      const parsed = parseFloat(cleanPrice);
+      return isNaN(parsed) ? 0 : parsed;
+    },
+    encode: (val) => val
+  }
+);
+
+// Decodes standard system-key order rows
+const OrderRowSchema = Schema.Struct({
+  order_id: StringTransform,
+  product_name_raw: StringTransform,
+  quantity: QuantityTransform,
+  order_status: StringTransform,
+  price: PriceTransform,
+  resi_number: StringTransform,
+  customer_name: StringTransform,
+  expedition: StringTransform,
+  order_date: StringTransform,
+  sku_ref: StringTransform,
+  cancellation_reason: StringTransform,
+  cancel_return_status: StringTransform,
+  parent_sku: StringTransform,
+  _rowIndex: Schema.Number
+});
+
 export function mapRawRowsEffect(rawRows, columnMapping) {
   return Effect.gen(function* () {
     if (!columnMapping) {
@@ -29,68 +95,28 @@ export function mapRawRowsEffect(rawRows, columnMapping) {
       return [];
     }
 
-    return rawRows.map((row, index) => {
-      const mappedOrder = {};
-      
+    const decodeRow = (row, index) => {
+      const mapped = {};
       for (const [systemKey, excelHeader] of Object.entries(columnMapping)) {
-        const rawValue = row[excelHeader];
-        
-        if (excelHeader && rawValue !== undefined && rawValue !== null) {
-          let value = String(rawValue).trim();
-          
-          // Normalize fields based on system key
-          if (systemKey === 'quantity') {
-            mappedOrder[systemKey] = parseInt(value, 10) || 1;
-          } else if (systemKey === 'price') {
-            // Remove currency symbols, commas, and dots from Indonesian formatting
-            let cleanPrice = value.replace(/Rp\.?|rp\.?|\s+/g, '');
-            if (cleanPrice.includes(',') && cleanPrice.includes('.')) {
-              // e.g. 1.250.000,50 -> 1250000.50
-              cleanPrice = cleanPrice.replace(/\./g, '').replace(/,/g, '.');
-            } else if (cleanPrice.includes(',')) {
-              // e.g. 1250,50 -> 1250.50 or 1.250 -> 1250
-              if (cleanPrice.split(',')[1].length === 3) {
-                cleanPrice = cleanPrice.replace(/,/g, '');
-              } else {
-                cleanPrice = cleanPrice.replace(/,/g, '.');
-              }
-            } else if (cleanPrice.includes('.')) {
-              if (cleanPrice.split('.')[1].length === 3) {
-                cleanPrice = cleanPrice.replace(/\./g, '');
-              }
-            }
-            mappedOrder[systemKey] = parseFloat(cleanPrice) || 0;
-          } else {
-            mappedOrder[systemKey] = value;
-          }
-        } else {
-          // Default missing values
-          if (systemKey === 'quantity') {
-            mappedOrder[systemKey] = 1;
-          } else if (systemKey === 'price') {
-            mappedOrder[systemKey] = 0;
-          } else {
-            mappedOrder[systemKey] = '';
-          }
-        }
+        mapped[systemKey] = row[excelHeader];
       }
-      
-      mappedOrder._rowIndex = index + 2;
-      return mappedOrder;
-    });
+      mapped._rowIndex = index + 2;
+      return Schema.decodeUnknown(OrderRowSchema)(mapped);
+    };
+
+    return yield* Effect.all(
+      rawRows.map((row, index) => decodeRow(row, index)),
+      { concurrency: "unbounded" }
+    );
   });
 }
 
-/**
- * Effect-based Excel parser.
- */
 export function parseExcelEffect(fileBuffer, columnMapping) {
   return Effect.gen(function* () {
     if (!fileBuffer) {
       return yield* Effect.fail(new ExcelParseError(new Error("File buffer is required")));
     }
 
-    // Safely wrap synchronous file parsing in an Effect.try block
     const workbook = yield* Effect.try({
       try: () => xlsxLib.read(fileBuffer, { type: 'buffer' }),
       catch: (error) => new ExcelParseError(error)
@@ -99,7 +125,6 @@ export function parseExcelEffect(fileBuffer, columnMapping) {
     const firstSheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[firstSheetName];
     
-    // Safely wrap sheet conversion to JSON
     const rawRows = yield* Effect.try({
       try: () => xlsxLib.utils.sheet_to_json(worksheet, { defval: '' }),
       catch: (error) => new ExcelParseError(error)
@@ -109,9 +134,6 @@ export function parseExcelEffect(fileBuffer, columnMapping) {
   });
 }
 
-/**
- * Standard wrappers to maintain backward compatibility with existing code.
- */
 export function mapRawRows(rawRows, columnMapping) {
   return Effect.runSync(mapRawRowsEffect(rawRows, columnMapping));
 }
