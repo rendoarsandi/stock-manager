@@ -184,9 +184,16 @@ export default function Import() {
   const [flaggedRows, setFlaggedRows] = useState(0);
 
   // Filter / Sort toolbar states
-  const [filterMode, setFilterMode] = useState('all'); // 'all' | 'unmapped'
+  const [filterMode, setFilterMode] = useState('all'); // 'all' | 'unmapped' | 'cancelled' | 'completed' | 'other'
   const [sortUnmappedToTop, setSortUnmappedToTop] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const ordersPerPage = 10;
+
+  // Reset page to 1 when filters or search change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterMode, searchQuery, sortUnmappedToTop]);
 
   // Queries
   const { data: templates = [] } = useQuery({
@@ -565,6 +572,15 @@ export default function Import() {
     let list = [...currentOrders];
     if (filterMode === 'unmapped') {
       list = list.filter((o) => o.splits && o.splits.some((s) => !s.product_id || !s.is_confirmed));
+    } else if (filterMode === 'cancelled') {
+      list = list.filter((o) => (o.order_status || '').toLowerCase() === 'cancelled');
+    } else if (filterMode === 'completed') {
+      list = list.filter((o) => (o.order_status || '').toLowerCase() === 'completed');
+    } else if (filterMode === 'other') {
+      list = list.filter((o) => {
+        const st = (o.order_status || '').toLowerCase();
+        return st !== 'cancelled' && st !== 'completed';
+      });
     }
     
     if (searchQuery.trim() !== '') {
@@ -589,6 +605,9 @@ export default function Import() {
     }
     return list;
   })();
+
+  const totalPages = Math.ceil(processedOrders.length / ordersPerPage) || 1;
+  const paginatedOrders = processedOrders.slice((currentPage - 1) * ordersPerPage, currentPage * ordersPerPage);
 
   const duplicateCount = currentOrders.filter((o) => o.is_duplicate).length;
 
@@ -707,7 +726,7 @@ export default function Import() {
                   }}
                   onClick={() => setFilterMode('all')}
                 >
-                  All Orders
+                  All
                 </button>
                 <button
                   className="btn-segmented"
@@ -724,7 +743,58 @@ export default function Import() {
                   }}
                   onClick={() => setFilterMode('unmapped')}
                 >
-                  ⚠️ Needs Mapping (<span>{unmappedCount}</span>)
+                  ⚠️ Needs Mapping ({unmappedCount})
+                </button>
+                <button
+                  className="btn-segmented"
+                  style={{
+                    border: 'none',
+                    background: filterMode === 'cancelled' ? 'var(--bg-secondary)' : 'transparent',
+                    color: filterMode === 'cancelled' ? 'var(--text-primary)' : 'var(--text-secondary)',
+                    padding: '0.35rem 0.75rem',
+                    borderRadius: '4px',
+                    fontSize: '0.8rem',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                    boxShadow: filterMode === 'cancelled' ? 'var(--shadow-sm)' : 'none',
+                  }}
+                  onClick={() => setFilterMode('cancelled')}
+                >
+                  Cancelled
+                </button>
+                <button
+                  className="btn-segmented"
+                  style={{
+                    border: 'none',
+                    background: filterMode === 'completed' ? 'var(--bg-secondary)' : 'transparent',
+                    color: filterMode === 'completed' ? 'var(--text-primary)' : 'var(--text-secondary)',
+                    padding: '0.35rem 0.75rem',
+                    borderRadius: '4px',
+                    fontSize: '0.8rem',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                    boxShadow: filterMode === 'completed' ? 'var(--shadow-sm)' : 'none',
+                  }}
+                  onClick={() => setFilterMode('completed')}
+                >
+                  Completed
+                </button>
+                <button
+                  className="btn-segmented"
+                  style={{
+                    border: 'none',
+                    background: filterMode === 'other' ? 'var(--bg-secondary)' : 'transparent',
+                    color: filterMode === 'other' ? 'var(--text-primary)' : 'var(--text-secondary)',
+                    padding: '0.35rem 0.75rem',
+                    borderRadius: '4px',
+                    fontSize: '0.8rem',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                    boxShadow: filterMode === 'other' ? 'var(--shadow-sm)' : 'none',
+                  }}
+                  onClick={() => setFilterMode('other')}
+                >
+                  Other
                 </button>
               </div>
 
@@ -797,14 +867,14 @@ export default function Import() {
                 </tr>
               </thead>
               <tbody id="preview-table-body">
-                {processedOrders.length === 0 ? (
+                {paginatedOrders.length === 0 ? (
                   <tr>
                     <td colSpan={7} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>
                       No orders match the current filter.
                     </td>
                   </tr>
                 ) : (
-                  processedOrders.map((order) => {
+                  paginatedOrders.map((order) => {
                     const originalIndex = currentOrders.findIndex((o) => o.id === order.id);
                     const isRowDuplicate = order.is_duplicate;
 
@@ -837,7 +907,21 @@ export default function Import() {
                             </>
                           )}
                         </td>
-                        <td style={{ verticalAlign: 'top', fontSize: '0.85rem' }}>{order.product_name_raw}</td>
+                        <td style={{ verticalAlign: 'top', fontSize: '0.85rem' }}>
+                          <div style={{ fontWeight: '500' }}>{order.product_name_raw}</div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginTop: '0.35rem' }}>
+                            {order.sku_ref && (
+                              <span style={{ fontSize: '0.75rem', backgroundColor: 'var(--accent-light)', color: 'var(--accent-color)', padding: '0.15rem 0.35rem', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)', fontFamily: 'monospace' }}>
+                                <strong>SKU Ref:</strong> {order.sku_ref}
+                              </span>
+                            )}
+                            {order.parent_sku && (
+                              <span style={{ fontSize: '0.75rem', backgroundColor: 'var(--accent-light)', color: 'var(--accent-color)', padding: '0.15rem 0.35rem', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)', fontFamily: 'monospace' }}>
+                                <strong>SKU Induk:</strong> {order.parent_sku}
+                              </span>
+                            )}
+                          </div>
+                        </td>
                         <td style={{ verticalAlign: 'top', fontWeight: 600 }}>{order.quantity}</td>
                         <td style={{ verticalAlign: 'top' }}>
                           <span className={`status-tag ${statusTagClass}`}>{statusText}</span>
@@ -965,6 +1049,49 @@ export default function Import() {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginTop: '1.25rem',
+                background: 'var(--bg-primary)',
+                padding: '0.75rem 1rem',
+                borderRadius: 'var(--border-radius-md)',
+                border: '1px solid var(--border-color)'
+              }}
+            >
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: '500' }}>
+                Showing <strong>{Math.min((currentPage - 1) * ordersPerPage + 1, processedOrders.length)}</strong> to <strong>{Math.min(currentPage * ordersPerPage, processedOrders.length)}</strong> of <strong>{processedOrders.length}</strong> orders
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', cursor: currentPage === 1 ? 'not-allowed' : 'pointer' }}
+                >
+                  ◀ Previous
+                </button>
+                <span style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-primary)', padding: '0 0.5rem' }}>
+                  Page {currentPage} of {totalPages}
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', cursor: currentPage === totalPages ? 'not-allowed' : 'pointer' }}
+                >
+                  Next ▶
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
