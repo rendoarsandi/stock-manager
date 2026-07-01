@@ -23,6 +23,7 @@ const tests = [
   'test-cloudflare-drizzle.js',
   'test-do-operation-budget.js',
   'test-products.js',
+  'test-inout-fixes.js',
   'test-services.js',
   'test-fuzzy-matching.js',
   'test-import.js',

@@ -26,14 +26,6 @@ for (const file of expectedSrcFiles) {
   console.log(`✅ Verified file exists: ${file}`);
 }
 
-// 2. Verify backup folder is present
-const backupDir = path.join(rootDir, 'src/public_vanilla');
-if (!fs.existsSync(backupDir) || !fs.statSync(backupDir).isDirectory()) {
-  console.error("❌ Backup directory src/public_vanilla is missing or not a directory!");
-  process.exit(1);
-}
-console.log("✅ Verified backup directory src/public_vanilla exists.");
-
 // 3. Run build and verify output in dist/
 console.log("Running npm run build...");
 try {

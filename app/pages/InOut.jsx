@@ -122,8 +122,6 @@ export default function InOut() {
   useEffect(() => {
     if (selectedProduct && selectedProduct.name) {
       setSearchQuery(selectedProduct.name + (selectedProduct.model ? ` (${selectedProduct.model})` : ''));
-    } else if (!selectedProduct) {
-      setSearchQuery('');
     }
   }, [selectedProduct]);
 
@@ -194,7 +192,11 @@ export default function InOut() {
 
     // If not selected explicitly, match with existing product (case-insensitive)
     if (!targetProduct) {
-      const match = products.find(p => p.name.toLowerCase() === trimmedQuery.toLowerCase());
+      const match = products.find(p => {
+        const fullName = p.name + (p.model ? ` (${p.model})` : '');
+        return p.name.toLowerCase() === trimmedQuery.toLowerCase() ||
+               fullName.toLowerCase() === trimmedQuery.toLowerCase();
+      });
       if (match) {
         targetProduct = match;
         setSelectedProduct(match);
@@ -316,7 +318,10 @@ export default function InOut() {
                 <button
                   type="button"
                   className="btn btn-secondary"
-                  onClick={() => setSelectedProduct(null)}
+                  onClick={() => {
+                    setSelectedProduct(null);
+                    setSearchQuery('');
+                  }}
                   title="Clear selection"
                   style={{ padding: '0.5rem 0.75rem' }}
                 >

@@ -1,3 +1,4 @@
+/* global WebSocketRequestResponsePair */
 import { DurableObject } from 'cloudflare:workers';
 import { app } from './app.js';
 import { storageContext } from './db/context.js';
