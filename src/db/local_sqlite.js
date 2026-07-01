@@ -62,11 +62,7 @@ export const localSqliteStore = {
     try {
       for (const q of queries) {
         db.run(q.sql, q.params || []);
-        const stmt = db.prepare("SELECT last_insert_rowid() AS id");
-        stmt.step();
-        const res = stmt.getAsObject();
-        stmt.free();
-        results.push(res);
+        results.push({ lastInsertRowid: null });
       }
       db.run("COMMIT");
     } catch (err) {

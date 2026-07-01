@@ -535,8 +535,40 @@ export function getSorensenDiceSimilarity(s1, s2) {
 export function findFuzzyProductInCatalog(text, catalog) {
   let bestProduct = null;
   let maxSimilarity = 0;
+  
+  if (!text) return { product: null, similarity: 0 };
+  const cleanText = text.toLowerCase().trim().replace(/\s+/g, ' ');
+  
+  const getBigrams = (str) => {
+    const bigrams = new Set();
+    for (let i = 0; i < str.length - 1; i++) {
+      bigrams.add(str.substring(i, i + 2));
+    }
+    return bigrams;
+  };
+
+  const b1 = getBigrams(cleanText);
+  if (b1.size === 0) return { product: null, similarity: 0 };
+
   for (const p of catalog) {
-    const similarity = getSorensenDiceSimilarity(text, p.name);
+    if (!p.name) continue;
+    
+    if (!p._bigrams) {
+      const cleanName = p.name.toLowerCase().trim().replace(/\s+/g, ' ');
+      p._bigrams = getBigrams(cleanName);
+    }
+    
+    const b2 = p._bigrams;
+    if (b2.size === 0) continue;
+
+    let intersection = 0;
+    for (const item of b1) {
+      if (b2.has(item)) {
+        intersection++;
+      }
+    }
+
+    const similarity = (2.0 * intersection) / (b1.size + b2.size);
     if (similarity > maxSimilarity) {
       maxSimilarity = similarity;
       bestProduct = p;

@@ -107,9 +107,7 @@ export class StockRoom extends DurableObject {
       this.ctx.storage.transactionSync(() => {
         for (const q of queries) {
           this.sql.exec(q.sql, ...(q.params || []));
-          const cursor = this.sql.exec("SELECT last_insert_rowid() AS id");
-          const row = cursor.one();
-          results.push({ lastInsertRowid: row ? row.id : null });
+          results.push({ lastInsertRowid: null });
         }
       });
     } catch (err) {
