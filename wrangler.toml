@@ -18,7 +18,7 @@ MIGRATE_KEY = "mig_key_c9a173bd8e08fc45b6db"
 
 [assets]
 binding = "ASSETS"
-directory = "./src/public"
+directory = "dist/client"
 
 [observability]
 enabled = false
