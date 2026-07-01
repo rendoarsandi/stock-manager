@@ -4,3 +4,8 @@
 
 # Git & Deployment Constraints
 * **No Auto-Commits or Auto-Deploys**: Never execute `git commit`, `git push`, or `wrangler deploy` commands unless the user has explicitly requested you to commit or deploy.
+
+# Backend & Error Handling Guidelines
+* **Use Effect-TS**: Prefer using **Effect-TS** (`effect`) for core backend services, complex parsing tasks, data synchronization, and heavy processing pipelines instead of manual nested `try/catch` blocks.
+* **API Compatibility**: Export both raw Effect functions (e.g., `someActionEffect`) and standard, backward-compatible sync/async wrappers using `Effect.runSync` or `Effect.runPromise` to avoid breaking existing callers.
+

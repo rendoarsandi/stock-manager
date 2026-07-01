@@ -25,6 +25,7 @@ const tests = [
   'test-products.js',
   'test-inout-fixes.js',
   'test-services.js',
+  'test-effect-services.js',
   'test-fuzzy-matching.js',
   'test-import.js',
   'test-review.js',
