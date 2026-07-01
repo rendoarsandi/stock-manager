@@ -46,12 +46,23 @@ export class StockRoom extends DurableObject {
     super(ctx, env);
     this.sql = ctx.storage.sql;
     
-    // Initialize schema synchronously in constructor
+    // Lazy initialize schema: check if table 'users' exists before executing full schema script
     try {
-      this.sql.exec(schemaSql);
+      const tableCheck = this.sql.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='users'");
+      const row = tableCheck.one();
+      if (!row) {
+        this.sql.exec(schemaSql);
+      }
     } catch (err) {
-      console.error("Failed to run schema in DO constructor:", err);
+      console.error("Failed to check/run schema in DO constructor:", err);
     }
+
+    // Set auto-response for websocket pings to prevent waking up Durable Object
+    try {
+      this.ctx.setWebSocketAutoResponse(
+        new WebSocketRequestResponsePair("ping", "pong")
+      );
+    } catch (e) {}
   }
 
   // RPC methods
