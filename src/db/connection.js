@@ -557,8 +557,8 @@ export const db = {
       const uniqueIds = [...new Set(orderIds)];
       const db = getActiveDb();
       const existing = [];
-      for (let i = 0; i < uniqueIds.length; i += 500) {
-        const chunk = uniqueIds.slice(i, i + 500);
+      for (let i = 0; i < uniqueIds.length; i += 100) {
+        const chunk = uniqueIds.slice(i, i + 100);
         const rows = await db.select({ order_id: orders.order_id })
           .from(orders)
           .where(inArray(orders.order_id, chunk));
