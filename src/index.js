@@ -22,7 +22,7 @@ const mimeTypes = {
 };
 
 async function serveStaticFile(urlPath) {
-  const publicDir = path.resolve(path.join(__dirname, 'public'));
+  const publicDir = path.resolve(path.join(__dirname, '../dist/client'));
   const filePath = path.resolve(path.join(publicDir, urlPath));
 
   // Security check: Path Traversal
@@ -62,20 +62,14 @@ async function entryFetch(request) {
     return apiFetch(request);
   }
 
-  // 3. SPA Fallback
+  // 3. TanStack Start SSR handler
   if (request.method === 'GET') {
     try {
-      const indexPath = path.resolve(__dirname, 'public/index.html');
-      const stat = await fsPromises.stat(indexPath);
-      if (stat.isFile()) {
-        const html = await fsPromises.readFile(indexPath, 'utf8');
-        return new Response(html, {
-          status: 200,
-          headers: { 'Content-Type': 'text/html' }
-        });
-      }
+      const mod = await import('../dist/server/server.js');
+      const server_default = mod.default;
+      return await server_default.fetch(request);
     } catch (err) {
-      console.error("Error serving SPA index.html:", err);
+      console.error("SSR Handler failed:", err);
     }
   }
 
