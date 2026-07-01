@@ -94,6 +94,10 @@ CREATE TABLE IF NOT EXISTS orders (
     resolution TEXT CHECK(resolution IN ('returned', 'lost', 'investigating')),
     resolution_notes TEXT,
     resolved_at TEXT,
+    cancellation_reason TEXT,
+    cancel_return_status TEXT,
+    parent_sku TEXT,
+    sku_ref TEXT,
     created_at TEXT DEFAULT (datetime('now', 'localtime')),
     FOREIGN KEY (import_session_id) REFERENCES import_sessions(id)
 );

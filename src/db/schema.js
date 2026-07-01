@@ -71,6 +71,10 @@ export const orders = sqliteTable('orders', {
   resolution: text('resolution'), // CHECK(resolution IN ('returned', 'lost', 'investigating'))
   resolution_notes: text('resolution_notes'),
   resolved_at: text('resolved_at'),
+  cancellation_reason: text('cancellation_reason'),
+  cancel_return_status: text('cancel_return_status'),
+  parent_sku: text('parent_sku'),
+  sku_ref: text('sku_ref'),
   created_at: text('created_at').default(sql`(datetime('now', 'localtime'))`),
 }, (t) => {
   return [

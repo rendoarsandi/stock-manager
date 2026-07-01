@@ -11,6 +11,7 @@ import { Route as usersRoute } from '../app/routes/api/auth/users.js';
 import { Route as clerkWebhookRoute } from '../app/routes/api/auth/clerk-webhook.js';
 import { Route as userByIdRoute } from '../app/routes/api/auth/users/$id.js';
 import { Route as productsRoute } from '../app/routes/api/products.js';
+import { Route as ordersRoute } from '../app/routes/api/orders.js';
 import { Route as productsLedgerRoute } from '../app/routes/api/products/ledger.js';
 import { Route as productByIdLedgerRoute } from '../app/routes/api/products/$id/ledger.js';
 import { Route as adjustStockRoute } from '../app/routes/api/products/$id/adjust-stock.js';
@@ -49,6 +50,7 @@ const usersRouteUpdated = usersRoute.update({ id: '/api/auth/users', path: '/api
 const clerkWebhookRouteUpdated = clerkWebhookRoute.update({ id: '/api/auth/clerk-webhook', path: '/api/auth/clerk-webhook', getParentRoute: () => rootRoute });
 const userByIdRouteUpdated = userByIdRoute.update({ id: '/api/auth/users/$id', path: '/api/auth/users/$id', getParentRoute: () => rootRoute });
 const productsRouteUpdated = productsRoute.update({ id: '/api/products', path: '/api/products', getParentRoute: () => rootRoute });
+const ordersRouteUpdated = ordersRoute.update({ id: '/api/orders', path: '/api/orders', getParentRoute: () => rootRoute });
 const productsLedgerRouteUpdated = productsLedgerRoute.update({ id: '/api/products/ledger', path: '/api/products/ledger', getParentRoute: () => rootRoute });
 const productByIdLedgerRouteUpdated = productByIdLedgerRoute.update({ id: '/api/products/$id/ledger', path: '/api/products/$id/ledger', getParentRoute: () => rootRoute });
 const adjustStockRouteUpdated = adjustStockRoute.update({ id: '/api/products/$id/adjust-stock', path: '/api/products/$id/adjust-stock', getParentRoute: () => rootRoute });
@@ -85,6 +87,7 @@ rootRoute.addChildren([
   clerkWebhookRouteUpdated,
   userByIdRouteUpdated,
   productsRouteUpdated,
+  ordersRouteUpdated,
   productsLedgerRouteUpdated,
   productByIdLedgerRouteUpdated,
   adjustStockRouteUpdated,

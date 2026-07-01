@@ -506,6 +506,16 @@ async function handleListProducts(req) {
   }
 }
 
+async function handleListOrders(req) {
+  try {
+    const list = await db.orders.listDetailed();
+    return json(list);
+  } catch (err) {
+    console.error("Failed to list orders:", err);
+    return json({ message: "Failed to list orders" }, 500);
+  }
+}
+
 async function handleListLedger(req) {
   try {
     const movements = await db.movements.list();
@@ -874,6 +884,36 @@ function parseOpnameDate(dateStr) {
   return null;
 }
 
+function translateOrderStatus(status) {
+  if (!status) return 'Unknown';
+  const clean = String(status).trim().toLowerCase();
+  
+  const translations = {
+    'selesai': 'Completed',
+    'batal': 'Cancelled',
+    'perlu dikirim': 'To Ship',
+    'dikirim': 'Shipped',
+    'belum bayar': 'Unpaid',
+    'pengembalian': 'Returned',
+    'batal/cancel': 'Cancelled',
+    'kembali': 'Returned',
+    'completed': 'Completed',
+    'cancelled': 'Cancelled',
+    'shipped': 'Shipped',
+    'unpaid': 'Unpaid',
+    'returned': 'Returned',
+    'to ship': 'To Ship'
+  };
+  
+  for (const [key, val] of Object.entries(translations)) {
+    if (clean.includes(key)) return val;
+  }
+  
+  // Return capitalized default
+  return status.charAt(0).toUpperCase() + status.slice(1);
+}
+
+
 async function handleUploadExcel(req) {
   try {
     let templateId;
@@ -957,8 +997,9 @@ async function handleUploadExcel(req) {
 
       const isDuplicate = existingOrderIdsSet.has(row.order_id);
 
-      const orderStatusNorm = String(row.order_status).toLowerCase();
-      const needsReview = orderStatusNorm.includes('batal') || orderStatusNorm.includes('cancel');
+      const translatedStatus = translateOrderStatus(row.order_status);
+      const orderStatusNorm = translatedStatus.toLowerCase();
+      const needsReview = orderStatusNorm.includes('batal') || orderStatusNorm.includes('cancel') || orderStatusNorm.includes('returned') || orderStatusNorm.includes('pengembalian');
       const systemStatus = needsReview ? 'needs_review' : 'normal';
 
       if (needsReview) {
@@ -1039,7 +1080,7 @@ async function handleUploadExcel(req) {
         product_name_raw: row.product_name_raw,
         sku_ref: row.sku_ref || '',
         quantity: row.quantity,
-        order_status: row.order_status,
+        order_status: translatedStatus,
         customer_name: row.customer_name || '',
         expedition: row.expedition || '',
         order_date: row.order_date || '',
@@ -1047,6 +1088,9 @@ async function handleUploadExcel(req) {
         system_status: systemStatus,
         is_duplicate: isDuplicate,
         has_ambiguous: hasAmbiguous,
+        cancellation_reason: row.cancellation_reason || '',
+        cancel_return_status: row.cancel_return_status || '',
+        parent_sku: row.parent_sku || '',
         splits: suggestedSplits
       });
     }
@@ -1129,7 +1173,7 @@ async function handleConfirmImport(req) {
 
     for (const order of orders) {
       queries.push({
-        sql: "INSERT INTO orders (import_session_id, order_id, resi_number, product_name_raw, quantity, order_status, customer_name, expedition, order_date, price, system_status, resolution, resolution_notes, resolved_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))",
+        sql: "INSERT INTO orders (import_session_id, order_id, resi_number, product_name_raw, quantity, order_status, customer_name, expedition, order_date, price, system_status, resolution, resolution_notes, resolved_at, cancellation_reason, cancel_return_status, parent_sku, sku_ref, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))",
         params: [
           sessionIdNum,
           order.order_id,
@@ -1144,7 +1188,11 @@ async function handleConfirmImport(req) {
           order.system_status || 'normal',
           order.resolution || null,
           order.resolution_notes || null,
-          order.resolved_at || null
+          order.resolved_at || null,
+          order.cancellation_reason || null,
+          order.cancel_return_status || null,
+          order.parent_sku || null,
+          order.sku_ref || null
         ]
       });
 
@@ -2239,6 +2287,7 @@ export {
   handleCreateUser,
   handleDeleteUser,
   handleListProducts,
+  handleListOrders,
   handleListLedger,
   handleCreateProduct,
   handleProductLedger,

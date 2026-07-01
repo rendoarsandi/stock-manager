@@ -18,7 +18,9 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProductsIndexRouteImport } from './routes/products/index'
 import { Route as SignUpSplatRouteImport } from './routes/sign-up.$'
 import { Route as ProductsStatusReturnRouteImport } from './routes/products/status-return'
+import { Route as ProductsOrderRouteImport } from './routes/products/order'
 import { Route as ApiProductsRouteImport } from './routes/api/products'
+import { Route as ApiOrdersRouteImport } from './routes/api/orders'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiSplatRouteImport } from './routes/api/$'
 import { Route as ApiStockOpnameRouteImport } from './routes/api/stock/opname'
@@ -99,9 +101,19 @@ const ProductsStatusReturnRoute = ProductsStatusReturnRouteImport.update({
   path: '/products/status-return',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProductsOrderRoute = ProductsOrderRouteImport.update({
+  id: '/products/order',
+  path: '/products/order',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiProductsRoute = ApiProductsRouteImport.update({
   id: '/api/products',
   path: '/api/products',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOrdersRoute = ApiOrdersRouteImport.update({
+  id: '/api/orders',
+  path: '/api/orders',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiHealthRoute = ApiHealthRouteImport.update({
@@ -286,7 +298,9 @@ export interface FileRoutesByFullPath {
   '/stock-history': typeof StockHistoryRoute
   '/api/$': typeof ApiSplatRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/orders': typeof ApiOrdersRoute
   '/api/products': typeof ApiProductsRouteWithChildren
+  '/products/order': typeof ProductsOrderRoute
   '/products/status-return': typeof ProductsStatusReturnRoute
   '/sign-up/$': typeof SignUpSplatRoute
   '/products/': typeof ProductsIndexRoute
@@ -332,7 +346,9 @@ export interface FileRoutesByTo {
   '/stock-history': typeof StockHistoryRoute
   '/api/$': typeof ApiSplatRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/orders': typeof ApiOrdersRoute
   '/api/products': typeof ApiProductsRouteWithChildren
+  '/products/order': typeof ProductsOrderRoute
   '/products/status-return': typeof ProductsStatusReturnRoute
   '/sign-up/$': typeof SignUpSplatRoute
   '/products': typeof ProductsIndexRoute
@@ -379,7 +395,9 @@ export interface FileRoutesById {
   '/stock-history': typeof StockHistoryRoute
   '/api/$': typeof ApiSplatRoute
   '/api/health': typeof ApiHealthRoute
+  '/api/orders': typeof ApiOrdersRoute
   '/api/products': typeof ApiProductsRouteWithChildren
+  '/products/order': typeof ProductsOrderRoute
   '/products/status-return': typeof ProductsStatusReturnRoute
   '/sign-up/$': typeof SignUpSplatRoute
   '/products/': typeof ProductsIndexRoute
@@ -427,7 +445,9 @@ export interface FileRouteTypes {
     | '/stock-history'
     | '/api/$'
     | '/api/health'
+    | '/api/orders'
     | '/api/products'
+    | '/products/order'
     | '/products/status-return'
     | '/sign-up/$'
     | '/products/'
@@ -473,7 +493,9 @@ export interface FileRouteTypes {
     | '/stock-history'
     | '/api/$'
     | '/api/health'
+    | '/api/orders'
     | '/api/products'
+    | '/products/order'
     | '/products/status-return'
     | '/sign-up/$'
     | '/products'
@@ -519,7 +541,9 @@ export interface FileRouteTypes {
     | '/stock-history'
     | '/api/$'
     | '/api/health'
+    | '/api/orders'
     | '/api/products'
+    | '/products/order'
     | '/products/status-return'
     | '/sign-up/$'
     | '/products/'
@@ -566,7 +590,9 @@ export interface RootRouteChildren {
   StockHistoryRoute: typeof StockHistoryRoute
   ApiSplatRoute: typeof ApiSplatRoute
   ApiHealthRoute: typeof ApiHealthRoute
+  ApiOrdersRoute: typeof ApiOrdersRoute
   ApiProductsRoute: typeof ApiProductsRouteWithChildren
+  ProductsOrderRoute: typeof ProductsOrderRoute
   ProductsStatusReturnRoute: typeof ProductsStatusReturnRoute
   SignUpSplatRoute: typeof SignUpSplatRoute
   ProductsIndexRoute: typeof ProductsIndexRoute
@@ -661,11 +687,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProductsStatusReturnRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/products/order': {
+      id: '/products/order'
+      path: '/products/order'
+      fullPath: '/products/order'
+      preLoaderRoute: typeof ProductsOrderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/products': {
       id: '/api/products'
       path: '/api/products'
       fullPath: '/api/products'
       preLoaderRoute: typeof ApiProductsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/orders': {
+      id: '/api/orders'
+      path: '/api/orders'
+      fullPath: '/api/orders'
+      preLoaderRoute: typeof ApiOrdersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/health': {
@@ -995,7 +1035,9 @@ const rootRouteChildren: RootRouteChildren = {
   StockHistoryRoute: StockHistoryRoute,
   ApiSplatRoute: ApiSplatRoute,
   ApiHealthRoute: ApiHealthRoute,
+  ApiOrdersRoute: ApiOrdersRoute,
   ApiProductsRoute: ApiProductsRouteWithChildren,
+  ProductsOrderRoute: ProductsOrderRoute,
   ProductsStatusReturnRoute: ProductsStatusReturnRoute,
   SignUpSplatRoute: SignUpSplatRoute,
   ProductsIndexRoute: ProductsIndexRoute,

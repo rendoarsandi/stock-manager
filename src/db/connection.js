@@ -153,7 +153,10 @@ export async function seedIfNeeded(storage) {
         expedition: "Opsi Pengiriman",
         order_date: "Waktu Pembayaran",
         price: "Total Pembayaran",
-        sku_ref: "Nomor Referensi SKU"
+        sku_ref: "Nomor Referensi SKU",
+        cancellation_reason: "Alasan Pembatalan",
+        cancel_return_status: "Status Pembatalan/ Pengembalian",
+        parent_sku: "SKU Induk"
       };
 
       const tokopediaMapping = {
@@ -166,7 +169,10 @@ export async function seedIfNeeded(storage) {
         expedition: "Kurir",
         order_date: "Tanggal Transaksi",
         price: "Nilai Transaksi",
-        sku_ref: "Nomor Referensi SKU"
+        sku_ref: "Nomor Referensi SKU",
+        cancellation_reason: "",
+        cancel_return_status: "",
+        parent_sku: ""
       };
 
       await storage.execute(
@@ -541,6 +547,39 @@ export const db = {
     async list() {
       const db = getActiveDb();
       return await db.select().from(orders);
+    },
+    async listDetailed() {
+      const db = getActiveDb();
+      const allOrders = await db.select().from(orders);
+      const allItems = await db.select({
+        id: orderItems.id,
+        order_id: orderItems.order_id,
+        product_id: orderItems.product_id,
+        quantity: orderItems.quantity,
+        parse_source: orderItems.parse_source,
+        original_text: orderItems.original_text,
+        product_name: products.name,
+        product_model: products.model
+      })
+      .from(orderItems)
+      .leftJoin(products, eq(orderItems.product_id, products.id));
+
+      // Group items by order_id
+      const itemsMap = new Map();
+      for (const item of allItems) {
+        if (!itemsMap.has(item.order_id)) {
+          itemsMap.set(item.order_id, []);
+        }
+        itemsMap.get(item.order_id).push(item);
+      }
+
+      // Attach items to orders and sort by id desc
+      const detailed = allOrders.map(o => ({
+        ...o,
+        items: itemsMap.get(o.id) || []
+      }));
+      detailed.sort((a, b) => b.id - a.id);
+      return detailed;
     },
     async get(id) {
       const db = getActiveDb();
