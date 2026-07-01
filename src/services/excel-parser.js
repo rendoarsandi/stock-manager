@@ -1,22 +1,8 @@
+import * as xlsxLib from 'xlsx';
 
-/**
- * Parses an Excel file buffer and maps its headers to system keys based on a template mapping configuration.
- * @param {Buffer} fileBuffer - The binary Excel file buffer.
- * @param {Object} columnMapping - Object mapping system keys to Excel column headers.
- * @returns {Array<Object>} Mapped orders.
- */
 export async function parseExcel(fileBuffer, columnMapping) {
   if (!fileBuffer) throw new Error("File buffer is required");
   if (!columnMapping) throw new Error("Column mapping template is required");
-
-  // Dynamic import for environment interop (Node.js and Cloudflare Workers)
-  let imported;
-  try {
-    imported = await import('xlsx');
-  } catch (err) {
-    throw new Error("XLSX library not available in this environment: " + err.message);
-  }
-  const xlsxLib = imported.read ? imported : (imported.default || imported);
 
   // Read Excel file
   const workbook = xlsxLib.read(fileBuffer, { type: 'buffer' });
