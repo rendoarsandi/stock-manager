@@ -14,7 +14,7 @@ export default {
     const url = new URL(request.url);
     
     // 1. Handle WebSocket handshake or dev migration endpoint
-    if (url.pathname === '/ws' || url.pathname === '/api/dev/migrate') {
+    if (url.pathname === '/ws' || url.pathname === '/api/dev/migrate' || url.pathname === '/api/dev/export') {
       return app.fetch(request, env, ctx);
     }
     

@@ -206,6 +206,43 @@ export const app = {
           }
         }
 
+        // DB Export endpoint for safe backup / database matching
+        if (path === '/api/dev/export' && method === 'GET') {
+          const isLocalhost = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+          const authHeader = request.headers.get('Authorization');
+          const isAuthorized = isLocalhost || (env && env.MIGRATE_KEY && authHeader === `Bearer ${env.MIGRATE_KEY}`);
+          
+          if (!isAuthorized) {
+            return new Response(JSON.stringify({ error: "Unauthorized" }), {
+              status: 403,
+              headers: { 'Content-Type': 'application/json' }
+            });
+          }
+          try {
+            const id = env.STOCK_ROOM.idFromName('global');
+            const stub = env.STOCK_ROOM.get(id);
+            
+            // Query all table names from sqlite_master
+            const tables = await stub.query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'");
+            
+            const dump = {};
+            for (const tableRow of tables) {
+              const tableName = tableRow.name;
+              const rows = await stub.query(`SELECT * FROM \`${tableName}\``);
+              dump[tableName] = rows;
+            }
+            
+            return new Response(JSON.stringify({ success: true, dump }), {
+              headers: { 'Content-Type': 'application/json' }
+            });
+          } catch (err) {
+            return new Response(JSON.stringify({ success: false, error: err.message }), {
+              status: 500,
+              headers: { 'Content-Type': 'application/json' }
+            });
+          }
+        }
+
         const isGetApi = method === 'GET' && path.startsWith('/api/') && path !== '/api/health' && !path.startsWith('/api/auth/');
         if (isGetApi) {
           const cached = apiCache.get(path);
