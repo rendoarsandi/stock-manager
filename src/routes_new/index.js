@@ -994,6 +994,9 @@ async function handleUploadExcel(req) {
 
     for (const row of parsedRows) {
       if (!row.order_id) continue;
+      if (row.product_name_raw && String(row.product_name_raw).toLowerCase().includes('[free gift]')) {
+        continue;
+      }
 
       const isDuplicate = existingOrderIdsSet.has(row.order_id);
 
