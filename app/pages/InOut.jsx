@@ -66,24 +66,19 @@ export default function InOut() {
 
   // Fetch global ledger history
   const { data: globalMovements = [], isLoading: isLoadingGlobalLedger } = useQuery({
-    queryKey: ['globalLedger'],
+    queryKey: ['globalLedger', globalSearchQuery],
     queryFn: async () => {
-      const res = await fetch('/api/stock/history');
+      const url = new URL('/api/stock/history', window.location.origin);
+      if (globalSearchQuery.trim()) {
+        url.searchParams.set('search', globalSearchQuery.trim());
+      }
+      const res = await fetch(url.toString());
       if (!res.ok) throw new Error('Failed to fetch stock history');
       return res.json();
     }
   });
 
-  const filteredGlobalMovements = useMemo(() => {
-    if (!globalSearchQuery) return globalMovements;
-    const query = globalSearchQuery.toLowerCase().trim();
-    return globalMovements.filter(m =>
-      (m.name && m.name.toLowerCase().includes(query)) ||
-      (m.model && m.model.toLowerCase().includes(query)) ||
-      (m.reference && m.reference.toLowerCase().includes(query)) ||
-      (m.movement_type && m.movement_type.toLowerCase().includes(query))
-    );
-  }, [globalMovements, globalSearchQuery]);
+  const filteredGlobalMovements = globalMovements;
 
   const deleteMovementMutation = useMutation({
     mutationFn: async (id) => {

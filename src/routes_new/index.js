@@ -8,6 +8,7 @@ import { getActiveStorage, getActiveEnv, storageContext } from '../db/context.js
 import { getLocalStore } from '../db/local_sqlite.js';
 import { broadcast } from '../ws/broker.js';
 import { z } from 'zod';
+import { Effect } from 'effect';
 
 function getJwtSecret() {
   const secret = globalThis.MINIMAL_CLOUDFLARE_ENV?.JWT_SECRET || process.env.JWT_SECRET;
@@ -517,31 +518,59 @@ async function handleListOrders(req) {
   }
 }
 
-async function handleListLedger(req) {
-  try {
-    const movements = await db.movements.list();
-    const productsList = await db.products.list();
-    const usersList = await db.users.list();
+export function handleListLedgerEffect(req) {
+  return Effect.gen(function* () {
+    const url = new URL(req.url);
+    const search = url.searchParams.get('search') || '';
+    const activeStorage = getActiveStorage();
 
-    const productMap = new Map(productsList.map(p => [p.id, p]));
-    const userMap = new Map(usersList.map(u => [u.id, u]));
+    let sql = `
+      SELECT 
+        m.id,
+        m.product_id,
+        m.quantity_change,
+        m.movement_type,
+        m.reference,
+        m.user_id,
+        m.created_at,
+        p.name AS name,
+        p.model AS model,
+        u.username AS username
+      FROM stock_movements m
+      JOIN products p ON m.product_id = p.id
+      LEFT JOIN users u ON m.user_id = u.id
+    `;
+    
+    let params = [];
+    if (search.trim()) {
+      const wildcard = `%${search.trim()}%`;
+      sql += `
+        WHERE p.name LIKE ? 
+           OR p.model LIKE ? 
+           OR m.reference LIKE ? 
+           OR m.movement_type LIKE ?
+      `;
+      params = [wildcard, wildcard, wildcard, wildcard];
+    }
+    
+    sql += ` ORDER BY m.created_at DESC, m.id DESC LIMIT 100`;
 
-    const joined = movements.map(m => {
-      const prod = productMap.get(m.product_id);
-      const user = m.user_id ? userMap.get(m.user_id) : null;
-      return {
-        ...m,
-        name: prod ? prod.name : null,
-        model: prod ? prod.model : null,
-        username: user ? user.username : null
-      };
+    const joined = yield* Effect.tryPromise({
+      try: () => activeStorage.query(sql, params),
+      catch: (error) => new Error(`DB query failed: ${error.message}`)
     });
 
-    joined.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    return json(joined);
+    return joined;
+  });
+}
+
+async function handleListLedger(req) {
+  try {
+    const result = await Effect.runPromise(handleListLedgerEffect(req));
+    return json(result);
   } catch (err) {
     console.error("List ledger error:", err);
-    return json({ message: 'Failed to retrieve stock ledger' }, 500);
+    return json({ message: err.message || 'Failed to retrieve stock ledger' }, 500);
   }
 }
 
@@ -590,19 +619,24 @@ async function handleCreateProduct(req) {
   }
 }
 
-async function handleProductLedger(req, params) {
-  try {
+export function handleProductLedgerEffect(req, params) {
+  return Effect.gen(function* () {
     const id = parseInt(params[0], 10);
-    if (isNaN(id)) return json({ message: "Invalid product ID" }, 400);
+    if (isNaN(id)) {
+      return yield* Effect.fail(new Error("Invalid product ID"));
+    }
     const activeStorage = getActiveStorage();
 
-    const movements = await activeStorage.query(
-      `SELECT * FROM stock_movements WHERE product_id = ? ORDER BY created_at ASC`,
-      [id]
-    );
+    const movements = yield* Effect.tryPromise({
+      try: () => activeStorage.query(
+        `SELECT * FROM stock_movements WHERE product_id = ? ORDER BY created_at ASC`,
+        [id]
+      ),
+      catch: (error) => new Error(`DB query for product movements failed: ${error.message}`)
+    });
 
     if (!movements || movements.length === 0) {
-      return json([]);
+      return [];
     }
 
     const orderIdSet = new Set();
@@ -620,14 +654,19 @@ async function handleProductLedger(req, params) {
       for (let i = 0; i < orderIds.length; i += CHUNK_SIZE) {
         const chunk = orderIds.slice(i, i + CHUNK_SIZE);
         const placeholders = chunk.map(() => '?').join(',');
-        const orderRows = await activeStorage.query(
-          `SELECT o.order_id, t.name AS platform_name
-           FROM orders o
-           JOIN import_sessions s ON o.import_session_id = s.id
-           JOIN import_templates t ON s.template_id = t.id
-           WHERE o.order_id IN (${placeholders})`,
-          chunk
-        );
+        
+        const orderRows = yield* Effect.tryPromise({
+          try: () => activeStorage.query(
+            `SELECT o.order_id, t.name AS platform_name
+             FROM orders o
+             JOIN import_sessions s ON o.import_session_id = s.id
+             JOIN import_templates t ON s.template_id = t.id
+             WHERE o.order_id IN (${placeholders})`,
+            chunk
+          ),
+          catch: (error) => new Error(`DB query for orders chunk failed: ${error.message}`)
+        });
+
         for (const row of orderRows) {
           platformMap.set(row.order_id, row.platform_name);
         }
@@ -643,10 +682,17 @@ async function handleProductLedger(req, params) {
       return { ...m, platform_name };
     });
 
+    return result;
+  });
+}
+
+async function handleProductLedger(req, params) {
+  try {
+    const result = await Effect.runPromise(handleProductLedgerEffect(req, params));
     return json(result);
   } catch (err) {
     console.error("Get product ledger history error:", err);
-    return json({ message: 'Failed to retrieve product ledger history' }, 500);
+    return json({ message: err.message || 'Failed to retrieve product ledger history' }, 500);
   }
 }
 
