@@ -974,6 +974,7 @@ function translateOrderStatus(status) {
     'perlu dikirim': 'To Ship',
     'dikirim': 'Shipped',
     'belum bayar': 'Unpaid',
+    'pesanan diterima': 'Completed',
     'pengembalian': 'Returned',
     'batal/cancel': 'Cancelled',
     'kembali': 'Returned',
