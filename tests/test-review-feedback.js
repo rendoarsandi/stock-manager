@@ -259,11 +259,8 @@ async function runTests() {
       console.log("\nTesting import confirmation foreign key accuracy for multi-split order...");
       
       // Inject test bundle mapping
-      const { BUNDLE_MAPPINGS } = await import('../src/services/ambiguous-parser.js');
-      BUNDLE_MAPPINGS['test_feedback_bundle'] = [
-        { name: 'Korek Api Model A', qty: 2 },
-        { name: 'Korek Api Model B', qty: 3 }
-      ];
+      await db.skuMappings.insert({ sku_code: 'test_feedback_bundle', product_id: 1, quantity: 2 });
+      await db.skuMappings.insert({ sku_code: 'test_feedback_bundle', product_id: 2, quantity: 3 });
 
       // Create a mock Excel sheet with a bundle split order
       const splitSheetData = [

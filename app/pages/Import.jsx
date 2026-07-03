@@ -573,7 +573,7 @@ export default function Import() {
     if (filterMode === 'unmapped') {
       list = list.filter((o) => o.splits && o.splits.some((s) => !s.product_id));
     } else if (filterMode === 'cancelled') {
-      list = list.filter((o) => (o.order_status || '').toLowerCase() === 'cancelled');
+      list = list.filter((o) => o.system_status === 'needs_review' || (o.order_status || '').toLowerCase() === 'cancelled');
     } else if (filterMode === 'completed') {
       list = list.filter((o) => (o.order_status || '').toLowerCase() === 'completed');
     } else if (filterMode === 'other') {

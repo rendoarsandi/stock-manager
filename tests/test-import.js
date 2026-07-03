@@ -21,11 +21,11 @@ async function runTests() {
       await seedIfNeeded(store.storage);
 
       // Inject test bundle mapping
-      const { BUNDLE_MAPPINGS } = await import('../src/services/ambiguous-parser.js');
-      BUNDLE_MAPPINGS['test_bundle'] = [
-        { name: 'Korek Api Model A', qty: 2 },
-        { name: 'Korek Api Model B', qty: 3 }
-      ];
+      await db.skuMappings.insert({ sku_code: 'test_bundle', product_id: 1, quantity: 2 });
+      await db.skuMappings.insert({ sku_code: 'test_bundle', product_id: 2, quantity: 3 });
+      await db.skuMappings.insert({ sku_code: 'bundle_b_c', product_id: 2, quantity: 1 });
+      await db.skuMappings.insert({ sku_code: 'bundle_b_c', product_id: 3, quantity: 1 });
+      await db.skuMappings.insert({ sku_code: 'model_c_x2', product_id: 3, quantity: 2 });
 
       console.log("\n--- Running Excel Import API Tests ---");
 
@@ -64,7 +64,7 @@ async function runTests() {
           "Opsi Pengiriman": "J&T Express",
           "Waktu Pembayaran": "2026-06-10 10:00",
           "Total Pembayaran": "Rp 20.000",
-          "Nomor Referensi SKU": ""
+          "Nomor Referensi SKU": "Model A"
         },
         {
           "No. Pesanan": "ORDER-9902",
@@ -76,7 +76,7 @@ async function runTests() {
           "Opsi Pengiriman": "SiCepat",
           "Waktu Pembayaran": "2026-06-10 10:15",
           "Total Pembayaran": "Rp 15.000",
-          "Nomor Referensi SKU": ""
+          "Nomor Referensi SKU": "bundle_b_c"
         },
         {
           "No. Pesanan": "ORDER-9903",
@@ -88,7 +88,7 @@ async function runTests() {
           "Opsi Pengiriman": "JNE Reg",
           "Waktu Pembayaran": "2026-06-10 10:30",
           "Total Pembayaran": "Rp 30.000",
-          "Nomor Referensi SKU": ""
+          "Nomor Referensi SKU": "model_c_x2"
         },
         {
           "No. Pesanan": "ORDER-9904",

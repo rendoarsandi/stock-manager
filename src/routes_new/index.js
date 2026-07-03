@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import { db, seedIfNeeded } from '../db/connection.js';
 import { verifyPassword, hashPassword, signJwt, verifyJwt } from '../utils/crypto.js';
 import { parseExcel, mapRawRows } from '../services/excel-parser.js';
-import { parseAmbiguousDescription, extractSameProductPromo, extractPackMultiplier, resolvePromoProductToBaseItems } from '../services/ambiguous-parser.js';
+import { extractSameProductPromo, extractPackMultiplier, resolvePromoProductToBaseItems } from '../services/ambiguous-parser.js';
 import { getActiveStorage, getActiveEnv, storageContext } from '../db/context.js';
 import { getLocalStore } from '../db/local_sqlite.js';
 import { broadcast } from '../ws/broker.js';
@@ -982,7 +982,8 @@ function translateOrderStatus(status) {
     'shipped': 'Shipped',
     'unpaid': 'Unpaid',
     'returned': 'Returned',
-    'to ship': 'To Ship'
+    'to ship': 'To Ship',
+    'cancel': 'Cancelled'
   };
   
   for (const [key, val] of Object.entries(translations)) {
@@ -1141,7 +1142,15 @@ async function handleUploadExcel(req) {
       }
 
       if (!resolvedDirectly) {
-        suggestedSplits = parseAmbiguousDescription(row.product_name_raw, row.quantity, catalog);
+        suggestedSplits = [{
+          product_id: null,
+          product_name: 'Unknown Product (Awaiting Selection)',
+          model: '',
+          quantity: totalQuantity,
+          parse_source: 'direct',
+          original_text: row.product_name_raw,
+          is_confirmed: false
+        }];
       }
 
       const hasAmbiguous = suggestedSplits.some(s => s.product_id === null) || suggestedSplits.length > 1;

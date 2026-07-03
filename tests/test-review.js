@@ -42,7 +42,8 @@ async function runTests() {
           "No. Pesanan": "ORD-REV-200",
           "Nama Produk": "Korek Api Model B", // direct match
           "Jumlah": 3,
-          "Status Pesanan": "Batal" // cancelled, needs review
+          "Status Pesanan": "Batal", // cancelled, needs review
+          "Nomor Referensi SKU": "Model B"
         }
       ];
 
@@ -189,7 +190,8 @@ async function runTests() {
           "No. Pesanan": "ORD-REV-300",
           "Nama Produk": "Korek Api Model B",
           "Jumlah": 4,
-          "Status Pesanan": "Batal"
+          "Status Pesanan": "Batal",
+          "Nomor Referensi SKU": "Model B"
         }
       ];
       const worksheetLost = XLSX.utils.json_to_sheet(testLostSheet);
