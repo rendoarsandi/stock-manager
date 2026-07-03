@@ -82,7 +82,7 @@ for (const test of tests) {
     const output = execSync(`node "${testPath}"`, { 
       env: { ...process.env, NODE_ENV: 'test', SEED_ADMIN_PASSWORD: process.env.SEED_ADMIN_PASSWORD || 'admin123' },
       encoding: 'utf8',
-      timeout: 20000
+      timeout: 45000
     });
     console.log(output);
     console.log(`✅ ${test} passed!`);

@@ -504,6 +504,12 @@ export default function Products() {
     {
       id: 'sku_mappings_col',
       header: 'SKU',
+      accessorFn: (row) => {
+        return skuMappings
+          .filter(m => m.product_id === row.id)
+          .map(m => m.sku_code)
+          .join(' ');
+      },
       cell: ({ row }) => {
         const product = row.original;
         const mappings = skuMappings.filter(m => m.product_id === product.id);
