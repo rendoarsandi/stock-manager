@@ -53,6 +53,14 @@ export class StockRoom extends DurableObject {
       const row = tableCheck.one();
       if (!row) {
         this.sql.exec(schemaSql);
+      } else {
+        // Ensure index statements are executed for existing databases
+        this.sql.exec("CREATE INDEX IF NOT EXISTS idx_stock_movements_product_id ON stock_movements(product_id)");
+        this.sql.exec("CREATE INDEX IF NOT EXISTS idx_stock_movements_created_at ON stock_movements(created_at)");
+        this.sql.exec("CREATE INDEX IF NOT EXISTS idx_orders_import_session_id ON orders(import_session_id)");
+        this.sql.exec("CREATE INDEX IF NOT EXISTS idx_orders_order_id ON orders(order_id)");
+        this.sql.exec("CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id)");
+        this.sql.exec("CREATE INDEX IF NOT EXISTS idx_order_items_product_id ON order_items(product_id)");
       }
     } catch (err) {
       console.error("Failed to check/run schema in DO constructor:", err);
