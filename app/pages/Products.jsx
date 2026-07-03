@@ -502,9 +502,35 @@ export default function Products() {
       },
     },
     {
-      accessorKey: 'model',
+      id: 'sku_mappings_col',
       header: 'SKU',
-      cell: ({ getValue }) => <span className="status-tag info">{getValue()}</span>,
+      cell: ({ row }) => {
+        const product = row.original;
+        const mappings = skuMappings.filter(m => m.product_id === product.id);
+        if (mappings.length === 0) {
+          return <span style={{ color: 'var(--text-muted)' }}>-</span>;
+        }
+        return (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
+            {mappings.map(m => (
+              <span 
+                key={m.sku_code} 
+                className="status-tag info" 
+                style={{ 
+                  fontSize: '0.7rem',
+                  backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                  color: '#3b82f6',
+                  fontWeight: '500',
+                  padding: '0.1rem 0.35rem',
+                  borderRadius: '4px'
+                }}
+              >
+                {m.sku_code} {m.quantity > 1 ? `(${m.quantity}x)` : ''}
+              </span>
+            ))}
+          </div>
+        );
+      },
     },
     {
       accessorKey: 'current_stock',
@@ -571,7 +597,7 @@ export default function Products() {
         );
       },
     },
-  ], [hoverCard.visible, hoverCard.productId]);
+  ], [hoverCard.visible, hoverCard.productId, skuMappings]);
 
   // Init TanStack Table
   const table = useReactTable({
@@ -1091,16 +1117,6 @@ export default function Products() {
                   />
                 </div>
                 <div className="form-group">
-                  <label htmlFor="p-model">SKU (Reference)</label>
-                  <input
-                    type="text"
-                    id="p-model"
-                    placeholder="e.g. CROBAR_1S"
-                    value={formModel}
-                    onChange={(e) => setFormModel(e.target.value)}
-                  />
-                </div>
-                <div className="form-group">
                   <label htmlFor="p-desc">Description (Optional)</label>
                   <textarea
                     id="p-desc"
@@ -1170,15 +1186,6 @@ export default function Products() {
                       placeholder="e.g. CROSUP_1S"
                       value={formMasterSku}
                       onChange={(e) => setFormMasterSku(e.target.value)}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label htmlFor="p-edit-model">SKU (Reference)</label>
-                    <input
-                      type="text"
-                      id="p-edit-model"
-                      value={formModel}
-                      onChange={(e) => setFormModel(e.target.value)}
                     />
                   </div>
                   <div className="form-group">
