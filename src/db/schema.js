@@ -79,7 +79,8 @@ export const orders = sqliteTable('orders', {
 }, (t) => {
   return [
     index('orders_import_session_id_idx').on(t.import_session_id),
-    index('orders_order_id_idx').on(t.order_id)
+    index('orders_order_id_idx').on(t.order_id),
+    index('orders_order_id_session_id_idx').on(t.order_id, t.import_session_id)
   ];
 });
 
