@@ -1,12 +1,12 @@
-import React from 'react';
-import { SignIn } from '@clerk/tanstack-react-start';
+import React from "react"
+import { LoginForm } from "@/components/login-form"
 
-export default function Login() {
+export default function Page() {
   return (
-    <div className="login-layout">
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', width: '100%' }}>
-        <SignIn routing="path" path="/" signUpUrl="/sign-up" />
+    <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10">
+      <div className="w-full max-w-sm">
+        <LoginForm />
       </div>
     </div>
-  );
+  )
 }

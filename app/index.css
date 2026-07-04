@@ -1,4 +1,7 @@
-@import "tailwindcss";
+@import "tailwindcss" source(none);
+
+@source "./**/*.{html,js,ts,jsx,tsx}";
+@source "../src/**/*.{html,js,ts,jsx,tsx}";
 
 :root {
   --bg-primary: #fafafa;

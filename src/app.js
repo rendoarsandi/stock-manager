@@ -34,6 +34,7 @@ import { Route as opnameRoute } from '../app/routes/api/stock/opname.js';
 import { Route as opnameByIdRoute } from '../app/routes/api/stock/opname/$id.js';
 import { Route as stockHistoryRoute } from '../app/routes/api/stock/history.js';
 import { Route as apiSplatRoute } from '../app/routes/api/$.js';
+import { Route as apiAuthSplatRoute } from '../app/routes/api/auth/$.js';
 import { Route as chatMessagesRoute } from '../app/routes/api/chat/messages.js';
 import { Route as chatContactsRoute } from '../app/routes/api/chat/contacts.js';
 import { Route as chatReadRoute } from '../app/routes/api/chat/read.js';
@@ -73,6 +74,7 @@ const opnameRouteUpdated = opnameRoute.update({ id: '/api/stock/opname', path: '
 const opnameByIdRouteUpdated = opnameByIdRoute.update({ id: '/api/stock/opname/$id', path: '/api/stock/opname/$id', getParentRoute: () => rootRoute });
 const stockHistoryRouteUpdated = stockHistoryRoute.update({ id: '/api/stock/history', path: '/api/stock/history', getParentRoute: () => rootRoute });
 const apiSplatRouteUpdated = apiSplatRoute.update({ id: '/api/$', path: '/api/$', getParentRoute: () => rootRoute });
+const apiAuthSplatRouteUpdated = apiAuthSplatRoute.update({ id: '/api/auth/$', path: '/api/auth/$', getParentRoute: () => rootRoute });
 const chatMessagesRouteUpdated = chatMessagesRoute.update({ id: '/api/chat/messages', path: '/api/chat/messages', getParentRoute: () => rootRoute });
 const chatContactsRouteUpdated = chatContactsRoute.update({ id: '/api/chat/contacts', path: '/api/chat/contacts', getParentRoute: () => rootRoute });
 const chatReadRouteUpdated = chatReadRoute.update({ id: '/api/chat/read', path: '/api/chat/read', getParentRoute: () => rootRoute });
@@ -110,6 +112,7 @@ rootRoute.addChildren([
   opnameByIdRouteUpdated,
   stockHistoryRouteUpdated,
   apiSplatRouteUpdated,
+  apiAuthSplatRouteUpdated,
   chatMessagesRouteUpdated,
   chatContactsRouteUpdated,
   chatReadRouteUpdated,
@@ -152,6 +155,10 @@ export const app = {
         env: env
       };
     }
+
+    try {
+      store.requestUrl = new URL(request.url);
+    } catch (e) {}
 
     return storageContext.run(store, async () => {
       if (process.env.NODE_ENV === 'test') {

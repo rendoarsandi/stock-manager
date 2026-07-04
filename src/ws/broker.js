@@ -83,8 +83,6 @@ export function setupLocalWebSocket(server) {
           broadcastCount();
         });
       });
-    } else {
-      socket.destroy();
     }
   });
 }

@@ -1,4 +1,5 @@
-import { createClerkClient } from '@clerk/backend';
+import * as Schema from 'effect/Schema';
+import { auth } from '../utils/auth.js';
 import crypto from 'crypto';
 import { db, seedIfNeeded } from '../db/connection.js';
 import { verifyPassword, hashPassword, signJwt, verifyJwt } from '../utils/crypto.js';
@@ -7,7 +8,6 @@ import { extractSameProductPromo, extractPackMultiplier, resolvePromoProductToBa
 import { getActiveStorage, getActiveEnv, storageContext } from '../db/context.js';
 import { getLocalStore } from '../db/local_sqlite.js';
 import { broadcast } from '../ws/broker.js';
-import { z } from 'zod';
 import { Effect, Either } from 'effect';
 
 function getJwtSecret() {
@@ -23,39 +23,48 @@ function getJwtSecret() {
   return secret;
 }
 
-const loginSchema = z.object({
-  username: z.string().min(1, 'Username and password are required'),
-  password: z.string().min(1, 'Username and password are required'),
+const loginSchema = Schema.Struct({
+  username: Schema.String.pipe(Schema.minLength(1)),
+  password: Schema.String.pipe(Schema.minLength(1)),
 });
 
-const createUserSchema = z.object({
-  username: z.string().min(1, 'Username, password and role are required'),
-  password: z.string().min(1, 'Username, password and role are required'),
-  role: z.enum(['admin', 'staff'], { errorMap: () => ({ message: 'Role must be admin or staff' }) }),
+const createUserSchema = Schema.Struct({
+  username: Schema.String.pipe(Schema.minLength(1)),
+  password: Schema.String.pipe(Schema.minLength(1)),
+  role: Schema.Literal('admin', 'staff'),
 });
 
-const createProductSchema = z.object({
-  name: z.string().min(1, 'Product name is required'),
-  model: z.string().optional().nullable(),
-  master_sku: z.string().optional().nullable(),
-  description: z.string().optional().nullable(),
-  initial_stock: z.union([z.number(), z.string()]).transform(val => parseInt(val, 10)).pipe(z.number().int().min(0)).optional().default(0),
-  low_stock_threshold: z.union([z.number(), z.string()]).transform(val => parseInt(val, 10)).pipe(z.number().int().min(0)).optional().default(10),
+const ParseIntTransform = Schema.transform(
+  Schema.Union(Schema.Number, Schema.String),
+  Schema.Number,
+  {
+    decode: (val) => typeof val === "string" ? parseInt(val, 10) : val,
+    encode: (val) => val
+  }
+);
+
+const createProductSchema = Schema.Struct({
+  name: Schema.String.pipe(Schema.minLength(1)),
+  model: Schema.optional(Schema.NullOr(Schema.String)),
+  master_sku: Schema.optional(Schema.NullOr(Schema.String)),
+  description: Schema.optional(Schema.NullOr(Schema.String)),
+  initial_stock: Schema.optional(ParseIntTransform),
+  low_stock_threshold: Schema.optional(ParseIntTransform),
 });
 
-const updateProductSchema = z.object({
-  name: z.string().min(1, 'Product name is required'),
-  model: z.string().optional().nullable(),
-  master_sku: z.string().optional().nullable(),
-  description: z.string().optional().nullable(),
-  low_stock_threshold: z.union([z.number(), z.string()]).transform(val => parseInt(val, 10)).pipe(z.number().int().min(0)).optional().default(10),
+const updateProductSchema = Schema.Struct({
+  name: Schema.String.pipe(Schema.minLength(1)),
+  model: Schema.optional(Schema.NullOr(Schema.String)),
+  master_sku: Schema.optional(Schema.NullOr(Schema.String)),
+  description: Schema.optional(Schema.NullOr(Schema.String)),
+  low_stock_threshold: Schema.optional(ParseIntTransform),
 });
 
-const adjustStockSchema = z.object({
-  quantity_change: z.union([z.number(), z.string()]).transform(val => parseInt(val, 10)).pipe(z.number().int({ message: 'Valid quantity change is required' })),
-  movement_type: z.string().optional().default('manual_adjust'),
-  reference: z.string().optional().default('Manual stock adjustment'),
-  created_at: z.string().optional(),
+const adjustStockSchema = Schema.Struct({
+  quantity_change: ParseIntTransform,
+  movement_type: Schema.optional(Schema.String),
+  reference: Schema.optional(Schema.String),
+  created_at: Schema.optional(Schema.String),
 });
 
 // Helper for parsing cookies
@@ -94,38 +103,6 @@ export async function readJson(request) {
   }
 }
 
-let clerkClientInstance = null;
-function getClerkClient() {
-  const env = getActiveEnv();
-  let publishableKey = process.env.CLERK_PUBLISHABLE_KEY || process.env.VITE_CLERK_PUBLISHABLE_KEY;
-  if (!publishableKey && env) {
-    publishableKey = env.CLERK_PUBLISHABLE_KEY || env.VITE_CLERK_PUBLISHABLE_KEY;
-  }
-  if (!publishableKey) {
-    publishableKey = 'pk_test_ZmFzdC1oZXJyaW5nLTE5LmNsZXJrLmFjY291bnRzLmRldiQ';
-  }
-
-  let secretKey = process.env.CLERK_SECRET_KEY;
-  if (!secretKey && env) {
-    secretKey = env.CLERK_SECRET_KEY;
-  }
-  const isFallbackSecret = !secretKey;
-  if (!secretKey) {
-    secretKey = 'sk_test_' + 'abcde12345'.repeat(8);
-  }
-
-  console.log(`[Clerk Debug] getClerkClient - PublishableKey: ${publishableKey.substring(0, 20)}..., SecretKey length: ${secretKey.length}, isFallbackSecret: ${isFallbackSecret}`);
-
-  // Re-create or return instance
-  if (!clerkClientInstance) {
-    clerkClientInstance = createClerkClient({
-      publishableKey,
-      secretKey
-    });
-  }
-  return clerkClientInstance;
-}
-
 // Authentication check
 async function getAuthUser(request) {
   const cfEnv = globalThis.MINIMAL_CLOUDFLARE_ENV;
@@ -149,139 +126,68 @@ async function getAuthUser(request) {
     (typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'development') ||
     (globalThis.MINIMAL_CLOUDFLARE_ENV && globalThis.MINIMAL_CLOUDFLARE_ENV.NODE_ENV === 'development');
 
+  const isLoggedOut = getCookie(request, 'logged_out') === 'true';
+
   try {
-    const clerk = getClerkClient();
-    const requestState = await clerk.authenticateRequest(request);
-    
-    console.log(`[Clerk Debug] authenticateRequest status: ${requestState.status}, reason: ${requestState.reason || 'none'}, message: ${requestState.message || 'none'}`);
-    
-    if (requestState.status === 'unknown' || requestState.status === 'signed-out') {
-      if (isLocalDev) {
-        console.log("[Clerk Debug] Local development fallback: Clerk auth is signed-out/unknown, falling back to admin user.");
+    const sessionData = await auth.api.getSession({ headers: request.headers });
+    if (!sessionData || !sessionData.user) {
+      if (isLocalDev && !isLoggedOut) {
+        console.log("[Better Auth Debug] Local development fallback: no session, falling back to admin user.");
         return { id: 1, username: 'admin', role: 'admin' };
       }
       return null;
     }
 
-    const authData = requestState.toAuth();
-    if (!authData || !authData.userId) {
-      if (isLocalDev) {
-        console.log("[Clerk Debug] Local development fallback: Clerk auth is missing userId, falling back to admin user.");
-        return { id: 1, username: 'admin', role: 'admin' };
-      }
-      return null;
-    }
-
-    let username = authData.sessionClaims?.username;
-    if (!username) {
-      username = authData.userId;
-    }
-    let role = 'admin';
+    const authUser = sessionData.user;
+    let username = authUser.username || authUser.name || authUser.email.split('@')[0];
+    let role = authUser.role || 'staff';
 
     let localId = null;
     let localUsername = username;
     try {
       const storage = getActiveStorage();
-      // 1. Search by Clerk ID in password_hash
-      let existing = await storage.query("SELECT id, username, role FROM users WHERE password_hash = ?", [authData.userId]);
-      
-      // 2. Fallback: Search by Clerk ID in username column (for migrating older accounts)
+      let existing = await storage.query("SELECT id, username, role FROM users WHERE password_hash = ?", [authUser.id]);
       if (!existing || existing.length === 0) {
-        existing = await storage.query("SELECT id, username, role FROM users WHERE username = ?", [authData.userId]);
-        if (existing && existing.length > 0) {
-          localId = existing[0].id;
-          localUsername = existing[0].username;
-          // Migrate old user row to store Clerk ID in password_hash
-          await storage.execute("UPDATE users SET password_hash = ?, role = ? WHERE id = ?", [authData.userId, role, localId]);
-        } else {
-          // 3. Auto-register using Clerk profile info
-          let clerkUser = null;
-          try {
-            clerkUser = await clerk.users.getUser(authData.userId);
-          } catch (err) {
-            console.error("Failed to fetch Clerk user info:", err);
-          }
-          
-          let chosenUsername = '';
-          if (clerkUser) {
-            chosenUsername = clerkUser.username;
-            if (!chosenUsername) {
-              chosenUsername = clerkUser.firstName || '';
-              if (clerkUser.lastName) {
-                chosenUsername = (chosenUsername + clerkUser.lastName).trim();
-              }
-            }
-            if (!chosenUsername && clerkUser.emailAddresses && clerkUser.emailAddresses.length > 0) {
-              chosenUsername = clerkUser.emailAddresses[0].emailAddress.split('@')[0];
-            }
-          }
-          chosenUsername = chosenUsername.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
-          if (!chosenUsername) {
-            chosenUsername = authData.userId;
-          }
-
-          let finalUsername = chosenUsername;
-          let checkExisting = await storage.query("SELECT id FROM users WHERE username = ?", [finalUsername]);
-          let counter = 1;
-          while (checkExisting && checkExisting.length > 0) {
-            finalUsername = `${chosenUsername}${counter}`;
-            checkExisting = await storage.query("SELECT id FROM users WHERE username = ?", [finalUsername]);
-            counter++;
-          }
-
-          try {
-            const result = await storage.execute(
-              "INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, datetime('now', 'localtime'))",
-              [finalUsername, authData.userId, role]
-            );
-            localId = result.lastInsertRowid;
-            localUsername = finalUsername;
-          } catch (insertErr) {
-            if (insertErr.message && insertErr.message.includes('UNIQUE constraint')) {
-              let existingUser = await storage.query("SELECT id, username, role FROM users WHERE password_hash = ?", [authData.userId]);
-              if (existingUser && existingUser.length > 0) {
-                localId = existingUser[0].id;
-                localUsername = existingUser[0].username;
-              } else {
-                throw insertErr;
-              }
-            } else {
-              throw insertErr;
-            }
-          }
+        let chosenUsername = username.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
+        let finalUsername = chosenUsername;
+        let checkExisting = await storage.query("SELECT id FROM users WHERE username = ?", [finalUsername]);
+        let counter = 1;
+        while (checkExisting && checkExisting.length > 0) {
+          finalUsername = `${chosenUsername}${counter}`;
+          checkExisting = await storage.query("SELECT id FROM users WHERE username = ?", [finalUsername]);
+          counter++;
         }
+
+        const result = await storage.execute(
+          "INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, datetime('now', 'localtime'))",
+          [finalUsername, authUser.id, role]
+        );
+        localId = result.lastInsertRowid;
+        localUsername = finalUsername;
       } else {
         localId = existing[0].id;
         localUsername = existing[0].username;
-        const claimUsername = authData.sessionClaims?.username;
         const localRole = existing[0].role;
-        if (claimUsername && claimUsername !== localUsername) {
-          let conflict = await storage.query("SELECT id FROM users WHERE username = ? AND password_hash != ?", [claimUsername, authData.userId]);
-          if (!conflict || conflict.length === 0) {
-            await storage.execute("UPDATE users SET username = ?, role = ? WHERE id = ?", [claimUsername, role, localId]);
-            localUsername = claimUsername;
-          } else if (localRole !== role) {
-            await storage.execute("UPDATE users SET role = ? WHERE id = ?", [role, localId]);
-          }
-        } else if (localRole !== role) {
+        if (localRole !== role) {
           await storage.execute("UPDATE users SET role = ? WHERE id = ?", [role, localId]);
         }
       }
     } catch (dbErr) {
-      console.error("Failed to check Clerk user in local DB:", dbErr);
-      localId = Math.abs(authData.userId.split('').reduce((acc, char) => (acc << 5) - acc + char.charCodeAt(0), 0)) % 1000000;
+      console.error("Failed to check Better Auth user in local DB:", dbErr);
+      localId = Math.abs(authUser.id.split('').reduce((acc, char) => (acc << 5) - acc + char.charCodeAt(0), 0)) % 1000000;
     }
 
     return { id: localId, username: localUsername, role };
   } catch (e) {
-    console.error("Clerk auth failed with error:", e);
+    console.error("Better Auth validation failed with error:", e);
     if (isLocalDev) {
-      console.log("[Clerk Debug] Local development fallback (from catch block): Clerk auth failed, falling back to admin user.");
+      console.log("[Better Auth Debug] Local development fallback (from catch block): Better Auth failed, falling back to admin user.");
       return { id: 1, username: 'admin', role: 'admin' };
     }
     return null;
   }
 }
+
 
 // Helper to return JSON Response
 function json(data, status = 200, headers = {}) {
@@ -318,11 +224,11 @@ export function handleLoginEffect(req) {
       catch: (error) => new Error(`Invalid request JSON: ${error.message}`)
     });
 
-    const parsed = loginSchema.safeParse(body);
-    if (!parsed.success) {
-      return yield* Effect.fail({ status: 400, message: parsed.error.errors[0].message });
+    const decodeResult = Schema.decodeEither(loginSchema)(body);
+    if (Either.isLeft(decodeResult)) {
+      return yield* Effect.fail({ status: 400, message: 'Username and password are required' });
     }
-    const { username, password } = parsed.data;
+    const { username, password } = decodeResult.right;
 
     const user = yield* Effect.tryPromise({
       try: () => db.users.getByUsername(username),
@@ -343,6 +249,7 @@ export function handleLoginEffect(req) {
     const token = signJwt(payload, getJwtSecret());
     const headers = new Headers();
     headers.append('Set-Cookie', `token=${token}; Path=/; HttpOnly; Max-Age=86400`);
+    headers.append('Set-Cookie', 'logged_out=; Path=/; Max-Age=0');
 
     return new Response(JSON.stringify({
       id: user.id,
@@ -376,6 +283,7 @@ export function handleLogoutEffect(req) {
   return Effect.gen(function* () {
     const headers = new Headers();
     headers.append('Set-Cookie', 'token=; Path=/; HttpOnly; Max-Age=0');
+    headers.append('Set-Cookie', 'logged_out=true; Path=/; Max-Age=31536000');
     return new Response(JSON.stringify({ success: true }), {
       status: 200,
       headers
@@ -424,63 +332,6 @@ async function handleMe(req) {
 
 export function handleListUsersEffect(req) {
   return Effect.gen(function* () {
-    if (process.env.NODE_ENV !== 'test') {
-      yield* Effect.tryPromise({
-        try: async () => {
-          const clerk = getClerkClient();
-          const clerkUsers = await clerk.users.getUserList({ limit: 100 });
-          if (clerkUsers) {
-            const list = clerkUsers.data || clerkUsers;
-            const userArray = Array.isArray(list) ? list : [];
-            const storage = getActiveStorage();
-            for (const cu of userArray) {
-              let existing = await storage.query("SELECT id FROM users WHERE password_hash = ?", [cu.id]);
-              if (!existing || existing.length === 0) {
-                let chosenUsername = cu.username || cu.firstName || '';
-                if (cu.lastName) {
-                  chosenUsername = (chosenUsername + cu.lastName).trim();
-                }
-                if (!chosenUsername && cu.emailAddresses && cu.emailAddresses.length > 0) {
-                  chosenUsername = cu.emailAddresses[0].emailAddress.split('@')[0];
-                }
-                chosenUsername = chosenUsername.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
-                if (!chosenUsername) {
-                  chosenUsername = cu.id;
-                }
-
-                let finalUsername = chosenUsername;
-                let checkExisting = await storage.query("SELECT id FROM users WHERE username = ?", [finalUsername]);
-                let counter = 1;
-                while (checkExisting && checkExisting.length > 0) {
-                  finalUsername = `${chosenUsername}${counter}`;
-                  checkExisting = await storage.query("SELECT id FROM users WHERE username = ?", [finalUsername]);
-                  counter++;
-                }
-
-                const role = cu.publicMetadata?.role || cu.metadata?.role || 'staff';
-                try {
-                  await storage.execute(
-                    "INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, datetime('now', 'localtime'))",
-                    [finalUsername, cu.id, role]
-                  );
-                } catch (insertErr) {
-                  if (insertErr.message && insertErr.message.includes('UNIQUE constraint')) {
-                    console.log(`User ${finalUsername} already concurrently registered, skipping.`);
-                  } else {
-                    throw insertErr;
-                  }
-                }
-              }
-            }
-          }
-        },
-        catch: (error) => new Error(`Clerk user sync failed: ${error.message}`)
-      }).pipe(Effect.catchAll((err) => {
-        console.error("Failed to sync users from Clerk (ignoring):", err);
-        return Effect.succeed(null);
-      }));
-    }
-
     const list = yield* Effect.tryPromise({
       try: () => db.users.list(),
       catch: (error) => new Error(`Failed to list users from database: ${error.message}`)
@@ -509,11 +360,11 @@ export function handleCreateUserEffect(req) {
       catch: (error) => new Error(`Invalid request JSON: ${error.message}`)
     });
 
-    const parsed = createUserSchema.safeParse(body);
-    if (!parsed.success) {
-      return yield* Effect.fail({ status: 400, message: parsed.error.errors[0].message });
+    const decodeResult = Schema.decodeEither(createUserSchema)(body);
+    if (Either.isLeft(decodeResult)) {
+      return yield* Effect.fail({ status: 400, message: 'Username, password and role are required' });
     }
-    const { username, password, role } = parsed.data;
+    const { username, password, role } = decodeResult.right;
 
     const existing = yield* Effect.tryPromise({
       try: () => db.users.getByUsername(username),
@@ -747,11 +598,11 @@ export function handleCreateProductEffect(req) {
       try: () => readJson(req),
       catch: (error) => new Error(`Invalid request JSON: ${error.message}`)
     });
-    const parsed = createProductSchema.safeParse(body);
-    if (!parsed.success) {
-      return yield* Effect.fail({ status: 400, message: parsed.error.errors[0].message });
+    const decodeResult = Schema.decodeEither(createProductSchema)(body);
+    if (Either.isLeft(decodeResult)) {
+      return yield* Effect.fail({ status: 400, message: String(decodeResult.left) });
     }
-    const { name, model, master_sku, description, initial_stock, low_stock_threshold } = parsed.data;
+    const { name, model, master_sku, description, initial_stock = 0, low_stock_threshold = 10 } = decodeResult.right;
 
     const user = req.user;
     const threshold = low_stock_threshold;
@@ -897,11 +748,11 @@ export function handleAdjustStockEffect(req, params) {
       try: () => readJson(req),
       catch: (error) => new Error(`Invalid request JSON: ${error.message}`)
     });
-    const parsed = adjustStockSchema.safeParse(body);
-    if (!parsed.success) {
-      return yield* Effect.fail({ status: 400, message: parsed.error.errors[0].message });
+    const decodeResult = Schema.decodeEither(adjustStockSchema)(body);
+    if (Either.isLeft(decodeResult)) {
+      return yield* Effect.fail({ status: 400, message: String(decodeResult.left) });
     }
-    const { quantity_change, movement_type, reference, created_at } = parsed.data;
+    const { quantity_change, movement_type = 'manual_adjust', reference = 'Manual stock adjustment', created_at } = decodeResult.right;
 
     const change = quantity_change;
     const type = movement_type;
@@ -995,11 +846,11 @@ export function handleUpdateProductEffect(req, params) {
       try: () => readJson(req),
       catch: (error) => new Error(`Invalid request JSON: ${error.message}`)
     });
-    const parsed = updateProductSchema.safeParse(body);
-    if (!parsed.success) {
-      return yield* Effect.fail({ status: 400, message: parsed.error.errors[0].message });
+    const decodeResult = Schema.decodeEither(updateProductSchema)(body);
+    if (Either.isLeft(decodeResult)) {
+      return yield* Effect.fail({ status: 400, message: String(decodeResult.left) });
     }
-    const { name, model, master_sku, description, low_stock_threshold } = parsed.data;
+    const { name, model, master_sku, description, low_stock_threshold = 10 } = decodeResult.right;
 
     const existing = yield* Effect.tryPromise({
       try: () => db.products.getByName(name),
@@ -3249,6 +3100,10 @@ export function withAuthOrRole(handler, options = {}) {
         env: env
       };
     }
+
+    try {
+      store.requestUrl = new URL(request.url);
+    } catch (e) {}
 
     return storageContext.run(store, async () => {
       if (process.env.NODE_ENV === 'test') {

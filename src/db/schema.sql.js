@@ -134,6 +134,57 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     FOREIGN KEY (receiver_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL
 );
+
+CREATE TABLE IF NOT EXISTS user (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL UNIQUE,
+    emailVerified INTEGER NOT NULL,
+    image TEXT,
+    createdAt INTEGER NOT NULL,
+    updatedAt INTEGER NOT NULL,
+    username TEXT UNIQUE,
+    role TEXT DEFAULT 'staff'
+);
+
+CREATE TABLE IF NOT EXISTS session (
+    id TEXT PRIMARY KEY,
+    expiresAt INTEGER NOT NULL,
+    token TEXT NOT NULL UNIQUE,
+    createdAt INTEGER NOT NULL,
+    updatedAt INTEGER NOT NULL,
+    ipAddress TEXT,
+    userAgent TEXT,
+    userId TEXT NOT NULL,
+    FOREIGN KEY (userId) REFERENCES user(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS account (
+    id TEXT PRIMARY KEY,
+    accountId TEXT NOT NULL,
+    providerId TEXT NOT NULL,
+    userId TEXT NOT NULL,
+    accessToken TEXT,
+    refreshToken TEXT,
+    idToken TEXT,
+    accessTokenExpiresAt INTEGER,
+    refreshTokenExpiresAt INTEGER,
+    scope TEXT,
+    password TEXT,
+    createdAt INTEGER NOT NULL,
+    updatedAt INTEGER NOT NULL,
+    FOREIGN KEY (userId) REFERENCES user(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS verification (
+    id TEXT PRIMARY KEY,
+    identifier TEXT NOT NULL,
+    value TEXT NOT NULL,
+    expiresAt INTEGER NOT NULL,
+    createdAt INTEGER,
+    updatedAt INTEGER
+);
+
 CREATE INDEX IF NOT EXISTS idx_stock_movements_product_id ON stock_movements(product_id);
 CREATE INDEX IF NOT EXISTS idx_stock_movements_created_at ON stock_movements(created_at);
 CREATE INDEX IF NOT EXISTS idx_orders_import_session_id ON orders(import_session_id);
@@ -142,4 +193,5 @@ CREATE INDEX IF NOT EXISTS idx_orders_order_id_session_id ON orders(order_id, im
 CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id);
 CREATE INDEX IF NOT EXISTS idx_order_items_product_id ON order_items(product_id);
 `;
+
 
