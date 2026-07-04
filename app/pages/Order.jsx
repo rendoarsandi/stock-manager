@@ -7,16 +7,49 @@ export default function Order() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [systemStatusFilter, setSystemStatusFilter] = useState('all');
   const [expandedOrders, setExpandedOrders] = useState(new Set());
+  
+  // Pagination State
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(50);
 
-  // Fetch all orders
-  const { data: orders = [], isLoading, error } = useQuery({
-    queryKey: ['ordersList'],
+  // Reset page when filters change
+  const handleSearchChange = (val) => {
+    setSearchQuery(val);
+    setPage(1);
+  };
+
+  const handleStatusChange = (val) => {
+    setStatusFilter(val);
+    setPage(1);
+  };
+
+  const handleSystemStatusChange = (val) => {
+    setSystemStatusFilter(val);
+    setPage(1);
+  };
+
+  // Fetch paginated orders
+  const { data = {}, isLoading, error } = useQuery({
+    queryKey: ['ordersList', page, limit, searchQuery, statusFilter, systemStatusFilter],
     queryFn: async () => {
-      const res = await fetch('/api/orders');
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: limit.toString(),
+        search: searchQuery,
+        status: statusFilter,
+        system_status: systemStatusFilter
+      });
+      const res = await fetch(`/api/orders?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to fetch orders list');
       return res.json();
     }
   });
+
+  const orders = data.orders || [];
+  const total = data.total || 0;
+  const totalPages = data.totalPages || 0;
+  const uniqueStatuses = data.uniqueStatuses || [];
+  const uniqueSystemStatuses = ['normal', 'needs_review', 'resolved'];
 
   // Handle errors
   useEffect(() => {
@@ -37,33 +70,6 @@ export default function Order() {
     });
   };
 
-  // Filter orders
-  const filteredOrders = orders.filter(o => {
-    // Search filter
-    const q = searchQuery.toLowerCase();
-    const matchesSearch = (
-      (o.order_id || '').toLowerCase().includes(q) ||
-      (o.customer_name || '').toLowerCase().includes(q) ||
-      (o.resi_number || '').toLowerCase().includes(q) ||
-      (o.product_name_raw || '').toLowerCase().includes(q) ||
-      (o.expedition || '').toLowerCase().includes(q)
-    );
-
-    // Status filter
-    const matchesStatus = statusFilter === 'all' || 
-      (o.order_status || '').toLowerCase() === statusFilter.toLowerCase();
-
-    // System Status filter
-    const matchesSystemStatus = systemStatusFilter === 'all' || 
-      (o.system_status || '').toLowerCase() === systemStatusFilter.toLowerCase();
-
-    return matchesSearch && matchesStatus && matchesSystemStatus;
-  });
-
-  // Unique status values for filter dropdown
-  const uniqueStatuses = [...new Set(orders.map(o => o.order_status).filter(Boolean))];
-  const uniqueSystemStatuses = ['normal', 'needs_review', 'resolved'];
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
       
@@ -81,7 +87,7 @@ export default function Order() {
               type="text"
               placeholder="Search ID, customer, product..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
               style={{
                 width: '100%',
                 padding: '0.55rem 1rem',
@@ -102,7 +108,7 @@ export default function Order() {
             <span style={{ fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)' }}>Status:</span>
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={(e) => handleStatusChange(e.target.value)}
               style={{
                 padding: '0.5rem 1rem',
                 fontSize: '0.85rem',
@@ -125,7 +131,7 @@ export default function Order() {
             <span style={{ fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)' }}>System:</span>
             <select
               value={systemStatusFilter}
-              onChange={(e) => setSystemStatusFilter(e.target.value)}
+              onChange={(e) => handleSystemStatusChange(e.target.value)}
               style={{
                 padding: '0.5rem 1rem',
                 fontSize: '0.85rem',
@@ -148,7 +154,7 @@ export default function Order() {
       {/* Orders Table Section */}
       <div className="section-card">
         <div className="section-header" style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem', marginBottom: '1rem' }}>
-          <h2>Order Listing ({filteredOrders.length})</h2>
+          <h2>Order Listing ({total})</h2>
         </div>
         <div className="table-wrapper">
           <table style={{ borderCollapse: 'separate', borderSpacing: '0 0.5rem' }}>
@@ -167,21 +173,21 @@ export default function Order() {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: 'center', py: '2.5rem', color: 'var(--text-muted)' }}>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '2.5rem 0', color: 'var(--text-muted)' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem', padding: '2rem 0' }}>
                       <div className="loading-spinner" style={{ width: '1.5rem', height: '1.5rem' }} />
                       <span style={{ fontSize: '0.85rem' }}>Loading orders...</span>
                     </div>
                   </td>
                 </tr>
-              ) : filteredOrders.length === 0 ? (
+              ) : orders.length === 0 ? (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: 'center', py: '2rem', color: 'var(--text-muted)', fontSize: '0.85rem', padding: '3rem 0' }}>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '3rem 0', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                     No orders matching criteria found.
                   </td>
                 </tr>
               ) : (
-                filteredOrders.map((o) => {
+                orders.map((o) => {
                   const isExpanded = expandedOrders.has(o.id);
                   let systemTagClass = 'info';
                   if (o.system_status === 'needs_review') systemTagClass = 'warning';
@@ -236,7 +242,7 @@ export default function Order() {
                           <td></td>
                           <td colSpan={7} style={{ padding: '0.75rem 1rem', backgroundColor: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderTop: 'none', borderRadius: '0 0 var(--border-radius-md) var(--border-radius-md)' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                              <div style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase', tracking: '0.05em' }}>
+                              <div style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                                 Mapped Inventory Deductions
                               </div>
                               {o.items && o.items.length > 0 ? (
@@ -293,6 +299,264 @@ export default function Order() {
             </tbody>
           </table>
         </div>
+
+        {/* Premium Pagination Footer */}
+        {!isLoading && total > 0 && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '1.25rem 0.5rem 0 0.5rem',
+            marginTop: '1.25rem',
+            borderTop: '1px solid var(--border-color)',
+            flexWrap: 'wrap',
+            gap: '1rem'
+          }}>
+            {/* Range and Total Info */}
+            <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+              Showing <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{total === 0 ? 0 : (page - 1) * limit + 1}</span> to{' '}
+              <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{Math.min(page * limit, total)}</span> of{' '}
+              <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{total}</span> orders
+            </div>
+
+            {/* Limit Selector */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Show:</span>
+              <select
+                value={limit}
+                onChange={(e) => {
+                  setLimit(parseInt(e.target.value, 10));
+                  setPage(1);
+                }}
+                style={{
+                  padding: '0.35rem 1.75rem 0.35rem 0.6rem',
+                  fontSize: '0.8rem',
+                  borderRadius: 'var(--border-radius-sm)',
+                  border: '1px solid var(--border-color)',
+                  backgroundColor: 'var(--bg-secondary)',
+                  color: 'var(--text-primary)',
+                  cursor: 'pointer',
+                  appearance: 'none',
+                  backgroundImage: `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>")`,
+                  backgroundRepeat: 'no-repeat',
+                  backgroundPosition: 'right 0.6rem center',
+                  backgroundSize: '0.75rem'
+                }}
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
+
+            {/* Navigation Controls */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+              {/* First Page */}
+              <button
+                onClick={() => setPage(1)}
+                disabled={page === 1}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '2rem',
+                  height: '2rem',
+                  borderRadius: 'var(--border-radius-sm)',
+                  border: '1px solid var(--border-color)',
+                  backgroundColor: 'var(--bg-secondary)',
+                  color: 'var(--text-primary)',
+                  cursor: page === 1 ? 'not-allowed' : 'pointer',
+                  opacity: page === 1 ? 0.4 : 1,
+                  transition: 'var(--transition)',
+                  fontSize: '0.85rem'
+                }}
+                title="First Page"
+              >
+                «
+              </button>
+
+              {/* Prev */}
+              <button
+                onClick={() => setPage(prev => Math.max(prev - 1, 1))}
+                disabled={page === 1}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '0 0.75rem',
+                  height: '2rem',
+                  borderRadius: 'var(--border-radius-sm)',
+                  border: '1px solid var(--border-color)',
+                  backgroundColor: 'var(--bg-secondary)',
+                  color: 'var(--text-primary)',
+                  cursor: page === 1 ? 'not-allowed' : 'pointer',
+                  opacity: page === 1 ? 0.4 : 1,
+                  transition: 'var(--transition)',
+                  fontSize: '0.85rem',
+                  fontWeight: '500'
+                }}
+              >
+                Prev
+              </button>
+
+              {/* Page Numbers */}
+              {(() => {
+                const pages = [];
+                const maxVisible = 5;
+                let start = Math.max(1, page - Math.floor(maxVisible / 2));
+                let end = Math.min(totalPages, start + maxVisible - 1);
+
+                if (end - start + 1 < maxVisible) {
+                  start = Math.max(1, end - maxVisible + 1);
+                }
+
+                if (start > 1) {
+                  pages.push(
+                    <button
+                      key={1}
+                      onClick={() => setPage(1)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: '2rem',
+                        height: '2rem',
+                        borderRadius: 'var(--border-radius-sm)',
+                        border: '1px solid var(--border-color)',
+                        backgroundColor: page === 1 ? 'var(--accent-color)' : 'var(--bg-secondary)',
+                        color: page === 1 ? 'var(--bg-secondary)' : 'var(--text-primary)',
+                        cursor: 'pointer',
+                        transition: 'var(--transition)',
+                        fontSize: '0.85rem',
+                        fontWeight: page === 1 ? '600' : 'normal'
+                      }}
+                    >
+                      1
+                    </button>
+                  );
+                  if (start > 2) {
+                    pages.push(
+                      <span key="dots-start" style={{ padding: '0 0.25rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                        ...
+                      </span>
+                    );
+                  }
+                }
+
+                for (let i = start; i <= end; i++) {
+                  const isCurrent = i === page;
+                  pages.push(
+                    <button
+                      key={i}
+                      onClick={() => setPage(i)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: '2rem',
+                        height: '2rem',
+                        borderRadius: 'var(--border-radius-sm)',
+                        border: '1px solid var(--border-color)',
+                        backgroundColor: isCurrent ? 'var(--accent-color)' : 'var(--bg-secondary)',
+                        color: isCurrent ? 'var(--bg-secondary)' : 'var(--text-primary)',
+                        cursor: 'pointer',
+                        transition: 'var(--transition)',
+                        fontSize: '0.85rem',
+                        fontWeight: isCurrent ? '600' : 'normal'
+                      }}
+                    >
+                      {i}
+                    </button>
+                  );
+                }
+
+                if (end < totalPages) {
+                  if (end < totalPages - 1) {
+                    pages.push(
+                      <span key="dots-end" style={{ padding: '0 0.25rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                        ...
+                      </span>
+                    );
+                  }
+                  pages.push(
+                    <button
+                      key={totalPages}
+                      onClick={() => setPage(totalPages)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: '2rem',
+                        height: '2rem',
+                        borderRadius: 'var(--border-radius-sm)',
+                        border: '1px solid var(--border-color)',
+                        backgroundColor: page === totalPages ? 'var(--accent-color)' : 'var(--bg-secondary)',
+                        color: page === totalPages ? 'var(--bg-secondary)' : 'var(--text-primary)',
+                        cursor: 'pointer',
+                        transition: 'var(--transition)',
+                        fontSize: '0.85rem',
+                        fontWeight: page === totalPages ? '600' : 'normal'
+                      }}
+                    >
+                      {totalPages}
+                    </button>
+                  );
+                }
+
+                return pages;
+              })()}
+
+              {/* Next */}
+              <button
+                onClick={() => setPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={page === totalPages || totalPages === 0}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '0 0.75rem',
+                  height: '2rem',
+                  borderRadius: 'var(--border-radius-sm)',
+                  border: '1px solid var(--border-color)',
+                  backgroundColor: 'var(--bg-secondary)',
+                  color: 'var(--text-primary)',
+                  cursor: (page === totalPages || totalPages === 0) ? 'not-allowed' : 'pointer',
+                  opacity: (page === totalPages || totalPages === 0) ? 0.4 : 1,
+                  transition: 'var(--transition)',
+                  fontSize: '0.85rem',
+                  fontWeight: '500'
+                }}
+              >
+                Next
+              </button>
+
+              {/* Last Page */}
+              <button
+                onClick={() => setPage(totalPages)}
+                disabled={page === totalPages || totalPages === 0}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '2rem',
+                  height: '2rem',
+                  borderRadius: 'var(--border-radius-sm)',
+                  border: '1px solid var(--border-color)',
+                  backgroundColor: 'var(--bg-secondary)',
+                  color: 'var(--text-primary)',
+                  cursor: (page === totalPages || totalPages === 0) ? 'not-allowed' : 'pointer',
+                  opacity: (page === totalPages || totalPages === 0) ? 0.4 : 1,
+                  transition: 'var(--transition)',
+                  fontSize: '0.85rem'
+                }}
+                title="Last Page"
+              >
+                »
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

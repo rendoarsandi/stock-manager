@@ -8,7 +8,7 @@ import { getActiveStorage, getActiveEnv, storageContext } from '../db/context.js
 import { getLocalStore } from '../db/local_sqlite.js';
 import { broadcast } from '../ws/broker.js';
 import { z } from 'zod';
-import { Effect } from 'effect';
+import { Effect, Either } from 'effect';
 
 function getJwtSecret() {
   const secret = globalThis.MINIMAL_CLOUDFLARE_ENV?.JWT_SECRET || process.env.JWT_SECRET;
@@ -292,26 +292,45 @@ function json(data, status = 200, headers = {}) {
 }
 
 // Handlers
+export function handleHealthEffect(req) {
+  return Effect.gen(function* () {
+    return { status: 'ok', time: new Date().toISOString() };
+  });
+}
+
 async function handleHealth(req) {
-  return json({ status: 'ok', time: new Date().toISOString() });
+  try {
+    const res = await Effect.runPromise(handleHealthEffect(req));
+    return json(res);
+  } catch (err) {
+    return json({ message: "Health check failed" }, 500);
+  }
 }
 
 async function handleWsPlaceholder(req) {
   return new Response('WebSocket endpoint. Use a WebSocket client to connect.', { status: 400 });
 }
 
-async function handleLogin(req) {
-  try {
-    const body = await readJson(req);
+export function handleLoginEffect(req) {
+  return Effect.gen(function* () {
+    const body = yield* Effect.tryPromise({
+      try: () => readJson(req),
+      catch: (error) => new Error(`Invalid request JSON: ${error.message}`)
+    });
+
     const parsed = loginSchema.safeParse(body);
     if (!parsed.success) {
-      return json({ message: parsed.error.errors[0].message }, 400);
+      return yield* Effect.fail({ status: 400, message: parsed.error.errors[0].message });
     }
     const { username, password } = parsed.data;
 
-    const user = await db.users.getByUsername(username);
+    const user = yield* Effect.tryPromise({
+      try: () => db.users.getByUsername(username),
+      catch: (error) => new Error(`Database fetch user failed: ${error.message}`)
+    });
+
     if (!user || !verifyPassword(password, user.password_hash)) {
-      return json({ message: 'Invalid username or password' }, 401);
+      return yield* Effect.fail({ status: 401, message: 'Invalid username or password' });
     }
 
     const payload = {
@@ -333,160 +352,277 @@ async function handleLogin(req) {
       status: 200,
       headers
     });
+  });
+}
+
+async function handleLogin(req) {
+  try {
+    const result = await Effect.runPromise(Effect.either(handleLoginEffect(req)));
+    if (Either.isLeft(result)) {
+      const err = result.left;
+      if (err && typeof err === 'object' && 'status' in err) {
+        return json({ message: err.message }, err.status);
+      }
+      return json({ message: err.message || 'Internal server error' }, 500);
+    }
+    return result.right;
   } catch (err) {
     console.error("Login route error:", err);
     return json({ message: 'Internal server error' }, 500);
   }
 }
 
+export function handleLogoutEffect(req) {
+  return Effect.gen(function* () {
+    const headers = new Headers();
+    headers.append('Set-Cookie', 'token=; Path=/; HttpOnly; Max-Age=0');
+    return new Response(JSON.stringify({ success: true }), {
+      status: 200,
+      headers
+    });
+  });
+}
+
 async function handleLogout(req) {
-  const headers = new Headers();
-  headers.append('Set-Cookie', 'token=; Path=/; HttpOnly; Max-Age=0');
-  return new Response(JSON.stringify({ success: true }), {
-    status: 200,
-    headers
+  try {
+    return await Effect.runPromise(handleLogoutEffect(req));
+  } catch (err) {
+    console.error("Logout route error:", err);
+    return json({ message: 'Internal server error' }, 500);
+  }
+}
+
+export function handleMeEffect(req) {
+  return Effect.gen(function* () {
+    const user = yield* Effect.tryPromise({
+      try: () => getAuthUser(req),
+      catch: (error) => new Error(`Authentication error: ${error.message}`)
+    });
+    if (!user) {
+      return yield* Effect.fail({ status: 401, message: 'Not logged in' });
+    }
+    return { id: user.id, username: user.username, role: user.role };
   });
 }
 
 async function handleMe(req) {
-  const user = await getAuthUser(req);
-  if (!user) {
-    return json({ message: 'Not logged in' }, 401);
+  try {
+    const result = await Effect.runPromise(Effect.either(handleMeEffect(req)));
+    if (Either.isLeft(result)) {
+      const err = result.left;
+      if (err && typeof err === 'object' && 'status' in err) {
+        return json({ message: err.message }, err.status);
+      }
+      return json({ message: err.message || 'Internal server error' }, 500);
+    }
+    return json(result.right);
+  } catch (err) {
+    console.error("Me route error:", err);
+    return json({ message: 'Internal server error' }, 500);
   }
-  return json({ id: user.id, username: user.username, role: user.role });
 }
 
-async function handleListUsers(req) {
-  try {
+export function handleListUsersEffect(req) {
+  return Effect.gen(function* () {
     if (process.env.NODE_ENV !== 'test') {
-      try {
-        const clerk = getClerkClient();
-        const clerkUsers = await clerk.users.getUserList({ limit: 100 });
-        if (clerkUsers) {
-          const list = clerkUsers.data || clerkUsers;
-          const userArray = Array.isArray(list) ? list : [];
-          const storage = getActiveStorage();
-          for (const cu of userArray) {
-            let existing = await storage.query("SELECT id FROM users WHERE password_hash = ?", [cu.id]);
-            if (!existing || existing.length === 0) {
-              let chosenUsername = cu.username || cu.firstName || '';
-              if (cu.lastName) {
-                chosenUsername = (chosenUsername + cu.lastName).trim();
-              }
-              if (!chosenUsername && cu.emailAddresses && cu.emailAddresses.length > 0) {
-                chosenUsername = cu.emailAddresses[0].emailAddress.split('@')[0];
-              }
-              chosenUsername = chosenUsername.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
-              if (!chosenUsername) {
-                chosenUsername = cu.id;
-              }
+      yield* Effect.tryPromise({
+        try: async () => {
+          const clerk = getClerkClient();
+          const clerkUsers = await clerk.users.getUserList({ limit: 100 });
+          if (clerkUsers) {
+            const list = clerkUsers.data || clerkUsers;
+            const userArray = Array.isArray(list) ? list : [];
+            const storage = getActiveStorage();
+            for (const cu of userArray) {
+              let existing = await storage.query("SELECT id FROM users WHERE password_hash = ?", [cu.id]);
+              if (!existing || existing.length === 0) {
+                let chosenUsername = cu.username || cu.firstName || '';
+                if (cu.lastName) {
+                  chosenUsername = (chosenUsername + cu.lastName).trim();
+                }
+                if (!chosenUsername && cu.emailAddresses && cu.emailAddresses.length > 0) {
+                  chosenUsername = cu.emailAddresses[0].emailAddress.split('@')[0];
+                }
+                chosenUsername = chosenUsername.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
+                if (!chosenUsername) {
+                  chosenUsername = cu.id;
+                }
 
-              let finalUsername = chosenUsername;
-              let checkExisting = await storage.query("SELECT id FROM users WHERE username = ?", [finalUsername]);
-              let counter = 1;
-              while (checkExisting && checkExisting.length > 0) {
-                finalUsername = `${chosenUsername}${counter}`;
-                checkExisting = await storage.query("SELECT id FROM users WHERE username = ?", [finalUsername]);
-                counter++;
-              }
+                let finalUsername = chosenUsername;
+                let checkExisting = await storage.query("SELECT id FROM users WHERE username = ?", [finalUsername]);
+                let counter = 1;
+                while (checkExisting && checkExisting.length > 0) {
+                  finalUsername = `${chosenUsername}${counter}`;
+                  checkExisting = await storage.query("SELECT id FROM users WHERE username = ?", [finalUsername]);
+                  counter++;
+                }
 
-              const role = cu.publicMetadata?.role || cu.metadata?.role || 'staff';
-              try {
-                await storage.execute(
-                  "INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, datetime('now', 'localtime'))",
-                  [finalUsername, cu.id, role]
-                );
-              } catch (insertErr) {
-                if (insertErr.message && insertErr.message.includes('UNIQUE constraint')) {
-                  console.log(`User ${finalUsername} already concurrently registered, skipping.`);
-                } else {
-                  throw insertErr;
+                const role = cu.publicMetadata?.role || cu.metadata?.role || 'staff';
+                try {
+                  await storage.execute(
+                    "INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, datetime('now', 'localtime'))",
+                    [finalUsername, cu.id, role]
+                  );
+                } catch (insertErr) {
+                  if (insertErr.message && insertErr.message.includes('UNIQUE constraint')) {
+                    console.log(`User ${finalUsername} already concurrently registered, skipping.`);
+                  } else {
+                    throw insertErr;
+                  }
                 }
               }
             }
           }
-        }
-      } catch (clerkErr) {
-        console.error("Failed to sync users from Clerk:", clerkErr);
-      }
+        },
+        catch: (error) => new Error(`Clerk user sync failed: ${error.message}`)
+      }).pipe(Effect.catchAll((err) => {
+        console.error("Failed to sync users from Clerk (ignoring):", err);
+        return Effect.succeed(null);
+      }));
     }
 
-    const list = await db.users.list();
-    list.sort((a, b) => (a.username || '').localeCompare(b.username || ''));
-    const stripped = list.map(u => ({ id: u.id, username: u.username, role: u.role, created_at: u.created_at }));
-    return json(stripped);
+    const list = yield* Effect.tryPromise({
+      try: () => db.users.list(),
+      catch: (error) => new Error(`Failed to list users from database: ${error.message}`)
+    });
+
+    const sortedList = [...list].sort((a, b) => (a.username || '').localeCompare(b.username || ''));
+    const stripped = sortedList.map(u => ({ id: u.id, username: u.username, role: u.role, created_at: u.created_at }));
+    return stripped;
+  });
+}
+
+async function handleListUsers(req) {
+  try {
+    const list = await Effect.runPromise(handleListUsersEffect(req));
+    return json(list);
   } catch (err) {
     console.error("List users error:", err);
-    return json({ message: 'Failed to retrieve users' }, 500);
+    return json({ message: err.message || 'Failed to retrieve users' }, 500);
   }
+}
+
+export function handleCreateUserEffect(req) {
+  return Effect.gen(function* () {
+    const body = yield* Effect.tryPromise({
+      try: () => readJson(req),
+      catch: (error) => new Error(`Invalid request JSON: ${error.message}`)
+    });
+
+    const parsed = createUserSchema.safeParse(body);
+    if (!parsed.success) {
+      return yield* Effect.fail({ status: 400, message: parsed.error.errors[0].message });
+    }
+    const { username, password, role } = parsed.data;
+
+    const existing = yield* Effect.tryPromise({
+      try: () => db.users.getByUsername(username),
+      catch: (error) => new Error(`Database query user failed: ${error.message}`)
+    });
+
+    if (existing) {
+      return yield* Effect.fail({ status: 400, message: 'Username already exists' });
+    }
+
+    const hashedPassword = hashPassword(password);
+    const inserted = yield* Effect.tryPromise({
+      try: () => db.users.insert({
+        username,
+        password_hash: hashedPassword,
+        role
+      }),
+      catch: (error) => new Error(`Database user insert failed: ${error.message}`)
+    });
+
+    return { success: true, id: inserted.id };
+  });
 }
 
 async function handleCreateUser(req) {
   try {
-    const body = await readJson(req);
-    const parsed = createUserSchema.safeParse(body);
-    if (!parsed.success) {
-      return json({ message: parsed.error.errors[0].message }, 400);
+    const result = await Effect.runPromise(Effect.either(handleCreateUserEffect(req)));
+    if (Either.isLeft(result)) {
+      const err = result.left;
+      if (err && typeof err === 'object' && 'status' in err) {
+        return json({ message: err.message }, err.status);
+      }
+      return json({ message: err.message || 'Internal server error' }, 500);
     }
-    const { username, password, role } = parsed.data;
-
-    const existing = await db.users.getByUsername(username);
-    if (existing) {
-      return json({ message: 'Username already exists' }, 400);
-    }
-
-    const hashedPassword = hashPassword(password);
-    const inserted = await db.users.insert({
-      username,
-      password_hash: hashedPassword,
-      role
-    });
-
-    return json({ success: true, id: inserted.id }, 201);
+    return json(result.right, 201);
   } catch (err) {
     console.error("Create user error:", err);
     return json({ message: 'Failed to create user' }, 500);
   }
 }
 
-async function handleDeleteUser(req, params) {
-  try {
+export function handleDeleteUserEffect(req, params) {
+  return Effect.gen(function* () {
     const id = parseInt(params[0], 10);
-    if (isNaN(id)) return json({ message: "Invalid user ID" }, 400);
-    const currentUser = req.user; // populated by routing wrapper
+    if (isNaN(id)) return yield* Effect.fail({ status: 400, message: "Invalid user ID" });
+    const currentUser = req.user;
 
     if (id === 1 || String(id) === String(currentUser?.id)) {
-      return json({ message: 'Cannot delete the main admin or your own current logged-in user account' }, 400);
+      return yield* Effect.fail({ status: 400, message: 'Cannot delete the main admin or your own current logged-in user account' });
     }
 
-    const existing = await db.users.get(id);
+    const existing = yield* Effect.tryPromise({
+      try: () => db.users.get(id),
+      catch: (error) => new Error(`Database query user failed: ${error.message}`)
+    });
+
     if (!existing) {
-      return json({ message: 'User not found' }, 404);
+      return yield* Effect.fail({ status: 404, message: 'User not found' });
     }
 
     const storage = getActiveStorage();
     const fallbackUserId = currentUser?.id || 1;
-    await storage.execute("UPDATE stock_movements SET user_id = NULL WHERE user_id = ?", [id]);
-    await storage.execute("UPDATE stock_opnames SET user_id = ? WHERE user_id = ?", [fallbackUserId, id]);
 
-    await db.users.delete(id);
-    return json({ success: true });
+    yield* Effect.tryPromise({
+      try: async () => {
+        await storage.execute("UPDATE stock_movements SET user_id = NULL WHERE user_id = ?", [id]);
+        await storage.execute("UPDATE stock_opnames SET user_id = ? WHERE user_id = ?", [fallbackUserId, id]);
+        await db.users.delete(id);
+      },
+      catch: (error) => new Error(`Database operation failed: ${error.message}`)
+    });
+
+    return { success: true };
+  });
+}
+
+async function handleDeleteUser(req, params) {
+  try {
+    const result = await Effect.runPromise(Effect.either(handleDeleteUserEffect(req, params)));
+    if (Either.isLeft(result)) {
+      const err = result.left;
+      if (err && typeof err === 'object' && 'status' in err) {
+        return json({ message: err.message }, err.status);
+      }
+      return json({ message: err.message || 'Internal server error' }, 500);
+    }
+    return json(result.right);
   } catch (err) {
     console.error("Delete user error:", err);
     return json({ message: 'Failed to delete user' }, 500);
   }
 }
 
-async function handleListProducts(req) {
-  try {
-    const list = await db.products.list();
+export function handleListProductsEffect(req) {
+  return Effect.gen(function* () {
+    const list = yield* Effect.tryPromise({
+      try: () => db.products.list(),
+      catch: (error) => new Error(`Database query failed: ${error.message}`)
+    });
     const activeStorage = getActiveStorage();
-    const lastOpnames = await activeStorage.query(`
-      SELECT soi.product_id, MAX(so.created_at) as last_opname_at
-      FROM stock_opname_items soi
-      JOIN stock_opnames so ON soi.opname_id = so.id
-      GROUP BY soi.product_id
-    `);
+    const lastOpnames = yield* Effect.tryPromise({
+      try: () => activeStorage.query(`
+        SELECT soi.product_id, MAX(so.created_at) as last_opname_at
+        FROM stock_opname_items soi
+        JOIN stock_opnames so ON soi.opname_id = so.id
+        GROUP BY soi.product_id
+      `),
+      catch: (error) => new Error(`Database query failed: ${error.message}`)
+    });
 
     const lastOpnameMap = new Map();
     if (lastOpnames && Array.isArray(lastOpnames)) {
@@ -501,16 +637,47 @@ async function handleListProducts(req) {
     }));
 
     listWithOpname.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-    return json(listWithOpname);
+    return listWithOpname;
+  });
+}
+
+async function handleListProducts(req) {
+  try {
+    const list = await Effect.runPromise(handleListProductsEffect(req));
+    return json(list);
   } catch (err) {
     console.error("List products error:", err);
-    return json({ message: 'Failed to retrieve products' }, 500);
+    return json({ message: err.message || 'Failed to retrieve products' }, 500);
   }
+}
+
+export function handleListOrdersEffect(req) {
+  return Effect.gen(function* () {
+    const url = new URL(req.url);
+    const page = parseInt(url.searchParams.get('page') || '1', 10);
+    const limit = parseInt(url.searchParams.get('limit') || '50', 10);
+    const search = url.searchParams.get('search') || '';
+    const status = url.searchParams.get('status') || 'all';
+    const systemStatus = url.searchParams.get('system_status') || 'all';
+
+    const list = yield* Effect.tryPromise({
+      try: () => db.orders.listDetailed({
+        page,
+        limit,
+        search,
+        status,
+        systemStatus
+      }),
+      catch: (error) => new Error(`Database query failed: ${error.message}`)
+    });
+
+    return list;
+  });
 }
 
 async function handleListOrders(req) {
   try {
-    const list = await db.orders.listDetailed();
+    const list = await Effect.runPromise(handleListOrdersEffect(req));
     return json(list);
   } catch (err) {
     console.error("Failed to list orders:", err);
@@ -574,12 +741,15 @@ async function handleListLedger(req) {
   }
 }
 
-async function handleCreateProduct(req) {
-  try {
-    const body = await readJson(req);
+export function handleCreateProductEffect(req) {
+  return Effect.gen(function* () {
+    const body = yield* Effect.tryPromise({
+      try: () => readJson(req),
+      catch: (error) => new Error(`Invalid request JSON: ${error.message}`)
+    });
     const parsed = createProductSchema.safeParse(body);
     if (!parsed.success) {
-      return json({ message: parsed.error.errors[0].message }, 400);
+      return yield* Effect.fail({ status: 400, message: parsed.error.errors[0].message });
     }
     const { name, model, master_sku, description, initial_stock, low_stock_threshold } = parsed.data;
 
@@ -587,32 +757,55 @@ async function handleCreateProduct(req) {
     const threshold = low_stock_threshold;
     const stock = initial_stock;
 
-    const existing = await db.products.getByName(name);
+    const existing = yield* Effect.tryPromise({
+      try: () => db.products.getByName(name),
+      catch: (error) => new Error(`Database query failed: ${error.message}`)
+    });
     if (existing) {
-      return json({ message: 'Product name already exists' }, 400);
+      return yield* Effect.fail({ status: 400, message: 'Product name already exists' });
     }
 
-    const inserted = await db.products.insert({
-      name,
-      model: model || null,
-      master_sku: master_sku || null,
-      description: description || '',
-      current_stock: stock,
-      low_stock_threshold: threshold
+    const inserted = yield* Effect.tryPromise({
+      try: () => db.products.insert({
+        name,
+        model: model || null,
+        master_sku: master_sku || null,
+        description: description || '',
+        current_stock: stock,
+        low_stock_threshold: threshold
+      }),
+      catch: (error) => new Error(`Database product insert failed: ${error.message}`)
     });
 
     if (stock !== 0) {
-      await db.movements.insert({
-        product_id: inserted.id,
-        quantity_change: stock,
-        movement_type: 'initial',
-        reference: 'Initial product creation stock',
-        user_id: user.id,
-        created_at: '2026-06-01 00:00:00'
+      yield* Effect.tryPromise({
+        try: () => db.movements.insert({
+          product_id: inserted.id,
+          quantity_change: stock,
+          movement_type: 'initial',
+          reference: 'Initial product creation stock',
+          user_id: user.id,
+          created_at: '2026-06-01 00:00:00'
+        }),
+        catch: (error) => new Error(`Database movement insert failed: ${error.message}`)
       });
     }
 
-    return json({ success: true, id: inserted.id }, 201);
+    return { success: true, id: inserted.id };
+  });
+}
+
+async function handleCreateProduct(req) {
+  try {
+    const result = await Effect.runPromise(Effect.either(handleCreateProductEffect(req)));
+    if (Either.isLeft(result)) {
+      const err = result.left;
+      if (err && typeof err === 'object' && 'status' in err) {
+        return json({ message: err.message }, err.status);
+      }
+      return json({ message: err.message || 'Failed to create product' }, 500);
+    }
+    return json(result.right, 201);
   } catch (err) {
     console.error("Add product error:", err);
     return json({ message: 'Failed to create product' }, 500);
@@ -696,14 +889,17 @@ async function handleProductLedger(req, params) {
   }
 }
 
-async function handleAdjustStock(req, params) {
-  try {
+export function handleAdjustStockEffect(req, params) {
+  return Effect.gen(function* () {
     const id = parseInt(params[0], 10);
-    if (isNaN(id)) return json({ message: "Invalid product ID" }, 400);
-    const body = await readJson(req);
+    if (isNaN(id)) return yield* Effect.fail({ status: 400, message: "Invalid product ID" });
+    const body = yield* Effect.tryPromise({
+      try: () => readJson(req),
+      catch: (error) => new Error(`Invalid request JSON: ${error.message}`)
+    });
     const parsed = adjustStockSchema.safeParse(body);
     if (!parsed.success) {
-      return json({ message: parsed.error.errors[0].message }, 400);
+      return yield* Effect.fail({ status: 400, message: parsed.error.errors[0].message });
     }
     const { quantity_change, movement_type, reference, created_at } = parsed.data;
 
@@ -731,7 +927,7 @@ async function handleAdjustStock(req, params) {
       }
 
       if (isNaN(parsedDate.getTime())) {
-        return json({ message: 'Invalid date format. Use DD/MM/YYYY or YYYY-MM-DD.' }, 400);
+        return yield* Effect.fail({ status: 400, message: 'Invalid date format. Use DD/MM/YYYY or YYYY-MM-DD.' });
       }
 
       const y = parsedDate.getFullYear();
@@ -744,143 +940,265 @@ async function handleAdjustStock(req, params) {
       insertCreatedAt = `${y}-${m}-${d} ${hr}:${min}:${sec}`;
     }
 
-    const product = await db.products.get(id);
+    const product = yield* Effect.tryPromise({
+      try: () => db.products.get(id),
+      catch: (error) => new Error(`Database query failed: ${error.message}`)
+    });
     if (!product) {
-      return json({ message: 'Product not found' }, 404);
+      return yield* Effect.fail({ status: 404, message: 'Product not found' });
     }
 
-    await db.movements.insert({
-      product_id: id,
-      quantity_change: change,
-      movement_type: type,
-      reference: ref,
-      user_id: user.id,
-      created_at: insertCreatedAt
+    yield* Effect.tryPromise({
+      try: () => db.movements.insert({
+        product_id: id,
+        quantity_change: change,
+        movement_type: type,
+        reference: ref,
+        user_id: user.id,
+        created_at: insertCreatedAt
+      }),
+      catch: (error) => new Error(`Database insert failed: ${error.message}`)
     });
 
     const newStock = product.current_stock + change;
-    await db.products.update(id, {
-      current_stock: newStock
+    yield* Effect.tryPromise({
+      try: () => db.products.update(id, { current_stock: newStock }),
+      catch: (error) => new Error(`Database update failed: ${error.message}`)
     });
 
-    return json({ success: true, current_stock: newStock });
+    return { success: true, current_stock: newStock };
+  });
+}
+
+async function handleAdjustStock(req, params) {
+  try {
+    const result = await Effect.runPromise(Effect.either(handleAdjustStockEffect(req, params)));
+    if (Either.isLeft(result)) {
+      const err = result.left;
+      if (err && typeof err === 'object' && 'status' in err) {
+        return json({ message: err.message }, err.status);
+      }
+      return json({ message: err.message || 'Failed to adjust stock' }, 500);
+    }
+    return json(result.right);
   } catch (err) {
     console.error("Adjust stock error:", err);
     return json({ message: 'Failed to adjust stock' }, 500);
   }
 }
 
-async function handleUpdateProduct(req, params) {
-  try {
+export function handleUpdateProductEffect(req, params) {
+  return Effect.gen(function* () {
     const id = parseInt(params[0], 10);
-    if (isNaN(id)) return json({ message: "Invalid product ID" }, 400);
-    const body = await readJson(req);
+    if (isNaN(id)) return yield* Effect.fail({ status: 400, message: "Invalid product ID" });
+    const body = yield* Effect.tryPromise({
+      try: () => readJson(req),
+      catch: (error) => new Error(`Invalid request JSON: ${error.message}`)
+    });
     const parsed = updateProductSchema.safeParse(body);
     if (!parsed.success) {
-      return json({ message: parsed.error.errors[0].message }, 400);
+      return yield* Effect.fail({ status: 400, message: parsed.error.errors[0].message });
     }
     const { name, model, master_sku, description, low_stock_threshold } = parsed.data;
 
-    const existing = await db.products.getByName(name);
+    const existing = yield* Effect.tryPromise({
+      try: () => db.products.getByName(name),
+      catch: (error) => new Error(`Database query failed: ${error.message}`)
+    });
     if (existing && existing.id !== id) {
-      return json({ message: 'Product name already exists' }, 400);
+      return yield* Effect.fail({ status: 400, message: 'Product name already exists' });
     }
 
     const threshold = low_stock_threshold;
 
-    await db.products.update(id, {
-      name,
-      model: model || null,
-      master_sku: master_sku || null,
-      description: description || '',
-      low_stock_threshold: threshold
+    yield* Effect.tryPromise({
+      try: () => db.products.update(id, {
+        name,
+        model: model || null,
+        master_sku: master_sku || null,
+        description: description || '',
+        low_stock_threshold: threshold
+      }),
+      catch: (error) => new Error(`Database update failed: ${error.message}`)
     });
 
-    return json({ success: true });
+    return { success: true };
+  });
+}
+
+async function handleUpdateProduct(req, params) {
+  try {
+    const result = await Effect.runPromise(Effect.either(handleUpdateProductEffect(req, params)));
+    if (Either.isLeft(result)) {
+      const err = result.left;
+      if (err && typeof err === 'object' && 'status' in err) {
+        return json({ message: err.message }, err.status);
+      }
+      return json({ message: err.message || 'Failed to update product' }, 500);
+    }
+    return json(result.right);
   } catch (err) {
     console.error("Edit product error:", err);
     return json({ message: 'Failed to update product' }, 500);
   }
 }
 
-async function handleDeleteProduct(req, params) {
-  try {
+export function handleDeleteProductEffect(req, params) {
+  return Effect.gen(function* () {
     const id = parseInt(params[0], 10);
-    if (isNaN(id)) return json({ message: "Invalid product ID" }, 400);
+    if (isNaN(id)) return yield* Effect.fail({ status: 400, message: "Invalid product ID" });
     
-    const product = await db.products.get(id);
+    const product = yield* Effect.tryPromise({
+      try: () => db.products.get(id),
+      catch: (error) => new Error(`Database query failed: ${error.message}`)
+    });
     if (!product) {
-      return json({ message: 'Product not found' }, 404);
+      return yield* Effect.fail({ status: 404, message: 'Product not found' });
     }
 
-    await db.products.delete(id);
-    return json({ success: true });
+    yield* Effect.tryPromise({
+      try: () => db.products.delete(id),
+      catch: (error) => new Error(`Database delete failed: ${error.message}`)
+    });
+    return { success: true };
+  });
+}
+
+async function handleDeleteProduct(req, params) {
+  try {
+    const result = await Effect.runPromise(Effect.either(handleDeleteProductEffect(req, params)));
+    if (Either.isLeft(result)) {
+      const err = result.left;
+      if (err && typeof err === 'object' && 'status' in err) {
+        return json({ message: err.message }, err.status);
+      }
+      return json({ message: err.message || 'Failed to delete product' }, 500);
+    }
+    return json(result.right);
   } catch (err) {
     console.error("Delete product error:", err);
     return json({ message: 'Failed to delete product' }, 500);
   }
 }
 
-async function handleListTemplates(req) {
-  try {
-    const templates = await db.templates.list();
+export function handleListTemplatesEffect(req) {
+  return Effect.gen(function* () {
+    const templates = yield* Effect.tryPromise({
+      try: () => db.templates.list(),
+      catch: (error) => new Error(`Database query failed: ${error.message}`)
+    });
     const result = templates.map(t => ({
       ...t,
       column_mapping: JSON.parse(t.column_mapping)
     }));
     result.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-    return json(result);
+    return result;
+  });
+}
+
+async function handleListTemplates(req) {
+  try {
+    const list = await Effect.runPromise(handleListTemplatesEffect(req));
+    return json(list);
   } catch (err) {
     console.error("List templates error:", err);
-    return json({ message: 'Failed to retrieve templates' }, 500);
+    return json({ message: err.message || 'Failed to retrieve templates' }, 500);
   }
 }
 
-async function handleSaveTemplate(req) {
-  try {
-    const { id, name, column_mapping } = await readJson(req);
+export function handleSaveTemplateEffect(req) {
+  return Effect.gen(function* () {
+    const body = yield* Effect.tryPromise({
+      try: () => readJson(req),
+      catch: (error) => new Error(`Invalid request JSON: ${error.message}`)
+    });
+    const { id, name, column_mapping } = body;
     if (!name || !column_mapping) {
-      return json({ message: 'Template name and column mapping are required' }, 400);
+      return yield* Effect.fail({ status: 400, message: 'Template name and column mapping are required' });
     }
 
     const mappingStr = JSON.stringify(column_mapping);
 
     if (id) {
-      await db.templates.update(parseInt(id, 10), {
-        name,
-        column_mapping: mappingStr
+      yield* Effect.tryPromise({
+        try: () => db.templates.update(parseInt(id, 10), {
+          name,
+          column_mapping: mappingStr
+        }),
+        catch: (error) => new Error(`Database update failed: ${error.message}`)
       });
-      return json({ success: true, id: parseInt(id, 10) });
+      return { success: true, id: parseInt(id, 10), created: false };
     } else {
-      const existing = await db.templates.getByName(name);
+      const existing = yield* Effect.tryPromise({
+        try: () => db.templates.getByName(name),
+        catch: (error) => new Error(`Database query failed: ${error.message}`)
+      });
       if (existing) {
-        return json({ message: 'Template name already exists' }, 400);
+        return yield* Effect.fail({ status: 400, message: 'Template name already exists' });
       }
 
-      const inserted = await db.templates.insert({
-        name,
-        column_mapping: mappingStr
+      const inserted = yield* Effect.tryPromise({
+        try: () => db.templates.insert({
+          name,
+          column_mapping: mappingStr
+        }),
+        catch: (error) => new Error(`Database insert failed: ${error.message}`)
       });
 
-      return json({ success: true, id: inserted.id }, 201);
+      return { success: true, id: inserted.id, created: true };
     }
+  });
+}
+
+async function handleSaveTemplate(req) {
+  try {
+    const result = await Effect.runPromise(Effect.either(handleSaveTemplateEffect(req)));
+    if (Either.isLeft(result)) {
+      const err = result.left;
+      if (err && typeof err === 'object' && 'status' in err) {
+        return json({ message: err.message }, err.status);
+      }
+      return json({ message: err.message || 'Failed to save template' }, 500);
+    }
+    const { success, id, created } = result.right;
+    return json({ success, id }, created ? 201 : 200);
   } catch (err) {
     console.error("Save template error:", err);
     return json({ message: 'Failed to save template' }, 500);
   }
 }
 
-async function handleDeleteTemplate(req, params) {
-  try {
+export function handleDeleteTemplateEffect(req, params) {
+  return Effect.gen(function* () {
     const id = parseInt(params[0], 10);
-    if (isNaN(id)) return json({ message: "Invalid template ID" }, 400);
-    const existing = await db.templates.get(id);
+    if (isNaN(id)) return yield* Effect.fail({ status: 400, message: "Invalid template ID" });
+    const existing = yield* Effect.tryPromise({
+      try: () => db.templates.get(id),
+      catch: (error) => new Error(`Database query failed: ${error.message}`)
+    });
     if (!existing) {
-      return json({ message: 'Template not found' }, 404);
+      return yield* Effect.fail({ status: 404, message: 'Template not found' });
     }
 
-    await db.templates.delete(id);
-    return json({ success: true });
+    yield* Effect.tryPromise({
+      try: () => db.templates.delete(id),
+      catch: (error) => new Error(`Database delete failed: ${error.message}`)
+    });
+    return { success: true };
+  });
+}
+
+async function handleDeleteTemplate(req, params) {
+  try {
+    const result = await Effect.runPromise(Effect.either(handleDeleteTemplateEffect(req, params)));
+    if (Either.isLeft(result)) {
+      const err = result.left;
+      if (err && typeof err === 'object' && 'status' in err) {
+        return json({ message: err.message }, err.status);
+      }
+      return json({ message: err.message || 'Failed to delete template' }, 500);
+    }
+    return json(result.right);
   } catch (err) {
     console.error("Delete template error:", err);
     return json({ message: 'Failed to delete template' }, 500);
@@ -996,64 +1314,91 @@ function translateOrderStatus(status) {
 }
 
 
-async function handleUploadExcel(req) {
-  try {
+export function handleUploadExcelEffect(req) {
+  return Effect.gen(function* () {
     let templateId;
     let filename;
     let parsedRows;
 
     const contentType = req.headers.get('content-type') || '';
     if (contentType.includes('application/json')) {
-      const body = await readJson(req);
+      const body = yield* Effect.tryPromise({
+        try: () => readJson(req),
+        catch: (error) => new Error(`Invalid request JSON: ${error.message}`)
+      });
       templateId = parseInt(body.template_id, 10);
       filename = body.filename || 'upload.xlsx';
 
       if (!templateId || isNaN(templateId)) {
-        return json({ message: 'Template selection is required' }, 400);
+        return yield* Effect.fail({ status: 400, message: 'Template selection is required' });
       }
 
       const rawRows = body.raw_rows;
       if (!rawRows || !Array.isArray(rawRows)) {
-        return json({ message: 'raw_rows must be a valid array' }, 400);
+        return yield* Effect.fail({ status: 400, message: 'raw_rows must be a valid array' });
       }
 
-      const template = await db.templates.get(templateId);
+      const template = yield* Effect.tryPromise({
+        try: () => db.templates.get(templateId),
+        catch: (error) => new Error(`Database query failed: ${error.message}`)
+      });
       if (!template) {
-        return json({ message: 'Template not found' }, 404);
+        return yield* Effect.fail({ status: 404, message: 'Template not found' });
       }
       const mapping = JSON.parse(template.column_mapping);
       parsedRows = mapRawRows(rawRows, mapping);
     } else {
-      const formData = await req.clone().formData();
+      const formData = yield* Effect.tryPromise({
+        try: () => req.clone().formData(),
+        catch: (error) => new Error(`Invalid form data: ${error.message}`)
+      });
       const file = formData.get('file');
       templateId = parseInt(formData.get('template_id'), 10);
       filename = file ? file.name : 'upload.xlsx';
 
       if (!file || typeof file.arrayBuffer !== 'function' || !templateId || isNaN(templateId)) {
-        return json({ message: 'Excel file and template selection are required' }, 400);
+        return yield* Effect.fail({ status: 400, message: 'Excel file and template selection are required' });
       }
 
-      const template = await db.templates.get(templateId);
+      const template = yield* Effect.tryPromise({
+        try: () => db.templates.get(templateId),
+        catch: (error) => new Error(`Database query failed: ${error.message}`)
+      });
       if (!template) {
-        return json({ message: 'Template not found' }, 404);
+        return yield* Effect.fail({ status: 404, message: 'Template not found' });
       }
       const mapping = JSON.parse(template.column_mapping);
 
-      const arrayBuffer = await file.arrayBuffer();
+      const arrayBuffer = yield* Effect.tryPromise({
+        try: () => file.arrayBuffer(),
+        catch: (error) => new Error(`Failed to read file array buffer: ${error.message}`)
+      });
       const buffer = Buffer.from(arrayBuffer);
-      parsedRows = await parseExcel(buffer, mapping);
+      parsedRows = yield* Effect.tryPromise({
+        try: () => parseExcel(buffer, mapping),
+        catch: (error) => new Error(`Failed to parse Excel: ${error.message}`)
+      });
     }
 
-    const catalog = await db.products.list();
-    const skuMappings = await db.skuMappings.list();
+    const catalog = yield* Effect.tryPromise({
+      try: () => db.products.list(),
+      catch: (error) => new Error(`Database query failed: ${error.message}`)
+    });
+    const skuMappings = yield* Effect.tryPromise({
+      try: () => db.skuMappings.list(),
+      catch: (error) => new Error(`Database query failed: ${error.message}`)
+    });
 
     const activeStorage = getActiveStorage();
-    const lastOpnames = await activeStorage.query(`
-      SELECT soi.product_id, MAX(so.created_at) as last_opname_at
-      FROM stock_opname_items soi
-      JOIN stock_opnames so ON soi.opname_id = so.id
-      GROUP BY soi.product_id
-    `);
+    const lastOpnames = yield* Effect.tryPromise({
+      try: () => activeStorage.query(`
+        SELECT soi.product_id, MAX(so.created_at) as last_opname_at
+        FROM stock_opname_items soi
+        JOIN stock_opnames so ON soi.opname_id = so.id
+        GROUP BY soi.product_id
+      `),
+      catch: (error) => new Error(`Database query failed: ${error.message}`)
+    });
 
     const lastOpnameMap = new Map();
     if (lastOpnames && Array.isArray(lastOpnames)) {
@@ -1064,11 +1409,17 @@ async function handleUploadExcel(req) {
 
     // Bulk fetch existing order IDs to check duplicates
     const incomingOrderIds = parsedRows.map(r => r.order_id).filter(Boolean);
-    const existingOrderIdsList = await db.orders.checkExistingOrderIds(incomingOrderIds);
+    const existingOrderIdsList = yield* Effect.tryPromise({
+      try: () => db.orders.checkExistingOrderIds(incomingOrderIds),
+      catch: (error) => new Error(`Database query failed: ${error.message}`)
+    });
     const existingOrderIdsSet = new Set(existingOrderIdsList);
 
     // Bulk fetch all aliases to do in-memory lookups
-    const allAliases = await db.aliases.listAll();
+    const allAliases = yield* Effect.tryPromise({
+      try: () => db.aliases.listAll(),
+      catch: (error) => new Error(`Database query failed: ${error.message}`)
+    });
     const aliasMap = new Map(allAliases.map(a => [a.clean_text.toLowerCase(), a.product_id]));
 
     const previewOrders = [];
@@ -1191,58 +1542,87 @@ async function handleUploadExcel(req) {
     }
 
     if (previewOrders.length === 0) {
-      return json({ message: 'No valid orders found in the uploaded file' }, 400);
+      return yield* Effect.fail({ status: 400, message: 'No valid orders found in the uploaded file' });
     }
 
     const user = req.user;
 
-    const oldSessions = await db.sessions.list();
+    const oldSessions = yield* Effect.tryPromise({
+      try: () => db.sessions.list(),
+      catch: (error) => new Error(`Database query failed: ${error.message}`)
+    });
     for (const s of oldSessions) {
       if (s.status === 'previewing') {
-        await db.sessions.update(s.id, { status: 'cancelled', orders_data: null });
+        yield* Effect.tryPromise({
+          try: () => db.sessions.update(s.id, { status: 'cancelled', orders_data: null }),
+          catch: (error) => new Error(`Database update failed: ${error.message}`)
+        });
       }
     }
     
-    const insertedSession = await db.sessions.insert({
-      template_id: templateId,
-      user_id: user.id,
-      filename: filename,
-      status: 'previewing',
-      total_rows: previewOrders.length,
-      flagged_rows: flaggedRowsCount,
-      orders_data: JSON.stringify(previewOrders)
+    const insertedSession = yield* Effect.tryPromise({
+      try: () => db.sessions.insert({
+        template_id: templateId,
+        user_id: user.id,
+        filename: filename,
+        status: 'previewing',
+        total_rows: previewOrders.length,
+        flagged_rows: flaggedRowsCount,
+        orders_data: JSON.stringify(previewOrders)
+      }),
+      catch: (error) => new Error(`Database insert failed: ${error.message}`)
     });
 
-    return json({
+    return {
       session_id: insertedSession.id,
       filename: filename,
       total_rows: previewOrders.length,
       flagged_rows: flaggedRowsCount,
       orders: previewOrders
-    });
+    };
+  });
+}
 
+async function handleUploadExcel(req) {
+  try {
+    const result = await Effect.runPromise(Effect.either(handleUploadExcelEffect(req)));
+    if (Either.isLeft(result)) {
+      const err = result.left;
+      if (err && typeof err === 'object' && 'status' in err) {
+        return json({ message: err.message }, err.status);
+      }
+      return json({ message: err.message || 'Failed to process Excel file' }, 500);
+    }
+    return json(result.right);
   } catch (err) {
     console.error("Excel upload error:", err);
     return json({ message: 'Failed to process Excel file' }, 500);
   }
 }
 
-async function handleConfirmImport(req) {
-  try {
-    const { session_id, orders } = await readJson(req);
+export function handleConfirmImportEffect(req) {
+  return Effect.gen(function* () {
+    const body = yield* Effect.tryPromise({
+      try: () => readJson(req),
+      catch: (error) => new Error(`Invalid request JSON: ${error.message}`)
+    });
+    const { session_id, orders } = body;
 
     const sessionIdNum = parseInt(session_id, 10);
     if (isNaN(sessionIdNum) || sessionIdNum <= 0) {
-      return json({ message: 'Invalid Session ID parameter value' }, 400);
+      return yield* Effect.fail({ status: 400, message: 'Invalid Session ID parameter value' });
     }
 
     if (!orders || !Array.isArray(orders)) {
-      return json({ message: 'Invalid or missing orders list' }, 400);
+      return yield* Effect.fail({ status: 400, message: 'Invalid or missing orders list' });
     }
 
-    const session = await db.sessions.get(sessionIdNum);
+    const session = yield* Effect.tryPromise({
+      try: () => db.sessions.get(sessionIdNum),
+      catch: (error) => new Error(`Database query failed: ${error.message}`)
+    });
     if (!session || session.status !== 'previewing') {
-      return json({ message: 'Invalid or expired import session' }, 404);
+      return yield* Effect.fail({ status: 404, message: 'Invalid or expired import session' });
     }
 
     const user = req.user;
@@ -1250,12 +1630,15 @@ async function handleConfirmImport(req) {
     let flaggedCount = 0;
 
     const activeStorage = getActiveStorage();
-    const lastOpnames = await activeStorage.query(`
-      SELECT soi.product_id, MAX(so.created_at) as last_opname_at
-      FROM stock_opname_items soi
-      JOIN stock_opnames so ON soi.opname_id = so.id
-      GROUP BY soi.product_id
-    `);
+    const lastOpnames = yield* Effect.tryPromise({
+      try: () => activeStorage.query(`
+        SELECT soi.product_id, MAX(so.created_at) as last_opname_at
+        FROM stock_opname_items soi
+        JOIN stock_opnames so ON soi.opname_id = so.id
+        GROUP BY soi.product_id
+      `),
+      catch: (error) => new Error(`Database query failed: ${error.message}`)
+    });
 
     const lastOpnameMap = new Map();
     if (lastOpnames && Array.isArray(lastOpnames)) {
@@ -1375,81 +1758,164 @@ async function handleConfirmImport(req) {
       ]
     });
 
-    await activeStorage.executeTransaction(queries);
+    yield* Effect.tryPromise({
+      try: () => activeStorage.executeTransaction(queries),
+      catch: (error) => new Error(`Database transaction failed: ${error.message}`)
+    });
 
-    const { broadcast } = await import('../ws/broker.js');
-    const updatedSession = await db.sessions.get(sessionIdNum);
+    const { broadcast } = yield* Effect.tryPromise({
+      try: () => import('../ws/broker.js'),
+      catch: (error) => new Error(`Websocket broker load failed: ${error.message}`)
+    });
+    const updatedSession = yield* Effect.tryPromise({
+      try: () => db.sessions.get(sessionIdNum),
+      catch: (error) => new Error(`Database query failed: ${error.message}`)
+    });
     if (updatedSession) {
       broadcast({ type: 'SESSION_UPDATED', payload: updatedSession });
     }
 
-    return json({ success: true, applied_rows: appliedCount, flagged_rows: flaggedCount });
+    return { success: true, applied_rows: appliedCount, flagged_rows: flaggedCount };
+  });
+}
 
+async function handleConfirmImport(req) {
+  try {
+    const result = await Effect.runPromise(Effect.either(handleConfirmImportEffect(req)));
+    if (Either.isLeft(result)) {
+      const err = result.left;
+      if (err && typeof err === 'object' && 'status' in err) {
+        return json({ message: err.message }, err.status);
+      }
+      return json({ message: err.message || 'Failed to apply import changes' }, 500);
+    }
+    return json(result.right);
   } catch (err) {
     console.error("Confirm import error:", err);
     return json({ message: 'Failed to apply import changes' }, 500);
   }
 }
 
-async function handleCancelImport(req) {
-  try {
-    const { session_id } = await readJson(req);
+export function handleCancelImportEffect(req) {
+  return Effect.gen(function* () {
+    const body = yield* Effect.tryPromise({
+      try: () => readJson(req),
+      catch: (error) => new Error(`Invalid request JSON: ${error.message}`)
+    });
+    const { session_id } = body;
     if (!session_id) {
-      return json({ message: 'Session ID is required' }, 400);
+      return yield* Effect.fail({ status: 400, message: 'Session ID is required' });
     }
 
-    await db.sessions.update(parseInt(session_id, 10), {
-      status: 'cancelled',
-      orders_data: null
+    yield* Effect.tryPromise({
+      try: () => db.sessions.update(parseInt(session_id, 10), {
+        status: 'cancelled',
+        orders_data: null
+      }),
+      catch: (error) => new Error(`Database update failed: ${error.message}`)
     });
-    return json({ success: true });
+    return { success: true };
+  });
+}
+
+async function handleCancelImport(req) {
+  try {
+    const result = await Effect.runPromise(Effect.either(handleCancelImportEffect(req)));
+    if (Either.isLeft(result)) {
+      const err = result.left;
+      if (err && typeof err === 'object' && 'status' in err) {
+        return json({ message: err.message }, err.status);
+      }
+      return json({ message: err.message || 'Failed to cancel session' }, 500);
+    }
+    return json(result.right);
   } catch (err) {
     console.error("Cancel import error:", err);
     return json({ message: 'Failed to cancel session' }, 500);
   }
 }
 
-async function handleGetActiveSession(req) {
-  try {
-    const sessionsList = await db.sessions.list();
+export function handleGetActiveSessionEffect(req) {
+  return Effect.gen(function* () {
+    const sessionsList = yield* Effect.tryPromise({
+      try: () => db.sessions.list(),
+      catch: (error) => new Error(`Database query failed: ${error.message}`)
+    });
     const active = sessionsList.find(s => s.status === 'previewing');
     if (active) {
-      return json({
+      return {
         session_id: active.id,
         filename: active.filename,
         total_rows: active.total_rows,
         flagged_rows: active.flagged_rows,
         orders: JSON.parse(active.orders_data || '[]')
-      });
+      };
     }
-    return json(null);
+    return null;
+  });
+}
+
+async function handleGetActiveSession(req) {
+  try {
+    const result = await Effect.runPromise(handleGetActiveSessionEffect(req));
+    return json(result);
   } catch (err) {
     console.error("Get active session error:", err);
     return json({ message: 'Failed to retrieve active session' }, 500);
   }
 }
 
+export function handleSyncActiveSessionEffect(req) {
+  return Effect.gen(function* () {
+    const body = yield* Effect.tryPromise({
+      try: () => readJson(req),
+      catch: (error) => new Error(`Invalid request JSON: ${error.message}`)
+    });
+    const { session_id, orders } = body;
+    if (!session_id || !orders) {
+      return yield* Effect.fail({ status: 400, message: 'Session ID and orders are required' });
+    }
+    yield* Effect.tryPromise({
+      try: () => db.sessions.update(parseInt(session_id, 10), {
+        orders_data: JSON.stringify(orders)
+      }),
+      catch: (error) => new Error(`Database update failed: ${error.message}`)
+    });
+    return { success: true };
+  });
+}
+
 async function handleSyncActiveSession(req) {
   try {
-    const { session_id, orders } = await readJson(req);
-    if (!session_id || !orders) {
-      return json({ message: 'Session ID and orders are required' }, 400);
+    const result = await Effect.runPromise(Effect.either(handleSyncActiveSessionEffect(req)));
+    if (Either.isLeft(result)) {
+      const err = result.left;
+      if (err && typeof err === 'object' && 'status' in err) {
+        return json({ message: err.message }, err.status);
+      }
+      return json({ message: err.message || 'Failed to sync session data' }, 500);
     }
-    await db.sessions.update(parseInt(session_id, 10), {
-      orders_data: JSON.stringify(orders)
-    });
-    return json({ success: true });
+    return json(result.right);
   } catch (err) {
     console.error("Sync active session error:", err);
     return json({ message: 'Failed to sync session data' }, 500);
   }
 }
 
-async function handleGetSessions(req) {
-  try {
-    const sessionsList = await db.sessions.list();
-    const templatesList = await db.templates.list();
-    const usersList = await db.users.list();
+export function handleGetSessionsEffect(req) {
+  return Effect.gen(function* () {
+    const sessionsList = yield* Effect.tryPromise({
+      try: () => db.sessions.list(),
+      catch: (error) => new Error(`Database query failed: ${error.message}`)
+    });
+    const templatesList = yield* Effect.tryPromise({
+      try: () => db.templates.list(),
+      catch: (error) => new Error(`Database query failed: ${error.message}`)
+    });
+    const usersList = yield* Effect.tryPromise({
+      try: () => db.users.list(),
+      catch: (error) => new Error(`Database query failed: ${error.message}`)
+    });
 
     const templateMap = new Map(templatesList.map(t => [t.id, t]));
     const userMap = new Map(usersList.map(u => [u.id, u]));
@@ -1466,56 +1932,124 @@ async function handleGetSessions(req) {
 
     joined.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     const limited = joined.slice(0, 10);
-    return json(limited);
+    return limited;
+  });
+}
+
+async function handleGetSessions(req) {
+  try {
+    const result = await Effect.runPromise(handleGetSessionsEffect(req));
+    return json(result);
   } catch (err) {
     console.error("Get sessions error:", err);
     return json({ message: 'Failed to retrieve sessions history' }, 500);
   }
 }
 
+export function handleListSkuMappingsEffect(req) {
+  return Effect.gen(function* () {
+    const list = yield* Effect.tryPromise({
+      try: () => db.skuMappings.list(),
+      catch: (error) => new Error(`Database query failed: ${error.message}`)
+    });
+    return list;
+  });
+}
+
 async function handleListSkuMappings(req) {
   try {
-    const list = await db.skuMappings.list();
-    return json(list);
+    const result = await Effect.runPromise(handleListSkuMappingsEffect(req));
+    return json(result);
   } catch (err) {
     console.error("Get sku mappings error:", err);
-    return json({ message: 'Failed to retrieve SKU mappings' }, 500);
+    return json({ message: err.message || 'Failed to retrieve SKU mappings' }, 500);
   }
+}
+
+export function handleSaveSkuMappingEffect(req) {
+  return Effect.gen(function* () {
+    const body = yield* Effect.tryPromise({
+      try: () => readJson(req),
+      catch: (error) => new Error(`Invalid request JSON: ${error.message}`)
+    });
+    const { sku_code, product_id, quantity } = body;
+    if (!sku_code || !product_id || !quantity) {
+      return yield* Effect.fail({ status: 400, message: 'sku_code, product_id, and quantity are required' });
+    }
+    yield* Effect.tryPromise({
+      try: () => db.skuMappings.insert({ sku_code, product_id, quantity }),
+      catch: (error) => new Error(`Database insert failed: ${error.message}`)
+    });
+    return { success: true };
+  });
 }
 
 async function handleSaveSkuMapping(req) {
   try {
-    const { sku_code, product_id, quantity } = await readJson(req);
-    if (!sku_code || !product_id || !quantity) {
-      return json({ message: 'sku_code, product_id, and quantity are required' }, 400);
+    const result = await Effect.runPromise(Effect.either(handleSaveSkuMappingEffect(req)));
+    if (Either.isLeft(result)) {
+      const err = result.left;
+      if (err && typeof err === 'object' && 'status' in err) {
+        return json({ message: err.message }, err.status);
+      }
+      return json({ message: err.message || 'Failed to save SKU mapping' }, 500);
     }
-    await db.skuMappings.insert({ sku_code, product_id, quantity });
-    return json({ success: true });
+    return json(result.right);
   } catch (err) {
     console.error("Save sku mapping error:", err);
     return json({ message: 'Failed to save SKU mapping' }, 500);
   }
 }
 
+export function handleDeleteSkuMappingEffect(req) {
+  return Effect.gen(function* () {
+    const body = yield* Effect.tryPromise({
+      try: () => readJson(req),
+      catch: (error) => new Error(`Invalid request JSON: ${error.message}`)
+    });
+    const { sku_code, product_id } = body;
+    if (!sku_code || !product_id) {
+      return yield* Effect.fail({ status: 400, message: 'sku_code and product_id are required' });
+    }
+    yield* Effect.tryPromise({
+      try: () => db.skuMappings.delete(sku_code, product_id),
+      catch: (error) => new Error(`Database delete failed: ${error.message}`)
+    });
+    return { success: true };
+  });
+}
+
 async function handleDeleteSkuMapping(req) {
   try {
-    const { sku_code, product_id } = await readJson(req);
-    if (!sku_code || !product_id) {
-      return json({ message: 'sku_code and product_id are required' }, 400);
+    const result = await Effect.runPromise(Effect.either(handleDeleteSkuMappingEffect(req)));
+    if (Either.isLeft(result)) {
+      const err = result.left;
+      if (err && typeof err === 'object' && 'status' in err) {
+        return json({ message: err.message }, err.status);
+      }
+      return json({ message: err.message || 'Failed to delete SKU mapping' }, 500);
     }
-    await db.skuMappings.delete(sku_code, product_id);
-    return json({ success: true });
+    return json(result.right);
   } catch (err) {
     console.error("Delete sku mapping error:", err);
     return json({ message: 'Failed to delete SKU mapping' }, 500);
   }
 }
 
-async function handleReviewOrders(req) {
-  try {
-    const ordersList = await db.orders.list();
-    const orderItemsList = await db.orderItems.list();
-    const productsList = await db.products.list();
+export function handleReviewOrdersEffect(req) {
+  return Effect.gen(function* () {
+    const ordersList = yield* Effect.tryPromise({
+      try: () => db.orders.list(),
+      catch: (error) => new Error(`Database query failed: ${error.message}`)
+    });
+    const orderItemsList = yield* Effect.tryPromise({
+      try: () => db.orderItems.list(),
+      catch: (error) => new Error(`Database query failed: ${error.message}`)
+    });
+    const productsList = yield* Effect.tryPromise({
+      try: () => db.products.list(),
+      catch: (error) => new Error(`Database query failed: ${error.message}`)
+    });
 
     const productMap = new Map(productsList.map(p => [p.id, p]));
     
@@ -1543,20 +2077,42 @@ async function handleReviewOrders(req) {
       }));
 
     filtered.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    return json(filtered);
+    return filtered;
+  });
+}
+
+async function handleReviewOrders(req) {
+  try {
+    const result = await Effect.runPromise(handleReviewOrdersEffect(req));
+    return json(result);
   } catch (err) {
     console.error("Get review orders error:", err);
     return json({ message: 'Failed to retrieve orders needing review' }, 500);
   }
 }
 
-async function handleReturnedOrders(req) {
-  try {
-    const ordersList = await db.orders.list();
-    const orderItemsList = await db.orderItems.list();
-    const productsList = await db.products.list();
-    const sessionsList = await db.sessions.list();
-    const templatesList = await db.templates.list();
+export function handleReturnedOrdersEffect(req) {
+  return Effect.gen(function* () {
+    const ordersList = yield* Effect.tryPromise({
+      try: () => db.orders.list(),
+      catch: (error) => new Error(`Database query failed: ${error.message}`)
+    });
+    const orderItemsList = yield* Effect.tryPromise({
+      try: () => db.orderItems.list(),
+      catch: (error) => new Error(`Database query failed: ${error.message}`)
+    });
+    const productsList = yield* Effect.tryPromise({
+      try: () => db.products.list(),
+      catch: (error) => new Error(`Database query failed: ${error.message}`)
+    });
+    const sessionsList = yield* Effect.tryPromise({
+      try: () => db.sessions.list(),
+      catch: (error) => new Error(`Database query failed: ${error.message}`)
+    });
+    const templatesList = yield* Effect.tryPromise({
+      try: () => db.templates.list(),
+      catch: (error) => new Error(`Database query failed: ${error.message}`)
+    });
 
     const productMap = new Map(productsList.map(p => [p.id, p]));
     const templateMap = new Map(templatesList.map(t => [t.id, t]));
@@ -1591,58 +2147,87 @@ async function handleReturnedOrders(req) {
       });
 
     filtered.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    return json(filtered);
+    return filtered;
+  });
+}
+
+async function handleReturnedOrders(req) {
+  try {
+    const result = await Effect.runPromise(handleReturnedOrdersEffect(req));
+    return json(result);
   } catch (err) {
     console.error("Get returned orders error:", err);
     return json({ message: 'Failed to retrieve returned orders' }, 500);
   }
 }
 
-async function handleResolveReviewOrder(req) {
-  try {
-    const { order_id, resolution, resolution_notes } = await readJson(req);
+export function handleResolveReviewOrderEffect(req) {
+  return Effect.gen(function* () {
+    const body = yield* Effect.tryPromise({
+      try: () => readJson(req),
+      catch: (error) => new Error(`Invalid request JSON: ${error.message}`)
+    });
+    const { order_id, resolution, resolution_notes } = body;
     if (!order_id || !resolution) {
-      return json({ message: 'Order ID and resolution selection are required' }, 400);
+      return yield* Effect.fail({ status: 400, message: 'Order ID and resolution selection are required' });
     }
 
     if (!['returned', 'lost', 'investigating'].includes(resolution)) {
-      return json({ message: 'Invalid resolution option' }, 400);
+      return yield* Effect.fail({ status: 400, message: 'Invalid resolution option' });
     }
 
     const orderIdNum = parseInt(order_id, 10);
-    const order = await db.orders.get(orderIdNum);
+    const order = yield* Effect.tryPromise({
+      try: () => db.orders.get(orderIdNum),
+      catch: (error) => new Error(`Database query failed: ${error.message}`)
+    });
 
     if (!order || order.system_status !== 'needs_review') {
-      return json({ message: 'Order not found or already resolved' }, 404);
+      return yield* Effect.fail({ status: 404, message: 'Order not found or already resolved' });
     }
 
     const user = req.user;
 
     if (resolution === 'investigating') {
-      await db.orders.update(orderIdNum, {
-        resolution: 'investigating',
-        resolution_notes: resolution_notes || ''
+      yield* Effect.tryPromise({
+        try: () => db.orders.update(orderIdNum, {
+          resolution: 'investigating',
+          resolution_notes: resolution_notes || ''
+        }),
+        catch: (error) => new Error(`Database update failed: ${error.message}`)
       });
-      return json({ success: true, status: 'needs_review' });
+      return { success: true, status: 'needs_review' };
     }
 
-    const items = await db.orderItems.getByOrderId(orderIdNum);
+    const items = yield* Effect.tryPromise({
+      try: () => db.orderItems.getByOrderId(orderIdNum),
+      catch: (error) => new Error(`Database query failed: ${error.message}`)
+    });
 
     if (resolution === 'lost') {
       for (const item of items) {
         if (item.product_id) {
-          await db.movements.insert({
-            product_id: item.product_id,
-            quantity_change: -item.quantity,
-            movement_type: 'write_off',
-            reference: `Lost Order ID: ${order.order_id}`,
-            user_id: user.id
+          yield* Effect.tryPromise({
+            try: () => db.movements.insert({
+              product_id: item.product_id,
+              quantity_change: -item.quantity,
+              movement_type: 'write_off',
+              reference: `Lost Order ID: ${order.order_id}`,
+              user_id: user.id
+            }),
+            catch: (error) => new Error(`Database insert failed: ${error.message}`)
           });
 
-          const prod = await db.products.get(item.product_id);
+          const prod = yield* Effect.tryPromise({
+            try: () => db.products.get(item.product_id),
+            catch: (error) => new Error(`Database query failed: ${error.message}`)
+          });
           if (prod) {
-            await db.products.update(item.product_id, {
-              current_stock: prod.current_stock - item.quantity
+            yield* Effect.tryPromise({
+              try: () => db.products.update(item.product_id, {
+                current_stock: prod.current_stock - item.quantity
+              }),
+              catch: (error) => new Error(`Database update failed: ${error.message}`)
             });
           }
         }
@@ -1650,35 +2235,61 @@ async function handleResolveReviewOrder(req) {
     } else if (resolution === 'returned') {
       for (const item of items) {
         if (item.product_id) {
-          await db.movements.insert({
-            product_id: item.product_id,
-            quantity_change: 0,
-            movement_type: 'return',
-            reference: `Returned Order ID: ${order.order_id} (No stock adjustment needed)`,
-            user_id: user.id
+          yield* Effect.tryPromise({
+            try: () => db.movements.insert({
+              product_id: item.product_id,
+              quantity_change: 0,
+              movement_type: 'return',
+              reference: `Returned Order ID: ${order.order_id} (No stock adjustment needed)`,
+              user_id: user.id
+            }),
+            catch: (error) => new Error(`Database insert failed: ${error.message}`)
           });
         }
       }
     }
 
-    await db.orders.update(orderIdNum, {
-      system_status: 'resolved',
-      resolution,
-      resolution_notes: resolution_notes || '',
-      resolved_at: new Date().toISOString()
+    yield* Effect.tryPromise({
+      try: () => db.orders.update(orderIdNum, {
+        system_status: 'resolved',
+        resolution,
+        resolution_notes: resolution_notes || '',
+        resolved_at: new Date().toISOString()
+      }),
+      catch: (error) => new Error(`Database update failed: ${error.message}`)
     });
 
-    return json({ success: true, status: 'resolved' });
+    return { success: true, status: 'resolved' };
+  });
+}
+
+async function handleResolveReviewOrder(req) {
+  try {
+    const result = await Effect.runPromise(Effect.either(handleResolveReviewOrderEffect(req)));
+    if (Either.isLeft(result)) {
+      const err = result.left;
+      if (err && typeof err === 'object' && 'status' in err) {
+        return json({ message: err.message }, err.status);
+      }
+      return json({ message: err.message || 'Failed to resolve order' }, 500);
+    }
+    return json(result.right);
   } catch (err) {
     console.error("Resolve order error:", err);
     return json({ message: 'Failed to resolve order' }, 500);
   }
 }
 
-async function handleReviewAmbiguous(req) {
-  try {
-    const orderItemsList = await db.orderItems.list();
-    const ordersList = await db.orders.list();
+export function handleReviewAmbiguousEffect(req) {
+  return Effect.gen(function* () {
+    const orderItemsList = yield* Effect.tryPromise({
+      try: () => db.orderItems.list(),
+      catch: (error) => new Error(`Database query failed: ${error.message}`)
+    });
+    const ordersList = yield* Effect.tryPromise({
+      try: () => db.orders.list(),
+      catch: (error) => new Error(`Database query failed: ${error.message}`)
+    });
 
     const orderMap = new Map(ordersList.map(o => [o.id, o]));
 
@@ -1698,18 +2309,29 @@ async function handleReviewAmbiguous(req) {
       });
 
     filtered.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    return json(filtered);
+    return filtered;
+  });
+}
+
+async function handleReviewAmbiguous(req) {
+  try {
+    const result = await Effect.runPromise(handleReviewAmbiguousEffect(req));
+    return json(result);
   } catch (err) {
     console.error("Get ambiguous items error:", err);
     return json({ message: 'Failed to retrieve ambiguous items' }, 500);
   }
 }
 
-async function handleConfirmSplit(req) {
-  try {
-    const { item_id, product_id, quantity } = await readJson(req);
+export function handleConfirmSplitEffect(req) {
+  return Effect.gen(function* () {
+    const body = yield* Effect.tryPromise({
+      try: () => readJson(req),
+      catch: (error) => new Error(`Invalid request JSON: ${error.message}`)
+    });
+    const { item_id, product_id, quantity } = body;
     if (!item_id || !product_id || !quantity) {
-      return json({ message: 'Item ID, product selection, and quantity are required' }, 400);
+      return yield* Effect.fail({ status: 400, message: 'Item ID, product selection, and quantity are required' });
     }
 
     const itemIdNum = parseInt(item_id, 10);
@@ -1717,107 +2339,183 @@ async function handleConfirmSplit(req) {
     const qty = parseInt(quantity, 10);
 
     if (isNaN(itemIdNum) || isNaN(productIdNum) || isNaN(qty) || itemIdNum <= 0 || productIdNum <= 0 || qty <= 0) {
-      return json({ message: 'Invalid item ID, product ID, or quantity parameter values' }, 400);
+      return yield* Effect.fail({ status: 400, message: 'Invalid item ID, product ID, or quantity parameter values' });
     }
 
-    const item = await db.orderItems.get(itemIdNum);
+    const item = yield* Effect.tryPromise({
+      try: () => db.orderItems.get(itemIdNum),
+      catch: (error) => new Error(`Database query failed: ${error.message}`)
+    });
     if (!item || item.is_confirmed === 1) {
-      return json({ message: 'Item not found or already confirmed' }, 404);
+      return yield* Effect.fail({ status: 404, message: 'Item not found or already confirmed' });
     }
 
-    const order = await db.orders.get(item.order_id);
+    const order = yield* Effect.tryPromise({
+      try: () => db.orders.get(item.order_id),
+      catch: (error) => new Error(`Database query failed: ${error.message}`)
+    });
     if (!order) {
-      return json({ message: 'Order not found' }, 404);
+      return yield* Effect.fail({ status: 404, message: 'Order not found' });
     }
 
-    const product = await db.products.get(productIdNum);
+    const product = yield* Effect.tryPromise({
+      try: () => db.products.get(productIdNum),
+      catch: (error) => new Error(`Database query failed: ${error.message}`)
+    });
     if (!product) {
-      return json({ message: 'Product not found' }, 404);
+      return yield* Effect.fail({ status: 404, message: 'Product not found' });
     }
 
     const user = req.user;
 
-    await db.orderItems.update(itemIdNum, {
-      product_id: productIdNum,
-      quantity: qty,
-      is_confirmed: 1
+    yield* Effect.tryPromise({
+      try: () => db.orderItems.update(itemIdNum, {
+        product_id: productIdNum,
+        quantity: qty,
+        is_confirmed: 1
+      }),
+      catch: (error) => new Error(`Database update failed: ${error.message}`)
     });
 
     if (order.system_status === 'normal') {
-      await db.movements.insert({
-        product_id: productIdNum,
-        quantity_change: -qty,
-        movement_type: 'sale',
-        reference: `Confirmed Split Order: ${order.order_id}`,
-        user_id: user.id
+      yield* Effect.tryPromise({
+        try: () => db.movements.insert({
+          product_id: productIdNum,
+          quantity_change: -qty,
+          movement_type: 'sale',
+          reference: `Confirmed Split Order: ${order.order_id}`,
+          user_id: user.id
+        }),
+        catch: (error) => new Error(`Database insert failed: ${error.message}`)
       });
 
-      const prod = await db.products.get(productIdNum);
+      const prod = yield* Effect.tryPromise({
+        try: () => db.products.get(productIdNum),
+        catch: (error) => new Error(`Database query failed: ${error.message}`)
+      });
       if (prod) {
-        await db.products.update(productIdNum, {
-          current_stock: prod.current_stock - qty
+        yield* Effect.tryPromise({
+          try: () => db.products.update(productIdNum, {
+            current_stock: prod.current_stock - qty
+          }),
+          catch: (error) => new Error(`Database update failed: ${error.message}`)
         });
       }
     }
 
-    return json({ success: true });
+    return { success: true };
+  });
+}
+
+async function handleConfirmSplit(req) {
+  try {
+    const result = await Effect.runPromise(Effect.either(handleConfirmSplitEffect(req)));
+    if (Either.isLeft(result)) {
+      const err = result.left;
+      if (err && typeof err === 'object' && 'status' in err) {
+        return json({ message: err.message }, err.status);
+      }
+      return json({ message: err.message || 'Failed to confirm split mapping' }, 500);
+    }
+    return json(result.right);
   } catch (err) {
     console.error("Confirm split error:", err);
     return json({ message: 'Failed to confirm split mapping' }, 500);
   }
 }
 
-async function handleDashboardStats(req) {
-  try {
+export function handleDashboardStatsEffect(req) {
+  return Effect.gen(function* () {
     const storage = getActiveStorage();
 
-    const totalProductsRes = await storage.query("SELECT COUNT(*) AS count FROM products");
+    const totalProductsRes = yield* Effect.tryPromise({
+      try: () => storage.query("SELECT COUNT(*) AS count FROM products"),
+      catch: (err) => new Error(`totalProducts query failed: ${err.message}`)
+    });
     const totalProducts = totalProductsRes[0]?.count || 0;
 
-    const lowStockRes = await storage.query("SELECT COUNT(*) AS count FROM products WHERE current_stock <= low_stock_threshold");
+    const lowStockRes = yield* Effect.tryPromise({
+      try: () => storage.query("SELECT COUNT(*) AS count FROM products WHERE current_stock <= low_stock_threshold"),
+      catch: (err) => new Error(`lowStock query failed: ${err.message}`)
+    });
     const lowStockCount = lowStockRes[0]?.count || 0;
 
-    const pendingReviewRes = await storage.query("SELECT COUNT(*) AS count FROM orders WHERE system_status = 'needs_review'");
+    const pendingReviewRes = yield* Effect.tryPromise({
+      try: () => storage.query("SELECT COUNT(*) AS count FROM orders WHERE system_status = 'needs_review'"),
+      catch: (err) => new Error(`pendingReview query failed: ${err.message}`)
+    });
     const pendingReviewCount = pendingReviewRes[0]?.count || 0;
 
-    const ambiguousRes = await storage.query("SELECT COUNT(*) AS count FROM order_items WHERE is_confirmed = 0");
+    const ambiguousRes = yield* Effect.tryPromise({
+      try: () => storage.query("SELECT COUNT(*) AS count FROM order_items WHERE is_confirmed = 0"),
+      catch: (err) => new Error(`ambiguous query failed: ${err.message}`)
+    });
     const ambiguousCount = ambiguousRes[0]?.count || 0;
 
-    const recentReviews = await storage.query(
-      `SELECT id, order_id, product_name_raw, quantity, expedition 
-       FROM orders 
-       WHERE system_status = 'needs_review' 
-       ORDER BY created_at DESC 
-       LIMIT 5`
-    );
+    const recentReviews = yield* Effect.tryPromise({
+      try: () => storage.query(
+        `SELECT id, order_id, product_name_raw, quantity, expedition 
+         FROM orders 
+         WHERE system_status = 'needs_review' 
+         ORDER BY created_at DESC 
+         LIMIT 5`
+      ),
+      catch: (err) => new Error(`recentReviews query failed: ${err.message}`)
+    });
 
-    const recentImports = await storage.query(
-      `SELECT s.id, s.template_id, s.user_id, s.filename, s.status, s.total_rows, s.applied_rows, s.flagged_rows, s.orders_data, s.created_at, t.name AS template_name 
-       FROM import_sessions s 
-       LEFT JOIN import_templates t ON s.template_id = t.id 
-       ORDER BY s.created_at DESC 
-       LIMIT 5`
-    );
+    const recentImports = yield* Effect.tryPromise({
+      try: () => storage.query(
+        `SELECT s.id, s.template_id, s.user_id, s.filename, s.status, s.total_rows, s.applied_rows, s.flagged_rows, s.orders_data, s.created_at, t.name AS template_name 
+         FROM import_sessions s 
+         LEFT JOIN import_templates t ON s.template_id = t.id 
+         ORDER BY s.created_at DESC 
+         LIMIT 5`
+      ),
+      catch: (err) => new Error(`recentImports query failed: ${err.message}`)
+    });
 
-    return json({
+    return {
       total_products: totalProducts,
       low_stock_count: lowStockCount,
       pending_review_count: pendingReviewCount,
       ambiguous_count: ambiguousCount,
       recent_reviews: recentReviews,
       recent_imports: recentImports
-    });
+    };
+  });
+}
+
+async function handleDashboardStats(req) {
+  try {
+    const result = await Effect.runPromise(Effect.either(handleDashboardStatsEffect(req)));
+    if (Either.isLeft(result)) {
+      const err = result.left;
+      if (err && typeof err === 'object' && 'status' in err) {
+        return json({ message: err.message }, err.status);
+      }
+      return json({ message: err.message || 'Failed to retrieve dashboard statistics' }, 500);
+    }
+    return json(result.right);
   } catch (err) {
     console.error("Dashboard stats retrieval error:", err);
     return json({ message: 'Failed to retrieve dashboard statistics' }, 500);
   }
 }
 
-async function handleListOpname(req) {
-  try {
-    const opnamesList = await db.opnames.list();
-    const usersList = await db.users.list();
-    const itemsList = await db.opnameItems.list();
+export function handleListOpnameEffect(req) {
+  return Effect.gen(function* () {
+    const opnamesList = yield* Effect.tryPromise({
+      try: () => db.opnames.list(),
+      catch: (err) => new Error(`db.opnames.list failed: ${err.message}`)
+    });
+    const usersList = yield* Effect.tryPromise({
+      try: () => db.users.list(),
+      catch: (err) => new Error(`db.users.list failed: ${err.message}`)
+    });
+    const itemsList = yield* Effect.tryPromise({
+      try: () => db.opnameItems.list(),
+      catch: (err) => new Error(`db.opnameItems.list failed: ${err.message}`)
+    });
 
     const userMap = new Map(usersList.map(u => [u.id, u]));
 
@@ -1836,28 +2534,54 @@ async function handleListOpname(req) {
     });
 
     joined.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    return json(joined);
+    return joined;
+  });
+}
+
+async function handleListOpname(req) {
+  try {
+    const result = await Effect.runPromise(Effect.either(handleListOpnameEffect(req)));
+    if (Either.isLeft(result)) {
+      const err = result.left;
+      if (err && typeof err === 'object' && 'status' in err) {
+        return json({ message: err.message }, err.status);
+      }
+      return json({ message: err.message || 'Failed to retrieve stock opnames' }, 500);
+    }
+    return json(result.right);
   } catch (err) {
     console.error("List stock opnames error:", err);
     return json({ message: 'Failed to retrieve stock opnames' }, 500);
   }
 }
 
-async function handleGetOpnameDetails(req, params) {
-  try {
+export function handleGetOpnameDetailsEffect(req, params) {
+  return Effect.gen(function* () {
     const id = parseInt(params[0], 10);
     if (isNaN(id)) {
-      return json({ message: 'Invalid opname ID' }, 400);
+      return yield* Effect.fail({ status: 400, message: 'Invalid opname ID' });
     }
 
-    const report = await db.opnames.get(id);
+    const report = yield* Effect.tryPromise({
+      try: () => db.opnames.get(id),
+      catch: (err) => new Error(`db.opnames.get failed: ${err.message}`)
+    });
     if (!report) {
-      return json({ message: 'Stock opname report not found' }, 404);
+      return yield* Effect.fail({ status: 404, message: 'Stock opname report not found' });
     }
 
-    const user = await db.users.get(report.user_id);
-    const opnameItemsList = await db.opnameItems.getByOpnameId(id);
-    const productsList = await db.products.list();
+    const user = yield* Effect.tryPromise({
+      try: () => db.users.get(report.user_id),
+      catch: (err) => new Error(`db.users.get failed: ${err.message}`)
+    });
+    const opnameItemsList = yield* Effect.tryPromise({
+      try: () => db.opnameItems.getByOpnameId(id),
+      catch: (err) => new Error(`db.opnameItems.getByOpnameId failed: ${err.message}`)
+    });
+    const productsList = yield* Effect.tryPromise({
+      try: () => db.products.list(),
+      catch: (err) => new Error(`db.products.list failed: ${err.message}`)
+    });
     const productMap = new Map(productsList.map(p => [p.id, p]));
 
     const joinedItems = opnameItemsList.map(soi => {
@@ -1869,24 +2593,42 @@ async function handleGetOpnameDetails(req, params) {
       };
     });
 
-    return json({
+    return {
       ...report,
       username: user ? user.username : null,
       items: joinedItems
-    });
+    };
+  });
+}
+
+async function handleGetOpnameDetails(req, params) {
+  try {
+    const result = await Effect.runPromise(Effect.either(handleGetOpnameDetailsEffect(req, params)));
+    if (Either.isLeft(result)) {
+      const err = result.left;
+      if (err && typeof err === 'object' && 'status' in err) {
+        return json({ message: err.message }, err.status);
+      }
+      return json({ message: err.message || 'Failed to retrieve stock opname report' }, 500);
+    }
+    return json(result.right);
   } catch (err) {
     console.error("Get stock opname report error:", err);
     return json({ message: 'Failed to retrieve stock opname report' }, 500);
   }
 }
 
-async function handleCreateOpname(req) {
-  try {
-    const { notes, items, created_at } = await readJson(req);
+export function handleCreateOpnameEffect(req) {
+  return Effect.gen(function* () {
+    const body = yield* Effect.tryPromise({
+      try: () => readJson(req),
+      catch: (err) => new Error(`Invalid request JSON: ${err.message}`)
+    });
+    const { notes, items, created_at } = body;
     const user = req.user;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
-      return json({ message: 'Items are required' }, 400);
+      return yield* Effect.fail({ status: 400, message: 'Items are required' });
     }
 
     for (const item of items) {
@@ -1895,19 +2637,25 @@ async function handleCreateOpname(req) {
       const physStock = parseInt(physical_stock, 10);
 
       if (isNaN(prodId) || isNaN(physStock) || physStock < 0 || prodId <= 0) {
-        return json({ message: 'Invalid product_id or physical_stock' }, 400);
+        return yield* Effect.fail({ status: 400, message: 'Invalid product_id or physical_stock' });
       }
 
-      const product = await db.products.get(prodId);
+      const product = yield* Effect.tryPromise({
+        try: () => db.products.get(prodId),
+        catch: (err) => new Error(`db.products.get failed: ${err.message}`)
+      });
       if (!product) {
-        return json({ message: `Product not found with ID ${prodId}` }, 404);
+        return yield* Effect.fail({ status: 404, message: `Product not found with ID ${prodId}` });
       }
     }
 
-    const newOpname = await db.opnames.insert({
-      user_id: user.id,
-      notes: notes || '',
-      created_at: created_at || undefined
+    const newOpname = yield* Effect.tryPromise({
+      try: () => db.opnames.insert({
+        user_id: user.id,
+        notes: notes || '',
+        created_at: created_at || undefined
+      }),
+      catch: (err) => new Error(`db.opnames.insert failed: ${err.message}`)
     });
 
     const opnameId = newOpname.id;
@@ -1917,94 +2665,159 @@ async function handleCreateOpname(req) {
       const prodId = parseInt(product_id, 10);
       const physStock = parseInt(physical_stock, 10);
 
-      const product = await db.products.get(prodId);
+      const product = yield* Effect.tryPromise({
+        try: () => db.products.get(prodId),
+        catch: (err) => new Error(`db.products.get failed: ${err.message}`)
+      });
       if (!product) {
-        throw new Error(`Product not found with ID ${prodId}`);
+        return yield* Effect.fail({ status: 500, message: `Product not found with ID ${prodId}` });
       }
 
       const systemStock = product.current_stock;
       const variance = physStock - systemStock;
 
-      await db.opnameItems.insert({
-        opname_id: opnameId,
-        product_id: prodId,
-        system_stock: systemStock,
-        physical_stock: physStock,
-        variance
+      yield* Effect.tryPromise({
+        try: () => db.opnameItems.insert({
+          opname_id: opnameId,
+          product_id: prodId,
+          system_stock: systemStock,
+          physical_stock: physStock,
+          variance
+        }),
+        catch: (err) => new Error(`db.opnameItems.insert failed: ${err.message}`)
       });
 
-      await db.products.update(prodId, {
-        current_stock: physStock
+      yield* Effect.tryPromise({
+        try: () => db.products.update(prodId, {
+          current_stock: physStock
+        }),
+        catch: (err) => new Error(`db.products.update failed: ${err.message}`)
       });
 
-      await db.movements.insert({
-        product_id: prodId,
-        quantity_change: variance,
-        movement_type: 'manual_adjust',
-        reference: `Stock Opname #${opnameId}`,
-        user_id: user.id,
-        created_at: newOpname.created_at
+      yield* Effect.tryPromise({
+        try: () => db.movements.insert({
+          product_id: prodId,
+          quantity_change: variance,
+          movement_type: 'manual_adjust',
+          reference: `Stock Opname #${opnameId}`,
+          user_id: user.id,
+          created_at: newOpname.created_at
+        }),
+        catch: (err) => new Error(`db.movements.insert failed: ${err.message}`)
       });
     }
 
-    return json({ success: true, id: opnameId }, 201);
+    return { success: true, id: opnameId };
+  });
+}
+
+async function handleCreateOpname(req) {
+  try {
+    const result = await Effect.runPromise(Effect.either(handleCreateOpnameEffect(req)));
+    if (Either.isLeft(result)) {
+      const err = result.left;
+      if (err && typeof err === 'object' && 'status' in err) {
+        return json({ message: err.message }, err.status);
+      }
+      return json({ message: err.message || 'Failed to create stock opname' }, 500);
+    }
+    return json(result.right, 201);
   } catch (err) {
     console.error("Create stock opname error:", err);
-    return json({ message: err.message || 'Failed to create stock opname' }, 500);
+    return json({ message: 'Failed to create stock opname' }, 500);
   }
 }
 
-async function handleDeleteOpname(req, params) {
-  try {
+export function handleDeleteOpnameEffect(req, params) {
+  return Effect.gen(function* () {
     const id = parseInt(params[0], 10);
-    if (isNaN(id)) return json({ message: "Invalid opname ID" }, 400);
+    if (isNaN(id)) return yield* Effect.fail({ status: 400, message: "Invalid opname ID" });
 
-    const report = await db.opnames.get(id);
+    const report = yield* Effect.tryPromise({
+      try: () => db.opnames.get(id),
+      catch: (err) => new Error(`db.opnames.get failed: ${err.message}`)
+    });
     if (!report) {
-      return json({ message: 'Stock opname report not found' }, 404);
+      return yield* Effect.fail({ status: 404, message: 'Stock opname report not found' });
     }
 
-    const opnameItemsList = await db.opnameItems.getByOpnameId(id);
+    const opnameItemsList = yield* Effect.tryPromise({
+      try: () => db.opnameItems.getByOpnameId(id),
+      catch: (err) => new Error(`db.opnameItems.getByOpnameId failed: ${err.message}`)
+    });
 
     // Revert stock adjustments for each product
     for (const item of opnameItemsList) {
-      const product = await db.products.get(item.product_id);
+      const product = yield* Effect.tryPromise({
+        try: () => db.products.get(item.product_id),
+        catch: (err) => new Error(`db.products.get failed: ${err.message}`)
+      });
       if (product) {
         const revertedStock = product.current_stock - item.variance;
-        await db.products.update(item.product_id, {
-          current_stock: revertedStock
+        yield* Effect.tryPromise({
+          try: () => db.products.update(item.product_id, {
+            current_stock: revertedStock
+          }),
+          catch: (err) => new Error(`db.products.update failed: ${err.message}`)
         });
       }
     }
 
     // Delete associated stock movements
     const activeStorage = getActiveStorage();
-    await activeStorage.execute(
-      `DELETE FROM stock_movements WHERE reference = ?`,
-      [`Stock Opname #${id}`]
-    );
+    yield* Effect.tryPromise({
+      try: () => activeStorage.execute(
+        `DELETE FROM stock_movements WHERE reference = ?`,
+        [`Stock Opname #${id}`]
+      ),
+      catch: (err) => new Error(`activeStorage.execute failed: ${err.message}`)
+    });
 
     // Delete opname report (cascades to items)
-    await db.opnames.delete(id);
+    yield* Effect.tryPromise({
+      try: () => db.opnames.delete(id),
+      catch: (err) => new Error(`db.opnames.delete failed: ${err.message}`)
+    });
 
-    return json({ success: true });
+    return { success: true };
+  });
+}
+
+async function handleDeleteOpname(req, params) {
+  try {
+    const result = await Effect.runPromise(Effect.either(handleDeleteOpnameEffect(req, params)));
+    if (Either.isLeft(result)) {
+      const err = result.left;
+      if (err && typeof err === 'object' && 'status' in err) {
+        return json({ message: err.message }, err.status);
+      }
+      return json({ message: err.message || 'Failed to delete stock opname' }, 500);
+    }
+    return json(result.right);
   } catch (err) {
     console.error("Delete stock opname error:", err);
     return json({ message: 'Failed to delete stock opname' }, 500);
   }
 }
 
-async function handleUpdateOpname(req, params) {
-  try {
+export function handleUpdateOpnameEffect(req, params) {
+  return Effect.gen(function* () {
     const id = parseInt(params[0], 10);
-    if (isNaN(id)) return json({ message: "Invalid opname ID" }, 400);
+    if (isNaN(id)) return yield* Effect.fail({ status: 400, message: "Invalid opname ID" });
 
-    const report = await db.opnames.get(id);
+    const report = yield* Effect.tryPromise({
+      try: () => db.opnames.get(id),
+      catch: (err) => new Error(`db.opnames.get failed: ${err.message}`)
+    });
     if (!report) {
-      return json({ message: 'Stock opname report not found' }, 404);
+      return yield* Effect.fail({ status: 404, message: 'Stock opname report not found' });
     }
 
-    const { notes, items, created_at } = await readJson(req);
+    const body = yield* Effect.tryPromise({
+      try: () => readJson(req),
+      catch: (err) => new Error(`Invalid request JSON: ${err.message}`)
+    });
+    const { notes, items, created_at } = body;
     const activeStorage = getActiveStorage();
 
     // 1. Update notes and date
@@ -2038,20 +2851,29 @@ async function handleUpdateOpname(req, params) {
       }
     }
 
-    await db.opnames.update(id, fieldsToUpdate);
+    yield* Effect.tryPromise({
+      try: () => db.opnames.update(id, fieldsToUpdate),
+      catch: (err) => new Error(`db.opnames.update failed: ${err.message}`)
+    });
     const newCreatedAt = fieldsToUpdate.created_at || report.created_at;
 
     // 2. Update stock movements' dates
     if (fieldsToUpdate.created_at) {
-      await activeStorage.execute(
-        `UPDATE stock_movements SET created_at = ? WHERE reference = ?`,
-        [newCreatedAt, `Stock Opname #${id}`]
-      );
+      yield* Effect.tryPromise({
+        try: () => activeStorage.execute(
+          `UPDATE stock_movements SET created_at = ? WHERE reference = ?`,
+          [newCreatedAt, `Stock Opname #${id}`]
+        ),
+        catch: (err) => new Error(`activeStorage.execute failed: ${err.message}`)
+      });
     }
 
     // 3. Update physical stock counts and adjust product stocks/movements if provided
     if (items && Array.isArray(items)) {
-      const oldItems = await db.opnameItems.getByOpnameId(id);
+      const oldItems = yield* Effect.tryPromise({
+        try: () => db.opnameItems.getByOpnameId(id),
+        catch: (err) => new Error(`db.opnameItems.getByOpnameId failed: ${err.message}`)
+      });
       const oldItemMap = new Map(oldItems.map(item => [item.product_id, item]));
 
       for (const item of items) {
@@ -2067,124 +2889,206 @@ async function handleUpdateOpname(req, params) {
           const diff = newVariance - oldVariance;
 
           // Update stock opname item
-          await activeStorage.execute(
-            `UPDATE stock_opname_items SET physical_stock = ?, variance = ? WHERE id = ?`,
-            [newPhysStock, newVariance, oldItem.id]
-          );
+          yield* Effect.tryPromise({
+            try: () => activeStorage.execute(
+              `UPDATE stock_opname_items SET physical_stock = ?, variance = ? WHERE id = ?`,
+              [newPhysStock, newVariance, oldItem.id]
+            ),
+            catch: (err) => new Error(`activeStorage.execute failed: ${err.message}`)
+          });
 
           // Adjust product stock
-          const product = await db.products.get(prodId);
+          const product = yield* Effect.tryPromise({
+            try: () => db.products.get(prodId),
+            catch: (err) => new Error(`db.products.get failed: ${err.message}`)
+          });
           if (product) {
-            await db.products.update(prodId, {
-              current_stock: product.current_stock + diff
+            yield* Effect.tryPromise({
+              try: () => db.products.update(prodId, {
+                current_stock: product.current_stock + diff
+              }),
+              catch: (err) => new Error(`db.products.update failed: ${err.message}`)
             });
           }
 
           // Update or insert stock movement
-          const movementRows = await activeStorage.query(
-            `SELECT id FROM stock_movements WHERE reference = ? AND product_id = ?`,
-            [`Stock Opname #${id}`, prodId]
-          );
+          const movementRows = yield* Effect.tryPromise({
+            try: () => activeStorage.query(
+              `SELECT id FROM stock_movements WHERE reference = ? AND product_id = ?`,
+              [`Stock Opname #${id}`, prodId]
+            ),
+            catch: (err) => new Error(`activeStorage.query failed: ${err.message}`)
+          });
           if (movementRows && movementRows.length > 0) {
-            await activeStorage.execute(
-              `UPDATE stock_movements SET quantity_change = ?, created_at = ? WHERE id = ?`,
-              [newVariance, newCreatedAt, movementRows[0].id]
-            );
+            yield* Effect.tryPromise({
+              try: () => activeStorage.execute(
+                `UPDATE stock_movements SET quantity_change = ?, created_at = ? WHERE id = ?`,
+                [newVariance, newCreatedAt, movementRows[0].id]
+              ),
+              catch: (err) => new Error(`activeStorage.execute failed: ${err.message}`)
+            });
           } else {
-            await db.movements.insert({
-              product_id: prodId,
-              quantity_change: newVariance,
-              movement_type: 'manual_adjust',
-              reference: `Stock Opname #${id}`,
-              user_id: report.user_id,
-              created_at: newCreatedAt
+            yield* Effect.tryPromise({
+              try: () => db.movements.insert({
+                product_id: prodId,
+                quantity_change: newVariance,
+                movement_type: 'manual_adjust',
+                reference: `Stock Opname #${id}`,
+                user_id: report.user_id,
+                created_at: newCreatedAt
+              }),
+              catch: (err) => new Error(`db.movements.insert failed: ${err.message}`)
             });
           }
         }
       }
     }
 
-    return json({ success: true });
+    return { success: true };
+  });
+}
+
+async function handleUpdateOpname(req, params) {
+  try {
+    const result = await Effect.runPromise(Effect.either(handleUpdateOpnameEffect(req, params)));
+    if (Either.isLeft(result)) {
+      const err = result.left;
+      if (err && typeof err === 'object' && 'status' in err) {
+        return json({ message: err.message }, err.status);
+      }
+      return json({ message: err.message || 'Failed to update stock opname' }, 500);
+    }
+    return json(result.right);
   } catch (err) {
     console.error("Update stock opname error:", err);
-    return json({ message: err.message || 'Failed to update stock opname' }, 500);
+    return json({ message: 'Failed to update stock opname' }, 500);
   }
+}
+
+export function handleGetChatMessagesEffect(req) {
+  return Effect.gen(function* () {
+    const user = req.user;
+    if (!user) return yield* Effect.fail({ status: 401, message: 'Unauthorized' });
+
+    const url = new URL(req.url);
+    const otherUserId = parseInt(url.searchParams.get('other_user_id'), 10);
+    if (isNaN(otherUserId)) {
+      return yield* Effect.fail({ status: 400, message: 'Missing other_user_id' });
+    }
+
+    const messages = yield* Effect.tryPromise({
+      try: () => db.chatMessages.listMessages(user.id, otherUserId),
+      catch: (err) => new Error(`db.chatMessages.listMessages failed: ${err.message}`)
+    });
+    return messages;
+  });
 }
 
 async function handleGetChatMessages(req) {
   try {
-    const user = req.user;
-    if (!user) return json({ message: 'Unauthorized' }, 401);
-    
-    const url = new URL(req.url);
-    const otherUserId = parseInt(url.searchParams.get('other_user_id'), 10);
-    if (isNaN(otherUserId)) {
-      return json({ message: 'Missing other_user_id' }, 400);
+    const result = await Effect.runPromise(Effect.either(handleGetChatMessagesEffect(req)));
+    if (Either.isLeft(result)) {
+      const err = result.left;
+      if (err && typeof err === 'object' && 'status' in err) {
+        return json({ message: err.message }, err.status);
+      }
+      return json({ message: err.message || 'Failed to retrieve messages' }, 500);
     }
-
-    const messages = await db.chatMessages.listMessages(user.id, otherUserId);
-    return json(messages);
+    return json(result.right);
   } catch (err) {
     console.error("Get chat messages error:", err);
     return json({ message: 'Failed to retrieve messages' }, 500);
   }
 }
 
+export function handleGetChatContactsEffect(req) {
+  return Effect.gen(function* () {
+    const user = req.user;
+    if (!user) return yield* Effect.fail({ status: 401, message: 'Unauthorized' });
+
+    const contacts = yield* Effect.tryPromise({
+      try: () => db.chatMessages.getContacts(user.id),
+      catch: (err) => new Error(`db.chatMessages.getContacts failed: ${err.message}`)
+    });
+    return contacts;
+  });
+}
+
 async function handleGetChatContacts(req) {
   try {
-    const user = req.user;
-    if (!user) return json({ message: 'Unauthorized' }, 401);
-
-    const contacts = await db.chatMessages.getContacts(user.id);
-    return json(contacts);
+    const result = await Effect.runPromise(Effect.either(handleGetChatContactsEffect(req)));
+    if (Either.isLeft(result)) {
+      const err = result.left;
+      if (err && typeof err === 'object' && 'status' in err) {
+        return json({ message: err.message }, err.status);
+      }
+      return json({ message: err.message || 'Failed to retrieve contacts' }, 500);
+    }
+    return json(result.right);
   } catch (err) {
     console.error("Get chat contacts error:", err);
     return json({ message: 'Failed to retrieve contacts' }, 500);
   }
 }
 
-async function handleSendChatMessage(req) {
-  try {
+export function handleSendChatMessageEffect(req) {
+  return Effect.gen(function* () {
     const user = req.user;
-    if (!user) return json({ message: 'Unauthorized' }, 401);
+    if (!user) return yield* Effect.fail({ status: 401, message: 'Unauthorized' });
 
-    const { receiver_id, message, product_id } = await readJson(req);
+    const body = yield* Effect.tryPromise({
+      try: () => readJson(req),
+      catch: (err) => new Error(`Invalid request JSON: ${err.message}`)
+    });
+    const { receiver_id, message, product_id } = body;
     if (!receiver_id || !message) {
-      return json({ message: 'Receiver and message content are required' }, 400);
+      return yield* Effect.fail({ status: 400, message: 'Receiver and message content are required' });
     }
 
     const recId = parseInt(receiver_id, 10);
     if (isNaN(recId)) {
-      return json({ message: 'Invalid receiver ID' }, 400);
+      return yield* Effect.fail({ status: 400, message: 'Invalid receiver ID' });
     }
 
-    const receiverExists = await db.users.get(recId);
+    const receiverExists = yield* Effect.tryPromise({
+      try: () => db.users.get(recId),
+      catch: (err) => new Error(`db.users.get failed: ${err.message}`)
+    });
     if (!receiverExists) {
-      return json({ message: 'Receiver user not found' }, 404);
+      return yield* Effect.fail({ status: 404, message: 'Receiver user not found' });
     }
 
     let prodId = null;
     if (product_id !== undefined && product_id !== null) {
       prodId = parseInt(product_id, 10);
       if (isNaN(prodId)) {
-        return json({ message: 'Invalid product ID' }, 400);
+        return yield* Effect.fail({ status: 400, message: 'Invalid product ID' });
       }
-      const productExists = await db.products.get(prodId);
+      const productExists = yield* Effect.tryPromise({
+        try: () => db.products.get(prodId),
+        catch: (err) => new Error(`db.products.get failed: ${err.message}`)
+      });
       if (!productExists) {
-        return json({ message: 'Product not found' }, 404);
+        return yield* Effect.fail({ status: 404, message: 'Product not found' });
       }
     }
 
-    const newMsg = await db.chatMessages.insert({
-      sender_id: user.id,
-      receiver_id: recId,
-      message,
-      product_id: prodId
+    const newMsg = yield* Effect.tryPromise({
+      try: () => db.chatMessages.insert({
+        sender_id: user.id,
+        receiver_id: recId,
+        message,
+        product_id: prodId
+      }),
+      catch: (err) => new Error(`db.chatMessages.insert failed: ${err.message}`)
     });
 
     let product = null;
     if (newMsg.product_id) {
-      product = await db.products.get(newMsg.product_id);
+      product = yield* Effect.tryPromise({
+        try: () => db.products.get(newMsg.product_id),
+        catch: (err) => new Error(`db.products.get failed: ${err.message}`)
+      });
     }
 
     broadcast({
@@ -2204,30 +3108,65 @@ async function handleSendChatMessage(req) {
       } : null
     });
 
-    return json(newMsg, 201);
+    return newMsg;
+  });
+}
+
+async function handleSendChatMessage(req) {
+  try {
+    const result = await Effect.runPromise(Effect.either(handleSendChatMessageEffect(req)));
+    if (Either.isLeft(result)) {
+      const err = result.left;
+      if (err && typeof err === 'object' && 'status' in err) {
+        return json({ message: err.message }, err.status);
+      }
+      return json({ message: err.message || 'Failed to send message' }, 500);
+    }
+    return json(result.right, 201);
   } catch (err) {
     console.error("Send chat message error:", err);
     return json({ message: 'Failed to send message' }, 500);
   }
 }
 
-async function handleMarkChatRead(req) {
-  try {
+export function handleMarkChatReadEffect(req) {
+  return Effect.gen(function* () {
     const user = req.user;
-    if (!user) return json({ message: 'Unauthorized' }, 401);
+    if (!user) return yield* Effect.fail({ status: 401, message: 'Unauthorized' });
 
-    const { sender_id } = await readJson(req);
+    const body = yield* Effect.tryPromise({
+      try: () => readJson(req),
+      catch: (err) => new Error(`Invalid request JSON: ${err.message}`)
+    });
+    const { sender_id } = body;
     if (!sender_id) {
-      return json({ message: 'Sender ID is required' }, 400);
+      return yield* Effect.fail({ status: 400, message: 'Sender ID is required' });
     }
 
     const sndId = parseInt(sender_id, 10);
     if (isNaN(sndId)) {
-      return json({ message: 'Invalid sender ID' }, 400);
+      return yield* Effect.fail({ status: 400, message: 'Invalid sender ID' });
     }
 
-    await db.chatMessages.markAsRead(sndId, user.id);
-    return json({ success: true });
+    yield* Effect.tryPromise({
+      try: () => db.chatMessages.markAsRead(sndId, user.id),
+      catch: (err) => new Error(`db.chatMessages.markAsRead failed: ${err.message}`)
+    });
+    return { success: true };
+  });
+}
+
+async function handleMarkChatRead(req) {
+  try {
+    const result = await Effect.runPromise(Effect.either(handleMarkChatReadEffect(req)));
+    if (Either.isLeft(result)) {
+      const err = result.left;
+      if (err && typeof err === 'object' && 'status' in err) {
+        return json({ message: err.message }, err.status);
+      }
+      return json({ message: err.message || 'Failed to mark messages as read' }, 500);
+    }
+    return json(result.right);
   } catch (err) {
     console.error("Mark chat read error:", err);
     return json({ message: 'Failed to mark messages as read' }, 500);
@@ -2365,21 +3304,27 @@ async function verifyClerkWebhook(req, webhookSecret) {
   return false;
 }
 
-async function handleClerkWebhook({ request }) {
-  try {
+export function handleClerkWebhookEffect({ request }) {
+  return Effect.gen(function* () {
     const env = getActiveEnv();
     const webhookSecret = process.env.CLERK_WEBHOOK_SECRET || (env && env.CLERK_WEBHOOK_SECRET);
     
     if (webhookSecret) {
-      const isValid = await verifyClerkWebhook(request, webhookSecret);
+      const isValid = yield* Effect.tryPromise({
+        try: () => verifyClerkWebhook(request, webhookSecret),
+        catch: (err) => new Error(`verifyClerkWebhook failed: ${err.message}`)
+      });
       if (!isValid) {
-        return json({ message: 'Invalid signature' }, 401);
+        return yield* Effect.fail({ status: 401, message: 'Invalid signature' });
       }
     } else {
       console.warn("CLERK_WEBHOOK_SECRET is not configured. Webhook signature verification is skipped.");
     }
 
-    const body = await readJson(request);
+    const body = yield* Effect.tryPromise({
+      try: () => readJson(request),
+      catch: (err) => new Error(`Invalid request JSON: ${err.message}`)
+    });
     const eventType = body.type;
     const data = body.data;
 
@@ -2401,62 +3346,109 @@ async function handleClerkWebhook({ request }) {
 
       const storage = getActiveStorage();
       
-      let existing = await storage.query("SELECT id, username FROM users WHERE password_hash = ?", [clerkId]);
+      let existing = yield* Effect.tryPromise({
+        try: () => storage.query("SELECT id, username FROM users WHERE password_hash = ?", [clerkId]),
+        catch: (err) => new Error(`storage.query failed: ${err.message}`)
+      });
       if (existing && existing.length > 0) {
         const localId = existing[0].id;
         const localUsername = existing[0].username;
         
         if (localUsername !== chosenUsername) {
-          let conflict = await storage.query("SELECT id FROM users WHERE username = ? AND password_hash != ?", [chosenUsername, clerkId]);
+          let conflict = yield* Effect.tryPromise({
+            try: () => storage.query("SELECT id FROM users WHERE username = ? AND password_hash != ?", [chosenUsername, clerkId]),
+            catch: (err) => new Error(`storage.query failed: ${err.message}`)
+          });
           if (conflict && conflict.length > 0) {
             let finalUsername = chosenUsername;
             let counter = 1;
-            let checkExisting = await storage.query("SELECT id FROM users WHERE username = ?", [finalUsername]);
+            let checkExisting = yield* Effect.tryPromise({
+              try: () => storage.query("SELECT id FROM users WHERE username = ?", [finalUsername]),
+              catch: (err) => new Error(`storage.query failed: ${err.message}`)
+            });
             while (checkExisting && checkExisting.length > 0) {
               finalUsername = `${chosenUsername}${counter}`;
-              checkExisting = await storage.query("SELECT id FROM users WHERE username = ?", [finalUsername]);
+              checkExisting = yield* Effect.tryPromise({
+                try: () => storage.query("SELECT id FROM users WHERE username = ?", [finalUsername]),
+                catch: (err) => new Error(`storage.query failed: ${err.message}`)
+              });
               counter++;
             }
             chosenUsername = finalUsername;
           }
-          await storage.execute("UPDATE users SET username = ?, role = ? WHERE id = ?", [chosenUsername, role, localId]);
+          yield* Effect.tryPromise({
+            try: () => storage.execute("UPDATE users SET username = ?, role = ? WHERE id = ?", [chosenUsername, role, localId]),
+            catch: (err) => new Error(`storage.execute failed: ${err.message}`)
+          });
         } else {
-          await storage.execute("UPDATE users SET role = ? WHERE id = ?", [role, localId]);
+          yield* Effect.tryPromise({
+            try: () => storage.execute("UPDATE users SET role = ? WHERE id = ?", [role, localId]),
+            catch: (err) => new Error(`storage.execute failed: ${err.message}`)
+          });
         }
       } else {
         let finalUsername = chosenUsername;
         let counter = 1;
-        let checkExisting = await storage.query("SELECT id FROM users WHERE username = ?", [finalUsername]);
+        let checkExisting = yield* Effect.tryPromise({
+          try: () => storage.query("SELECT id FROM users WHERE username = ?", [finalUsername]),
+          catch: (err) => new Error(`storage.query failed: ${err.message}`)
+        });
         while (checkExisting && checkExisting.length > 0) {
           finalUsername = `${chosenUsername}${counter}`;
-          checkExisting = await storage.query("SELECT id FROM users WHERE username = ?", [finalUsername]);
+          checkExisting = yield* Effect.tryPromise({
+            try: () => storage.query("SELECT id FROM users WHERE username = ?", [finalUsername]),
+            catch: (err) => new Error(`storage.query failed: ${err.message}`)
+          });
           counter++;
         }
-        await storage.execute(
-          "INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, datetime('now', 'localtime'))",
-          [finalUsername, clerkId, role]
-        );
+        yield* Effect.tryPromise({
+          try: () => storage.execute(
+            "INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, datetime('now', 'localtime'))",
+            [finalUsername, clerkId, role]
+          ),
+          catch: (err) => new Error(`storage.execute failed: ${err.message}`)
+        });
       }
     }
 
-    return json({ success: true });
+    return { success: true };
+  });
+}
+
+async function handleClerkWebhook({ request }) {
+  try {
+    const result = await Effect.runPromise(Effect.either(handleClerkWebhookEffect({ request })));
+    if (Either.isLeft(result)) {
+      const err = result.left;
+      if (err && typeof err === 'object' && 'status' in err) {
+        return json({ message: err.message }, err.status);
+      }
+      return json({ message: err.message || 'Internal server error' }, 500);
+    }
+    return json(result.right);
   } catch (err) {
     console.error("Clerk Webhook processing error:", err);
     return json({ message: 'Internal server error' }, 500);
   }
 }
 
-async function handleUpdateMovement(req, params) {
-  try {
+export function handleUpdateMovementEffect(req, params) {
+  return Effect.gen(function* () {
     const id = parseInt(params[0], 10);
-    if (isNaN(id)) return json({ message: "Invalid movement ID" }, 400);
+    if (isNaN(id)) return yield* Effect.fail({ status: 400, message: "Invalid movement ID" });
 
-    const body = await readJson(req);
+    const body = yield* Effect.tryPromise({
+      try: () => readJson(req),
+      catch: (error) => new Error(`Invalid request JSON: ${error.message}`)
+    });
     const { created_at, reference, movement_type, quantity_change } = body;
 
-    const movement = await db.movements.get(id);
+    const movement = yield* Effect.tryPromise({
+      try: () => db.movements.get(id),
+      catch: (error) => new Error(`Database query failed: ${error.message}`)
+    });
     if (!movement) {
-      return json({ message: 'Movement not found' }, 404);
+      return yield* Effect.fail({ status: 404, message: 'Movement not found' });
     }
 
     const fields = {};
@@ -2478,7 +3470,7 @@ async function handleUpdateMovement(req, params) {
       }
 
       if (isNaN(parsedDate.getTime())) {
-        return json({ message: 'Invalid date format. Use DD/MM/YYYY or YYYY-MM-DD.' }, 400);
+        return yield* Effect.fail({ status: 400, message: 'Invalid date format. Use DD/MM/YYYY or YYYY-MM-DD.' });
       }
 
       const year = parsedDate.getFullYear();
@@ -2497,7 +3489,7 @@ async function handleUpdateMovement(req, params) {
 
     if (movement_type !== undefined) {
       if (!['sale', 'return', 'write_off', 'manual_adjust', 'initial'].includes(movement_type)) {
-        return json({ message: 'Invalid movement type' }, 400);
+        return yield* Effect.fail({ status: 400, message: 'Invalid movement type' });
       }
       fields.movement_type = movement_type;
     }
@@ -2505,49 +3497,94 @@ async function handleUpdateMovement(req, params) {
     if (quantity_change !== undefined) {
       const newQty = parseInt(quantity_change, 10);
       if (isNaN(newQty)) {
-        return json({ message: 'Invalid quantity change' }, 400);
+        return yield* Effect.fail({ status: 400, message: 'Invalid quantity change' });
       }
       fields.quantity_change = newQty;
 
       // Update the product's current stock
-      const product = await db.products.get(movement.product_id);
+      const product = yield* Effect.tryPromise({
+        try: () => db.products.get(movement.product_id),
+        catch: (error) => new Error(`Database query failed: ${error.message}`)
+      });
       if (product) {
         const diff = newQty - movement.quantity_change;
         const newStock = product.current_stock + diff;
-        await db.products.update(movement.product_id, {
-          current_stock: newStock
+        yield* Effect.tryPromise({
+          try: () => db.products.update(movement.product_id, { current_stock: newStock }),
+          catch: (error) => new Error(`Database update failed: ${error.message}`)
         });
       }
     }
 
-    const updated = await db.movements.update(id, fields);
-    return json({ success: true, movement: updated });
+    const updated = yield* Effect.tryPromise({
+      try: () => db.movements.update(id, fields),
+      catch: (error) => new Error(`Database update failed: ${error.message}`)
+    });
+    return { success: true, movement: updated };
+  });
+}
+
+async function handleUpdateMovement(req, params) {
+  try {
+    const result = await Effect.runPromise(Effect.either(handleUpdateMovementEffect(req, params)));
+    if (Either.isLeft(result)) {
+      const err = result.left;
+      if (err && typeof err === 'object' && 'status' in err) {
+        return json({ message: err.message }, err.status);
+      }
+      return json({ message: err.message || 'Failed to update movement' }, 500);
+    }
+    return json(result.right);
   } catch (err) {
     console.error("Update movement error:", err);
     return json({ message: 'Failed to update movement' }, 500);
   }
 }
 
-async function handleDeleteMovement(req, params) {
-  try {
+export function handleDeleteMovementEffect(req, params) {
+  return Effect.gen(function* () {
     const id = parseInt(params[0], 10);
-    if (isNaN(id)) return json({ message: "Invalid movement ID" }, 400);
+    if (isNaN(id)) return yield* Effect.fail({ status: 400, message: "Invalid movement ID" });
 
-    const movement = await db.movements.get(id);
+    const movement = yield* Effect.tryPromise({
+      try: () => db.movements.get(id),
+      catch: (error) => new Error(`Database query failed: ${error.message}`)
+    });
     if (!movement) {
-      return json({ message: 'Movement not found' }, 404);
+      return yield* Effect.fail({ status: 404, message: 'Movement not found' });
     }
 
-    const product = await db.products.get(movement.product_id);
+    const product = yield* Effect.tryPromise({
+      try: () => db.products.get(movement.product_id),
+      catch: (error) => new Error(`Database query failed: ${error.message}`)
+    });
     if (product) {
       const newStock = product.current_stock - movement.quantity_change;
-      await db.products.update(movement.product_id, {
-        current_stock: newStock
+      yield* Effect.tryPromise({
+        try: () => db.products.update(movement.product_id, { current_stock: newStock }),
+        catch: (error) => new Error(`Database update failed: ${error.message}`)
       });
     }
 
-    await db.movements.delete(id);
-    return json({ success: true });
+    yield* Effect.tryPromise({
+      try: () => db.movements.delete(id),
+      catch: (error) => new Error(`Database delete failed: ${error.message}`)
+    });
+    return { success: true };
+  });
+}
+
+async function handleDeleteMovement(req, params) {
+  try {
+    const result = await Effect.runPromise(Effect.either(handleDeleteMovementEffect(req, params)));
+    if (Either.isLeft(result)) {
+      const err = result.left;
+      if (err && typeof err === 'object' && 'status' in err) {
+        return json({ message: err.message }, err.status);
+      }
+      return json({ message: err.message || 'Failed to delete movement' }, 500);
+    }
+    return json(result.right);
   } catch (err) {
     console.error("Delete movement error:", err);
     return json({ message: 'Failed to delete movement' }, 500);

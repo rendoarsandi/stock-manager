@@ -1,5 +1,5 @@
 import { getActiveStorage, getActiveDb } from './context.js';
-import { eq, and, or, sql, inArray } from 'drizzle-orm';
+import { eq, and, or, sql, inArray, like } from 'drizzle-orm';
 import {
   users,
   products,
@@ -556,38 +556,135 @@ export const db = {
       const db = getActiveDb();
       return await db.select().from(orders);
     },
-    async listDetailed() {
+    async listDetailed(options = {}) {
       const db = getActiveDb();
-      const allOrders = await db.select().from(orders);
-      const allItems = await db.select({
-        id: orderItems.id,
-        order_id: orderItems.order_id,
-        product_id: orderItems.product_id,
-        quantity: orderItems.quantity,
-        parse_source: orderItems.parse_source,
-        original_text: orderItems.original_text,
-        product_name: products.name,
-        product_model: products.model
+
+      const hasOptions = Object.keys(options).length > 0;
+      if (!hasOptions) {
+        const allOrders = await db.select().from(orders);
+        const allItems = await db.select({
+          id: orderItems.id,
+          order_id: orderItems.order_id,
+          product_id: orderItems.product_id,
+          quantity: orderItems.quantity,
+          parse_source: orderItems.parse_source,
+          original_text: orderItems.original_text,
+          product_name: products.name,
+          product_model: products.model
+        })
+        .from(orderItems)
+        .leftJoin(products, eq(orderItems.product_id, products.id));
+
+        // Group items by order_id
+        const itemsMap = new Map();
+        for (const item of allItems) {
+          if (!itemsMap.has(item.order_id)) {
+            itemsMap.set(item.order_id, []);
+          }
+          itemsMap.get(item.order_id).push(item);
+        }
+
+        // Attach items to orders and sort by id desc
+        const detailed = allOrders.map(o => ({
+          ...o,
+          items: itemsMap.get(o.id) || []
+        }));
+        detailed.sort((a, b) => b.id - a.id);
+        return detailed;
+      }
+
+      const { page = 1, limit = 50, search = '', status = 'all', systemStatus = 'all' } = options;
+      const offset = (page - 1) * limit;
+
+      const conditions = [];
+      if (status && status !== 'all') {
+        conditions.push(eq(orders.order_status, status));
+      }
+      if (systemStatus && systemStatus !== 'all') {
+        conditions.push(eq(orders.system_status, systemStatus));
+      }
+      if (search && search.trim() !== '') {
+        const q = `%${search.trim()}%`;
+        conditions.push(or(
+          like(orders.order_id, q),
+          like(orders.customer_name, q),
+          like(orders.resi_number, q),
+          like(orders.product_name_raw, q),
+          like(orders.expedition, q)
+        ));
+      }
+
+      const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+      // 1. Get total count of matching orders
+      const totalCountResult = await db.select({
+        count: sql`COUNT(*)`
       })
-      .from(orderItems)
-      .leftJoin(products, eq(orderItems.product_id, products.id));
+      .from(orders)
+      .where(whereClause);
+      const total = totalCountResult[0]?.count || 0;
+
+      // 2. Get paginated orders
+      let query = db.select().from(orders);
+      if (whereClause) {
+        query = query.where(whereClause);
+      }
+
+      const paginatedOrders = await query
+        .orderBy(sql`${orders.id} DESC`)
+        .limit(limit)
+        .offset(offset);
+
+      // 3. Fetch order items ONLY for the retrieved orders on this page to optimize row reads!
+      let items = [];
+      if (paginatedOrders.length > 0) {
+        const orderIds = paginatedOrders.map(o => o.id);
+        items = await db.select({
+          id: orderItems.id,
+          order_id: orderItems.order_id,
+          product_id: orderItems.product_id,
+          quantity: orderItems.quantity,
+          parse_source: orderItems.parse_source,
+          original_text: orderItems.original_text,
+          product_name: products.name,
+          product_model: products.model
+        })
+        .from(orderItems)
+        .leftJoin(products, eq(orderItems.product_id, products.id))
+        .where(inArray(orderItems.order_id, orderIds));
+      }
 
       // Group items by order_id
       const itemsMap = new Map();
-      for (const item of allItems) {
+      for (const item of items) {
         if (!itemsMap.has(item.order_id)) {
           itemsMap.set(item.order_id, []);
         }
         itemsMap.get(item.order_id).push(item);
       }
 
-      // Attach items to orders and sort by id desc
-      const detailed = allOrders.map(o => ({
+      // Attach items to orders
+      const ordersWithItems = paginatedOrders.map(o => ({
         ...o,
         items: itemsMap.get(o.id) || []
       }));
-      detailed.sort((a, b) => b.id - a.id);
-      return detailed;
+
+      // 4. Fetch unique statuses across ALL orders for filter dropdown
+      const uniqueStatusesResult = await db.select({
+        order_status: orders.order_status
+      })
+      .from(orders)
+      .groupBy(orders.order_status);
+      const uniqueStatuses = uniqueStatusesResult.map(r => r.order_status).filter(Boolean);
+
+      return {
+        orders: ordersWithItems,
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+        uniqueStatuses
+      };
     },
     async get(id) {
       const db = getActiveDb();
