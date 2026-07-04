@@ -610,6 +610,7 @@ export default function Import() {
   const paginatedOrders = processedOrders.slice((currentPage - 1) * ordersPerPage, currentPage * ordersPerPage);
 
   const duplicateCount = currentOrders.filter((o) => o.is_duplicate).length;
+  const totalQuantity = currentOrders.reduce((sum, o) => sum + (parseInt(o.quantity, 10) || 0), 0);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
@@ -678,10 +679,14 @@ export default function Import() {
           </div>
 
           {/* Summary Statistics */}
-          <div className="dashboard-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', marginBottom: '1.5rem', gap: '1rem' }}>
+          <div className="dashboard-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', marginBottom: '1.5rem', gap: '1rem' }}>
             <div className="card" style={{ padding: '1rem' }}>
               <div className="card-title" style={{ fontSize: '0.75rem' }}>Total Orders</div>
               <div className="card-value" style={{ fontSize: '1.5rem' }}>{totalRows}</div>
+            </div>
+            <div className="card" style={{ padding: '1rem' }}>
+              <div className="card-title" style={{ fontSize: '0.75rem' }}>Total Quantity</div>
+              <div className="card-value" style={{ fontSize: '1.5rem', color: 'var(--accent, #3b82f6)' }}>{totalQuantity}</div>
             </div>
             <div className="card" style={{ padding: '1rem' }}>
               <div className="card-title" style={{ fontSize: '0.75rem' }}>Cancelled (Flags Review)</div>
