@@ -515,7 +515,77 @@ export default function Chat() {
                                   : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 rounded-tl-none border border-zinc-200 dark:border-zinc-700/50'
                                 }`}
                               >
-                                <div>{msg.message}</div>
+                                <div>
+                                  {(() => {
+                                    const match = msg.message.match(/^\/adjust\s+(\d+)\s+([\+\-]?\d+)\s+(.+)$/);
+                                    if (match) {
+                                      const prodId = parseInt(match[1], 10);
+                                      const change = parseInt(match[2], 10);
+                                      const reason = match[3];
+                                      const product = productsList.find(p => p.id === prodId);
+                                      const prodName = product ? product.name : `Product #${prodId}`;
+                                      const prodModel = product ? product.model : '';
+
+                                      return (
+                                        <div className="p-2.5 mt-1 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl text-[11px] flex flex-col gap-1.5 w-52 select-none shadow-sm text-zinc-800 dark:text-zinc-200">
+                                          <div className="font-bold text-zinc-900 dark:text-zinc-50 flex items-center gap-1.5 border-b border-zinc-100 dark:border-zinc-900 pb-1">
+                                            <span>⚡</span> Stock Request
+                                          </div>
+                                          <div className="text-[10px] text-zinc-500 dark:text-zinc-400 truncate">
+                                            Product: <span className="font-semibold text-zinc-800 dark:text-zinc-200">{prodName}</span>
+                                          </div>
+                                          {prodModel && (
+                                            <div className="text-[9px] text-zinc-400 dark:text-zinc-500 truncate -mt-1">
+                                              Model: {prodModel}
+                                            </div>
+                                          )}
+                                          <div className="flex justify-between items-center text-[10px] mt-0.5">
+                                            <span>Adjustment:</span>
+                                            <span className={`font-bold ${change > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                              {change > 0 ? `+${change}` : change} items
+                                            </span>
+                                          </div>
+                                          <div className="text-[10px] text-zinc-500 italic bg-zinc-50 dark:bg-zinc-900 p-1.5 rounded-lg border border-zinc-100 dark:border-zinc-800/60 break-all">
+                                            "{reason}"
+                                          </div>
+                                          
+                                          {/* Quick Action Button for Admin */}
+                                          {currentUser?.role === 'admin' && (
+                                            <button
+                                              onClick={async (e) => {
+                                                e.stopPropagation();
+                                                try {
+                                                  const res = await fetch(`/api/products/${prodId}/adjust-stock`, {
+                                                    method: 'POST',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({
+                                                      quantity_change: change,
+                                                      movement_type: 'manual_adjust',
+                                                      reference: `Chat Request: ${reason}`
+                                                    })
+                                                  });
+                                                  if (res.ok) {
+                                                    alert(`Stock adjusted successfully!`);
+                                                    window.dispatchEvent(new CustomEvent('resync-data'));
+                                                  } else {
+                                                    const errData = await res.json();
+                                                    alert(`Failed to adjust stock: ${errData.message}`);
+                                                  }
+                                                } catch (err) {
+                                                  alert(`Error adjusting stock: ${err.message}`);
+                                                }
+                                              }}
+                                              className="mt-1 w-full py-1.5 px-2 rounded-lg bg-zinc-950 dark:bg-zinc-100 text-white dark:text-zinc-900 font-bold hover:scale-[1.02] active:scale-[0.98] transition-all text-[9px] uppercase tracking-wider cursor-pointer"
+                                            >
+                                              Approve & Execute
+                                            </button>
+                                          )}
+                                        </div>
+                                      );
+                                    }
+                                    return <span>{msg.message}</span>;
+                                  })()}
+                                </div>
                                 
                                 {/* Product Tag Badge Inside Bubble */}
                                 {msg.product_name && (

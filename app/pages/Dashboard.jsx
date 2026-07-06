@@ -202,6 +202,158 @@ export default function Dashboard() {
         </Card>
       </div>
 
+      {/* Analytics Dashboard Visualizations */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mt-2">
+        {/* Stock Movement Trends (SVG line/area chart) */}
+        <Card className="lg:col-span-3 border-zinc-200 dark:border-zinc-800 flex flex-col justify-between">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <div>
+              <CardTitle className="text-lg">Stock Movement Trends</CardTitle>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">Flow of inventory over the last 30 days</p>
+            </div>
+            <div className="flex gap-4 text-xs font-semibold">
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span> Stock In</span>
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-red-500 inline-block"></span> Stock Out</span>
+            </div>
+          </CardHeader>
+          <CardContent className="flex-1 flex flex-col justify-end p-4">
+            {(!data.stock_trends || data.stock_trends.length === 0) ? (
+              <div className="h-48 flex flex-col items-center justify-center text-sm text-zinc-450 dark:text-zinc-500">
+                <span>No stock movements registered in the last 30 days.</span>
+              </div>
+            ) : (() => {
+              const trends = data.stock_trends;
+              const maxVal = Math.max(...trends.flatMap(t => [t.stock_in, t.stock_out]), 10);
+              const padding = { top: 10, right: 10, bottom: 25, left: 35 };
+              const chartWidth = 600 - padding.left - padding.right;
+              const chartHeight = 180 - padding.top - padding.bottom;
+
+              const pointsIn = trends.map((t, idx) => {
+                const x = padding.left + (idx / Math.max(trends.length - 1, 1)) * chartWidth;
+                const y = padding.top + chartHeight - (t.stock_in / maxVal) * chartHeight;
+                return { x, y, date: t.movement_date, val: t.stock_in };
+              });
+
+              const pointsOut = trends.map((t, idx) => {
+                const x = padding.left + (idx / Math.max(trends.length - 1, 1)) * chartWidth;
+                const y = padding.top + chartHeight - (t.stock_out / maxVal) * chartHeight;
+                return { x, y, date: t.movement_date, val: t.stock_out };
+              });
+
+              const pathD = (points) => {
+                if (points.length === 0) return '';
+                return `M ${points[0].x} ${points[0].y} ` + points.slice(1).map(p => `L ${p.x} ${p.y}`).join(' ');
+              };
+
+              const areaD = (points) => {
+                if (points.length === 0) return '';
+                const first = points[0];
+                const last = points[points.length - 1];
+                const baseLineY = padding.top + chartHeight;
+                return `M ${first.x} ${baseLineY} L ${first.x} ${first.y} ` + 
+                       points.slice(1).map(p => `L ${p.x} ${p.y}`).join(' ') + 
+                       ` L ${last.x} ${baseLineY} Z`;
+              };
+
+              return (
+                <div className="w-full">
+                  <svg viewBox="0 0 600 180" className="w-full h-auto overflow-visible">
+                    <defs>
+                      <linearGradient id="gradientIn" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#10b981" stopOpacity="0.25" />
+                        <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
+                      </linearGradient>
+                      <linearGradient id="gradientOut" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#ef4444" stopOpacity="0.2" />
+                        <stop offset="100%" stopColor="#ef4444" stopOpacity="0.0" />
+                      </linearGradient>
+                    </defs>
+
+                    {/* Horizontal grid lines */}
+                    {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => {
+                      const y = padding.top + ratio * chartHeight;
+                      const val = Math.round(maxVal * (1 - ratio));
+                      return (
+                        <g key={i}>
+                          <line x1={padding.left} y1={y} x2={padding.left + chartWidth} y2={y} stroke="var(--border-primary)" strokeWidth="0.5" strokeDasharray="3 3" opacity="0.3" />
+                          <text x={padding.left - 8} y={y + 4} textAnchor="end" fontSize="9" fill="var(--text-muted)" className="font-medium">{val}</text>
+                        </g>
+                      );
+                    })}
+
+                    {/* Date labels at bottom */}
+                    {trends.filter((_, i) => i % Math.max(Math.round(trends.length / 5), 1) === 0).map((t, idx, arr) => {
+                      const itemIdx = trends.indexOf(t);
+                      const x = padding.left + (itemIdx / Math.max(trends.length - 1, 1)) * chartWidth;
+                      const dateParts = t.movement_date.split('-');
+                      const displayDate = dateParts.length === 3 ? `${dateParts[1]}/${dateParts[2]}` : t.movement_date;
+                      return (
+                        <text key={idx} x={x} y={padding.top + chartHeight + 15} textAnchor="middle" fontSize="9" fill="var(--text-muted)" className="font-semibold">{displayDate}</text>
+                      );
+                    })}
+
+                    {/* Area Gradients */}
+                    {pointsIn.length > 0 && <path d={areaD(pointsIn)} fill="url(#gradientIn)" />}
+                    {pointsOut.length > 0 && <path d={areaD(pointsOut)} fill="url(#gradientOut)" />}
+
+                    {/* Line paths */}
+                    {pointsIn.length > 0 && <path d={pathD(pointsIn)} fill="none" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />}
+                    {pointsOut.length > 0 && <path d={pathD(pointsOut)} fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />}
+
+                    {/* Decorative dots for hover points */}
+                    {trends.length > 0 && (
+                      <>
+                        <circle cx={pointsIn[pointsIn.length - 1].x} cy={pointsIn[pointsIn.length - 1].y} r="4" fill="#10b981" stroke="#fff" strokeWidth="1.5" />
+                        <circle cx={pointsOut[pointsOut.length - 1].x} cy={pointsOut[pointsOut.length - 1].y} r="4" fill="#ef4444" stroke="#fff" strokeWidth="1.5" />
+                      </>
+                    )}
+                  </svg>
+                </div>
+              );
+            })()}
+          </CardContent>
+        </Card>
+
+        {/* Top Moving Products (Horizontal Bar Chart) */}
+        <Card className="lg:col-span-2 border-zinc-200 dark:border-zinc-800 flex flex-col justify-between">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg">Top Moving Products</CardTitle>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">Products with highest volume sold in 30 days</p>
+          </CardHeader>
+          <CardContent className="flex-1 p-4 space-y-4">
+            {(!data.top_moving_products || data.top_moving_products.length === 0) ? (
+              <div className="h-48 flex flex-col items-center justify-center text-sm text-zinc-450 dark:text-zinc-500">
+                <span>No sales data found.</span>
+              </div>
+            ) : (() => {
+              const items = data.top_moving_products;
+              const maxVol = Math.max(...items.map(item => item.sales_volume), 1);
+              return (
+                <div className="space-y-3.5 mt-2">
+                  {items.map((item, idx) => {
+                    const widthPercent = Math.max((item.sales_volume / maxVol) * 100, 5);
+                    return (
+                      <div key={item.id} className="space-y-1">
+                        <div className="flex justify-between text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                          <span className="truncate pr-4">{idx + 1}. {item.name} {item.model ? `(${item.model})` : ''}</span>
+                          <span className="font-bold flex-shrink-0">{item.sales_volume} sold</span>
+                        </div>
+                        <div className="h-2.5 w-full bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-500"
+                            style={{ width: `${widthPercent}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Main Sections Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
         

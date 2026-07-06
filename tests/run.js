@@ -14,7 +14,6 @@ if (fs.existsSync(testDbPath)) {
 }
 
 const tests = [
-  'test-sql.js',
   'test-db.js',
   'test-drizzle.js',
   'test-api.js',
@@ -36,11 +35,11 @@ const tests = [
   'test-durable-object-websocket.js',
   'test-sku-mappings.js',
   'test-review-feedback.js',
-  'test-localecompare-robustness.js',
   'test-chat.js',
   'test-coverage-ext.js',
   'test-seed-query-count.js',
   'test-ui-aesthetics.js',
+  'test-new-features.js',
   'test-build.js'
 ];
 

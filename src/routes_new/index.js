@@ -38,7 +38,13 @@ const ParseIntTransform = Schema.transform(
   Schema.Union(Schema.Number, Schema.String),
   Schema.Number,
   {
-    decode: (val) => typeof val === "string" ? parseInt(val, 10) : val,
+    decode: (val) => {
+      const parsed = typeof val === "string" ? parseFloat(val) : val;
+      if (!Number.isInteger(parsed)) {
+        throw new Error("Value must be an integer");
+      }
+      return parsed;
+    },
     encode: (val) => val
   }
 );
@@ -475,6 +481,16 @@ export function handleListProductsEffect(req) {
       catch: (error) => new Error(`Database query failed: ${error.message}`)
     });
 
+    const velocities = yield* Effect.tryPromise({
+      try: () => activeStorage.query(`
+        SELECT product_id, SUM(CASE WHEN quantity_change < 0 THEN -quantity_change ELSE 0 END) as sold_qty
+        FROM stock_movements
+        WHERE created_at >= date('now', '-30 days', 'localtime')
+        GROUP BY product_id
+      `),
+      catch: (error) => new Error(`Database query failed: ${error.message}`)
+    });
+
     const lastOpnameMap = new Map();
     if (lastOpnames && Array.isArray(lastOpnames)) {
       for (const row of lastOpnames) {
@@ -482,15 +498,31 @@ export function handleListProductsEffect(req) {
       }
     }
 
-    const listWithOpname = list.map(p => ({
-      ...p,
-      last_opname_at: lastOpnameMap.get(p.id) || null
-    }));
+    const velocityMap = new Map();
+    if (velocities && Array.isArray(velocities)) {
+      for (const row of velocities) {
+        const soldQty = Number(row.sold_qty) || 0;
+        const velocity = soldQty / 30.0;
+        velocityMap.set(row.product_id, velocity);
+      }
+    }
 
-    listWithOpname.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-    return listWithOpname;
+    const listWithStats = list.map(p => {
+      const velocity = velocityMap.get(p.id) || 0;
+      const daysRemaining = velocity > 0 ? Math.round(p.current_stock / velocity) : null;
+      return {
+        ...p,
+        last_opname_at: lastOpnameMap.get(p.id) || null,
+        daily_velocity: velocity,
+        days_remaining: daysRemaining
+      };
+    });
+
+    listWithStats.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    return listWithStats;
   });
 }
+
 
 async function handleListProducts(req) {
   try {
@@ -748,7 +780,12 @@ export function handleAdjustStockEffect(req, params) {
       try: () => readJson(req),
       catch: (error) => new Error(`Invalid request JSON: ${error.message}`)
     });
-    const decodeResult = Schema.decodeEither(adjustStockSchema)(body);
+    let decodeResult;
+    try {
+      decodeResult = Schema.decodeEither(adjustStockSchema)(body);
+    } catch (e) {
+      return yield* Effect.fail({ status: 400, message: e.message || "Invalid input schema" });
+    }
     if (Either.isLeft(decodeResult)) {
       return yield* Effect.fail({ status: 400, message: String(decodeResult.left) });
     }
@@ -2325,13 +2362,42 @@ export function handleDashboardStatsEffect(req) {
       catch: (err) => new Error(`recentImports query failed: ${err.message}`)
     });
 
+    const stockTrends = yield* Effect.tryPromise({
+      try: () => storage.query(
+        `SELECT date(created_at) as movement_date,
+                SUM(CASE WHEN quantity_change > 0 THEN quantity_change ELSE 0 END) as stock_in,
+                SUM(CASE WHEN quantity_change < 0 THEN -quantity_change ELSE 0 END) as stock_out
+         FROM stock_movements
+         WHERE created_at >= date('now', '-30 days', 'localtime')
+         GROUP BY date(created_at)
+         ORDER BY movement_date ASC`
+      ),
+      catch: (err) => new Error(`stockTrends query failed: ${err.message}`)
+    });
+
+    const topMovingProducts = yield* Effect.tryPromise({
+      try: () => storage.query(
+        `SELECT p.id, p.name, p.model,
+                SUM(CASE WHEN m.quantity_change < 0 THEN -m.quantity_change ELSE 0 END) as sales_volume
+         FROM stock_movements m
+         JOIN products p ON m.product_id = p.id
+         WHERE m.created_at >= date('now', '-30 days', 'localtime')
+         GROUP BY p.id
+         ORDER BY sales_volume DESC
+         LIMIT 5`
+      ),
+      catch: (err) => new Error(`topMovingProducts query failed: ${err.message}`)
+    });
+
     return {
       total_products: totalProducts,
       low_stock_count: lowStockCount,
       pending_review_count: pendingReviewCount,
       ambiguous_count: ambiguousCount,
       recent_reviews: recentReviews,
-      recent_imports: recentImports
+      recent_imports: recentImports,
+      stock_trends: stockTrends,
+      top_moving_products: topMovingProducts
     };
   });
 }

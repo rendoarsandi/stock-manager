@@ -116,5 +116,52 @@ runTest('Products API', async () => {
     assertEqual(await db.products.get(createPayload.id), null, 'deleted product lookup');
     const remainingMovements = (await db.movements.list()).filter((m) => m.product_id === createPayload.id);
     assertArrayLength(remainingMovements, 0, 'deleted product movements');
+
+    // =========================================================================
+    // localeCompare Sorting Robustness Verification (with missing/null/undefined names)
+    // =========================================================================
+    const originalProductsList = db.products.list;
+    const originalUsersList = db.users.list;
+    const originalTemplatesList = db.templates.list;
+
+    try {
+      db.products.list = async () => [
+        { id: 1, name: 'Product A', model: 'Model A' },
+        { id: 2, name: null, model: 'Model B' },
+        { id: 3, name: undefined, model: 'Model C' }
+      ];
+      db.users.list = async () => [
+        { id: 1, username: 'user1', role: 'staff' },
+        { id: 2, username: null, role: 'staff' },
+        { id: 3, username: undefined, role: 'staff' }
+      ];
+      db.templates.list = async () => [
+        { id: 1, name: 'Template A', column_mapping: '{}' },
+        { id: 2, name: null, column_mapping: '{}' },
+        { id: 3, name: undefined, column_mapping: '{}' }
+      ];
+
+      const { handleListProducts, handleListUsers, handleListTemplates } = await import('../src/routes_new/index.js');
+
+      // 1. Verify handleListProducts handles missing names
+      const resProducts = await handleListProducts({});
+      const productsData = await resProducts.json();
+      assertEqual(productsData.length, 3, 'Robust products length');
+
+      // 2. Verify handleListUsers handles missing usernames
+      const resUsers = await handleListUsers({});
+      const usersData = await resUsers.json();
+      assertEqual(usersData.length, 3, 'Robust users length');
+
+      // 3. Verify handleListTemplates handles missing template names
+      const resTemplates = await handleListTemplates({});
+      const templatesData = await resTemplates.json();
+      assertEqual(templatesData.length, 3, 'Robust templates length');
+
+    } finally {
+      db.products.list = originalProductsList;
+      db.users.list = originalUsersList;
+      db.templates.list = originalTemplatesList;
+    }
   });
 });

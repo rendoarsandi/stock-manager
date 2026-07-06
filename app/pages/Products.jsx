@@ -566,6 +566,40 @@ export default function Products() {
       },
     },
     {
+      id: 'depletion_forecast',
+      header: 'Est. Run-Out',
+      accessorFn: (row) => row.days_remaining,
+      cell: ({ row }) => {
+        const p = row.original;
+        const velocity = p.daily_velocity || 0;
+        const days = p.days_remaining;
+
+        if (velocity === 0) {
+          return <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>No recent sales</span>;
+        }
+
+        const velocityText = `${velocity.toFixed(2)}/day`;
+
+        if (days === null || days === undefined) {
+          return <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Infinite</span>;
+        }
+
+        let statusClass = 'text-green-600 dark:text-green-400 font-semibold';
+        let text = `${days} days (${velocityText})`;
+        if (days <= 5) {
+          statusClass = 'text-red-600 dark:text-red-450 font-bold animate-pulse';
+          text = `⚠️ CRITICAL: ${days} days (${velocityText})`;
+        } else if (days <= 14) {
+          statusClass = 'text-amber-600 dark:text-amber-400 font-semibold';
+          text = `⚠️ ${days} days (${velocityText})`;
+        }
+
+        return (
+          <span className={statusClass} style={{ fontSize: '0.8rem' }}>{text}</span>
+        );
+      }
+    },
+    {
       id: 'actions',
       header: 'Actions',
       cell: ({ row }) => {

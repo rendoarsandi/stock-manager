@@ -7,6 +7,7 @@ export default function Opname() {
 
   // Modal states
   const [activeModal, setActiveModal] = useState(null); // 'new' | 'details'
+  const [audioEnabled, setAudioEnabled] = useState(true);
   const [selectedOpnameId, setSelectedOpnameId] = useState(null);
   const [isFormInitialized, setIsFormInitialized] = useState(false);
 
@@ -196,6 +197,72 @@ export default function Opname() {
     setEditPhysicalCounts({});
   };
 
+  const playAudioTone = (type) => {
+    if (!audioEnabled) return;
+    try {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContext) return;
+      const ctx = new AudioContext();
+      
+      if (type === 'match') {
+        const now = ctx.currentTime;
+        // First beep
+        const osc1 = ctx.createOscillator();
+        const gain1 = ctx.createGain();
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(1000, now);
+        gain1.gain.setValueAtTime(0, now);
+        gain1.gain.linearRampToValueAtTime(0.12, now + 0.02);
+        gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+        osc1.connect(gain1);
+        gain1.connect(ctx.destination);
+        osc1.start(now);
+        osc1.stop(now + 0.1);
+        
+        // Second beep
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(1000, now + 0.12);
+        gain2.gain.setValueAtTime(0, now + 0.12);
+        gain2.gain.linearRampToValueAtTime(0.12, now + 0.14);
+        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+        osc2.connect(gain2);
+        gain2.connect(ctx.destination);
+        osc2.start(now + 0.12);
+        osc2.stop(now + 0.22);
+      } else if (type === 'discrepancy') {
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(280, now);
+        osc.frequency.exponentialRampToValueAtTime(140, now + 0.25);
+        
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(0.15, now + 0.04);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+        
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.32);
+      }
+    } catch (e) {
+      console.error('Failed to play audio tone:', e);
+    }
+  };
+
+  const handleInputBlur = (productId, systemStock, currentValStr) => {
+    const val = parseInt(currentValStr, 10);
+    if (isNaN(val) || val < 0) return;
+    if (val === systemStock) {
+      playAudioTone('match');
+    } else {
+      playAudioTone('discrepancy');
+    }
+  };
+
   const handlePhysicalCountChange = (productId, val) => {
     setPhysicalCounts((prev) => ({
       ...prev,
@@ -303,14 +370,48 @@ export default function Opname() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
       <div className="section-card">
-      <div className="section-header">
+      <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
         <h2>Stock Opname (Physical Inventory Audit)</h2>
-        <button id="btn-new-opname" className="btn btn-primary" onClick={openNewOpnameModal}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-            <path d="M5 12h14M12 5v14" />
-          </svg>
-          New Stock Opname
-        </button>
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          <button 
+            id="btn-toggle-audio" 
+            className="btn btn-secondary" 
+            onClick={() => setAudioEnabled(!audioEnabled)}
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '0.5rem',
+              backgroundColor: audioEnabled ? 'rgba(74, 144, 226, 0.15)' : 'transparent',
+              borderColor: audioEnabled ? 'var(--primary)' : 'var(--border-color)',
+              color: audioEnabled ? 'var(--primary)' : 'var(--text-secondary)'
+            }}
+          >
+            {audioEnabled ? (
+              <>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style={{ width: '18px', height: '18px' }}>
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
+                </svg>
+                Audio Guide: ON
+              </>
+            ) : (
+              <>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style={{ width: '18px', height: '18px' }}>
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                  <line x1="23" y1="9" x2="17" y2="15" />
+                  <line x1="17" y1="9" x2="23" y2="15" />
+                </svg>
+                Audio Guide: OFF
+              </>
+            )}
+          </button>
+          <button id="btn-new-opname" className="btn btn-primary" onClick={openNewOpnameModal}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path d="M5 12h14M12 5v14" />
+            </svg>
+            New Stock Opname
+          </button>
+        </div>
       </div>
 
       <div className="table-wrapper">
@@ -455,6 +556,7 @@ export default function Opname() {
                                 required
                                 value={countVal}
                                 onChange={(e) => handlePhysicalCountChange(p.id, e.target.value)}
+                                onBlur={() => handleInputBlur(p.id, p.current_stock, countVal)}
                               />
                             </td>
                           </tr>
@@ -569,6 +671,7 @@ export default function Opname() {
                                       const val = parseInt(e.target.value, 10) || 0;
                                       setEditPhysicalCounts(prev => ({ ...prev, [item.product_id]: val }));
                                     }}
+                                    onBlur={() => handleInputBlur(item.product_id, item.system_stock, currentVal)}
                                     style={{
                                       width: '80px',
                                       textAlign: 'right',
