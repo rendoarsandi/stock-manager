@@ -175,6 +175,7 @@ export const user = sqliteTable('user', {
   createdAt: integer('createdAt', { mode: 'timestamp' }).notNull(),
   updatedAt: integer('updatedAt', { mode: 'timestamp' }).notNull(),
   username: text('username').unique(),
+  displayUsername: text('displayUsername'),
   role: text('role').default('staff'),
 });
 

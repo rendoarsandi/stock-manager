@@ -8,6 +8,7 @@
     "build": "node node_modules/vite/bin/vite.js build",
     "start": "node src/server_node.js",
     "test": "node tests/run.js",
+    "test-full": "node tests/run.js --full",
     "migrate-local": "node data/migrate_to_do.cjs",
     "lint": "node node_modules/eslint/bin/eslint.js src tests"
   },

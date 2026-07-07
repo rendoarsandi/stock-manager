@@ -115,27 +115,34 @@ async function getAuthUser(request) {
   const nodeEnv = cfEnv?.NODE_ENV || (typeof process !== 'undefined' && process.env ? process.env.NODE_ENV : 'undefined');
   console.log(`[getAuthUser Debug] getAuthUser called. URL: ${request.url}, NODE_ENV: ${nodeEnv}`);
 
-  if (nodeEnv === 'test') {
-    const token = getCookie(request, 'token');
-    if (!token) return null;
-    return verifyJwt(token, getJwtSecret());
-  }
-
   const url = new URL(request.url);
   const hostname = url.hostname.toLowerCase();
   const isLocalDev = 
-    hostname === 'localhost' || 
-    hostname === '127.0.0.1' || 
-    hostname === '[::1]' || 
-    hostname === '::1' || 
-    hostname === '0.0.0.0' ||
-    (typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'development') ||
-    (globalThis.MINIMAL_CLOUDFLARE_ENV && globalThis.MINIMAL_CLOUDFLARE_ENV.NODE_ENV === 'development');
+    nodeEnv !== 'test' && (
+      hostname === 'localhost' || 
+      hostname === '127.0.0.1' || 
+      hostname === '[::1]' || 
+      hostname === '::1' || 
+      hostname === '0.0.0.0' ||
+      (typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'development') ||
+      (globalThis.MINIMAL_CLOUDFLARE_ENV && globalThis.MINIMAL_CLOUDFLARE_ENV.NODE_ENV === 'development')
+    );
 
   const isLoggedOut = getCookie(request, 'logged_out') === 'true';
 
   try {
+    console.log(`[getAuthUser Debug] Cookie header:`, request.headers.get('cookie'));
+    try {
+      const storage = getActiveStorage();
+      const dbSessions = await storage.query("SELECT * FROM session");
+      console.log(`[getAuthUser Debug] Sessions in DB:`, JSON.stringify(dbSessions));
+      const dbUsers = await storage.query("SELECT * FROM user");
+      console.log(`[getAuthUser Debug] Users in Better Auth user table:`, JSON.stringify(dbUsers));
+    } catch (dbErr) {
+      console.log(`[getAuthUser Debug] Failed to query Better Auth tables:`, dbErr.message);
+    }
     const sessionData = await auth.api.getSession({ headers: request.headers });
+    console.log(`[getAuthUser Debug] Better Auth sessionData:`, JSON.stringify(sessionData));
     if (!sessionData || !sessionData.user) {
       if (isLocalDev && !isLoggedOut) {
         console.log("[Better Auth Debug] Local development fallback: no session, falling back to admin user.");
@@ -223,88 +230,6 @@ async function handleWsPlaceholder(req) {
   return new Response('WebSocket endpoint. Use a WebSocket client to connect.', { status: 400 });
 }
 
-export function handleLoginEffect(req) {
-  return Effect.gen(function* () {
-    const body = yield* Effect.tryPromise({
-      try: () => readJson(req),
-      catch: (error) => new Error(`Invalid request JSON: ${error.message}`)
-    });
-
-    const decodeResult = Schema.decodeEither(loginSchema)(body);
-    if (Either.isLeft(decodeResult)) {
-      return yield* Effect.fail({ status: 400, message: 'Username and password are required' });
-    }
-    const { username, password } = decodeResult.right;
-
-    const user = yield* Effect.tryPromise({
-      try: () => db.users.getByUsername(username),
-      catch: (error) => new Error(`Database fetch user failed: ${error.message}`)
-    });
-
-    if (!user || !verifyPassword(password, user.password_hash)) {
-      return yield* Effect.fail({ status: 401, message: 'Invalid username or password' });
-    }
-
-    const payload = {
-      id: user.id,
-      username: user.username,
-      role: user.role,
-      exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 // 24 hours
-    };
-
-    const token = signJwt(payload, getJwtSecret());
-    const headers = new Headers();
-    headers.append('Set-Cookie', `token=${token}; Path=/; HttpOnly; Max-Age=86400`);
-    headers.append('Set-Cookie', 'logged_out=; Path=/; Max-Age=0');
-
-    return new Response(JSON.stringify({
-      id: user.id,
-      username: user.username,
-      role: user.role
-    }), {
-      status: 200,
-      headers
-    });
-  });
-}
-
-async function handleLogin(req) {
-  try {
-    const result = await Effect.runPromise(Effect.either(handleLoginEffect(req)));
-    if (Either.isLeft(result)) {
-      const err = result.left;
-      if (err && typeof err === 'object' && 'status' in err) {
-        return json({ message: err.message }, err.status);
-      }
-      return json({ message: err.message || 'Internal server error' }, 500);
-    }
-    return result.right;
-  } catch (err) {
-    console.error("Login route error:", err);
-    return json({ message: 'Internal server error' }, 500);
-  }
-}
-
-export function handleLogoutEffect(req) {
-  return Effect.gen(function* () {
-    const headers = new Headers();
-    headers.append('Set-Cookie', 'token=; Path=/; HttpOnly; Max-Age=0');
-    headers.append('Set-Cookie', 'logged_out=true; Path=/; Max-Age=31536000');
-    return new Response(JSON.stringify({ success: true }), {
-      status: 200,
-      headers
-    });
-  });
-}
-
-async function handleLogout(req) {
-  try {
-    return await Effect.runPromise(handleLogoutEffect(req));
-  } catch (err) {
-    console.error("Logout route error:", err);
-    return json({ message: 'Internal server error' }, 500);
-  }
-}
 
 export function handleMeEffect(req) {
   return Effect.gen(function* () {
@@ -1330,11 +1255,8 @@ export function handleUploadExcelEffect(req) {
         flaggedRowsCount++;
       }
 
-      const promoRes = extractSameProductPromo(row.product_name_raw);
-      const packRes = extractPackMultiplier(promoRes.cleanText);
-      const cleanedText = packRes.cleanText;
-      const baseMultiplier = promoRes.promoMultiplier * packRes.packMultiplier;
-      const totalQuantity = row.quantity * baseMultiplier;
+      const cleanedText = row.product_name_raw;
+      const totalQuantity = row.quantity;
 
       let suggestedSplits = [];
       let resolvedDirectly = false;
@@ -3188,170 +3110,6 @@ export function withAuthOrRole(handler, options = {}) {
   };
 }
 
-async function verifyClerkWebhook(req, webhookSecret) {
-  const svixId = req.headers.get('svix-id');
-  const svixTimestamp = req.headers.get('svix-timestamp');
-  const svixSignature = req.headers.get('svix-signature');
-
-  if (!svixId || !svixTimestamp || !svixSignature) {
-    return false;
-  }
-
-  const payload = await req.clone().text();
-  const toSign = `${svixId}.${svixTimestamp}.${payload}`;
-  
-  const secretKey = webhookSecret.startsWith('whsec_') 
-    ? webhookSecret.slice(6) 
-    : webhookSecret;
-  
-  const secretBytes = Buffer.from(secretKey, 'base64');
-  
-  const signatures = svixSignature.split(' ');
-  for (const sig of signatures) {
-    const parts = sig.split(',');
-    if (parts.length < 2) continue;
-    const version = parts[0];
-    const rawSig = parts[1];
-    
-    if (version === 'v1') {
-      const hmac = crypto.createHmac('sha256', secretBytes);
-      hmac.update(toSign);
-      const expectedSignature = hmac.digest('base64');
-      if (expectedSignature === rawSig) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
-export function handleClerkWebhookEffect({ request }) {
-  return Effect.gen(function* () {
-    const env = getActiveEnv();
-    const webhookSecret = process.env.CLERK_WEBHOOK_SECRET || (env && env.CLERK_WEBHOOK_SECRET);
-    
-    if (webhookSecret) {
-      const isValid = yield* Effect.tryPromise({
-        try: () => verifyClerkWebhook(request, webhookSecret),
-        catch: (err) => new Error(`verifyClerkWebhook failed: ${err.message}`)
-      });
-      if (!isValid) {
-        return yield* Effect.fail({ status: 401, message: 'Invalid signature' });
-      }
-    } else {
-      console.warn("CLERK_WEBHOOK_SECRET is not configured. Webhook signature verification is skipped.");
-    }
-
-    const body = yield* Effect.tryPromise({
-      try: () => readJson(request),
-      catch: (err) => new Error(`Invalid request JSON: ${err.message}`)
-    });
-    const eventType = body.type;
-    const data = body.data;
-
-    if (eventType === 'user.created' || eventType === 'user.updated') {
-      const clerkId = data.id;
-      const role = 'admin';
-      
-      let chosenUsername = data.username;
-      if (!chosenUsername) {
-        chosenUsername = data.first_name || '';
-        if (data.last_name) {
-          chosenUsername = (chosenUsername + data.last_name).trim();
-        }
-      }
-      if (!chosenUsername && data.email_addresses && data.email_addresses.length > 0) {
-        chosenUsername = data.email_addresses[0].email_address.split('@')[0];
-      }
-      chosenUsername = chosenUsername ? chosenUsername.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase() : clerkId;
-
-      const storage = getActiveStorage();
-      
-      let existing = yield* Effect.tryPromise({
-        try: () => storage.query("SELECT id, username FROM users WHERE password_hash = ?", [clerkId]),
-        catch: (err) => new Error(`storage.query failed: ${err.message}`)
-      });
-      if (existing && existing.length > 0) {
-        const localId = existing[0].id;
-        const localUsername = existing[0].username;
-        
-        if (localUsername !== chosenUsername) {
-          let conflict = yield* Effect.tryPromise({
-            try: () => storage.query("SELECT id FROM users WHERE username = ? AND password_hash != ?", [chosenUsername, clerkId]),
-            catch: (err) => new Error(`storage.query failed: ${err.message}`)
-          });
-          if (conflict && conflict.length > 0) {
-            let finalUsername = chosenUsername;
-            let counter = 1;
-            let checkExisting = yield* Effect.tryPromise({
-              try: () => storage.query("SELECT id FROM users WHERE username = ?", [finalUsername]),
-              catch: (err) => new Error(`storage.query failed: ${err.message}`)
-            });
-            while (checkExisting && checkExisting.length > 0) {
-              finalUsername = `${chosenUsername}${counter}`;
-              checkExisting = yield* Effect.tryPromise({
-                try: () => storage.query("SELECT id FROM users WHERE username = ?", [finalUsername]),
-                catch: (err) => new Error(`storage.query failed: ${err.message}`)
-              });
-              counter++;
-            }
-            chosenUsername = finalUsername;
-          }
-          yield* Effect.tryPromise({
-            try: () => storage.execute("UPDATE users SET username = ?, role = ? WHERE id = ?", [chosenUsername, role, localId]),
-            catch: (err) => new Error(`storage.execute failed: ${err.message}`)
-          });
-        } else {
-          yield* Effect.tryPromise({
-            try: () => storage.execute("UPDATE users SET role = ? WHERE id = ?", [role, localId]),
-            catch: (err) => new Error(`storage.execute failed: ${err.message}`)
-          });
-        }
-      } else {
-        let finalUsername = chosenUsername;
-        let counter = 1;
-        let checkExisting = yield* Effect.tryPromise({
-          try: () => storage.query("SELECT id FROM users WHERE username = ?", [finalUsername]),
-          catch: (err) => new Error(`storage.query failed: ${err.message}`)
-        });
-        while (checkExisting && checkExisting.length > 0) {
-          finalUsername = `${chosenUsername}${counter}`;
-          checkExisting = yield* Effect.tryPromise({
-            try: () => storage.query("SELECT id FROM users WHERE username = ?", [finalUsername]),
-            catch: (err) => new Error(`storage.query failed: ${err.message}`)
-          });
-          counter++;
-        }
-        yield* Effect.tryPromise({
-          try: () => storage.execute(
-            "INSERT INTO users (username, password_hash, role, created_at) VALUES (?, ?, ?, datetime('now', 'localtime'))",
-            [finalUsername, clerkId, role]
-          ),
-          catch: (err) => new Error(`storage.execute failed: ${err.message}`)
-        });
-      }
-    }
-
-    return { success: true };
-  });
-}
-
-async function handleClerkWebhook({ request }) {
-  try {
-    const result = await Effect.runPromise(Effect.either(handleClerkWebhookEffect({ request })));
-    if (Either.isLeft(result)) {
-      const err = result.left;
-      if (err && typeof err === 'object' && 'status' in err) {
-        return json({ message: err.message }, err.status);
-      }
-      return json({ message: err.message || 'Internal server error' }, 500);
-    }
-    return json(result.right);
-  } catch (err) {
-    console.error("Clerk Webhook processing error:", err);
-    return json({ message: 'Internal server error' }, 500);
-  }
-}
 
 export function handleUpdateMovementEffect(req, params) {
   return Effect.gen(function* () {
@@ -3517,8 +3275,6 @@ export {
   handleDeleteMovement,
   handleHealth,
   handleWsPlaceholder,
-  handleLogin,
-  handleLogout,
   handleMe,
   handleListUsers,
   handleCreateUser,
@@ -3557,6 +3313,5 @@ export {
   handleGetChatMessages,
   handleGetChatContacts,
   handleSendChatMessage,
-  handleMarkChatRead,
-  handleClerkWebhook
+  handleMarkChatRead
 };

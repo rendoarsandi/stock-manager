@@ -1,40 +1,30 @@
 import app from '../src/index.js';
-import { initDatabase } from '../src/db/connection.js';
-import { seed } from '../src/db/seed.js';
+import { withSeededStorage, getAdminCookie, getStaffCookie } from './helpers.js';
 
-// Set NODE_ENV to test to avoid starting the server during imports
 process.env.NODE_ENV = 'test';
 
 async function runTests() {
-  try {
-    await initDatabase();
-    await seed();
+  await withSeededStorage(async () => {
+    try {
+      console.log("\n--- Running Chat Feature Tests ---");
 
-    console.log("\n--- Running Chat Feature Tests ---");
+      console.log("Logging in admin...");
+      const adminCookie = await getAdminCookie(app);
+      const resMeAdmin = await app.request('/api/auth/me', {
+        headers: { 'Cookie': adminCookie }
+      });
+      if (resMeAdmin.status !== 200) throw new Error("Admin login failed");
+      const adminData = await resMeAdmin.json();
 
-    // 1. Log in admin (user ID 1)
-    console.log("Logging in admin...");
-    const resLoginAdmin = await app.request('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: 'admin', password: 'admin123' })
-    });
-    if (resLoginAdmin.status !== 200) throw new Error("Admin login failed");
-    const adminCookie = resLoginAdmin.headers.get('set-cookie').split(';')[0];
-    const adminData = await resLoginAdmin.json();
+      console.log("Logging in staff...");
+      const staffCookie = await getStaffCookie(app);
+      const resMeStaff = await app.request('/api/auth/me', {
+        headers: { 'Cookie': staffCookie }
+      });
+      if (resMeStaff.status !== 200) throw new Error("Staff login failed");
+      const staffData = await resMeStaff.json();
 
-    // 2. Log in staff (user ID 2)
-    console.log("Logging in staff...");
-    const resLoginStaff = await app.request('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: 'staff', password: 'staff123' })
-    });
-    if (resLoginStaff.status !== 200) throw new Error("Staff login failed");
-    const staffCookie = resLoginStaff.headers.get('set-cookie').split(';')[0];
-    const staffData = await resLoginStaff.json();
-
-    console.log(`Admin ID: ${adminData.id}, Staff ID: ${staffData.id}`);
+      console.log(`Admin ID: ${adminData.id}, Staff ID: ${staffData.id}`);
 
     // 3. Admin: Check contacts initially (should be empty)
     console.log("Checking initial contacts...");
@@ -155,11 +145,13 @@ async function runTests() {
       throw new Error(`Expected 400 for invalid sender ID format, got ${resMarkInvalidSender.status}`);
     }
 
-    console.log("✅ Chat feature unit tests completed successfully!");
-  } catch (error) {
-    console.error("❌ Chat unit tests failed:", error);
-    process.exit(1);
-  }
+      console.log("✅ Chat feature unit tests completed successfully!");
+      process.exit(0);
+    } catch (error) {
+      console.error("❌ Chat unit tests failed:", error);
+      process.exit(1);
+    }
+  });
 }
 
 runTests();

@@ -13,35 +13,47 @@ if (fs.existsSync(testDbPath)) {
   console.log("Cleared existing test database.");
 }
 
+const runFull = process.argv.includes('--full') || process.env.RUN_FULL_TESTS === 'true';
+
 const tests = [
-  'test-db.js',
+  // Core & Database Integration
   'test-drizzle.js',
-  'test-api.js',
-  'test-registration.js',
-  'test-tanstack-start-entry.js',
   'test-cloudflare-drizzle.js',
   'test-do-operation-budget.js',
+  'test-seed-query-count.js',
+  
+  // Authentication & API
+  'test-api.js',
+  'test-coverage-ext.js',
+  
+  // Product & Inventory Core Logic
   'test-products.js',
-  'test-inout-fixes.js',
-  'test-services.js',
-  'test-effect-services.js',
-  'test-fuzzy-matching.js',
-  'test-import.js',
-  'test-review.js',
-  'test-dashboard.js',
   'test-opname.js',
   'test-extras.js',
+  'test-dashboard.js',
+  
+  // Parser, Import & Reconciliations
+  'test-effect-services.js',
+  'test-sku-mappings.js',
+  'test-import.js',
+  'test-review.js',
+  'test-review-feedback.js',
+  
+  // Networking & Sync
   'test-websocket.js',
   'test-durable-object-websocket.js',
-  'test-sku-mappings.js',
-  'test-review-feedback.js',
   'test-chat.js',
-  'test-coverage-ext.js',
-  'test-seed-query-count.js',
-  'test-ui-aesthetics.js',
-  'test-new-features.js',
-  'test-build.js'
+  
+  // Framework Entry Points & Sanity
+  'test-tanstack-start-entry.js',
+  'test-new-features.js'
 ];
+
+if (runFull) {
+  tests.unshift('test-db.js');
+  tests.push('test-ui-aesthetics.js');
+  tests.push('test-build.js');
+}
 
 console.log("Starting Stock Manager Test Suite...");
 

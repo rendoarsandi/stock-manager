@@ -2,6 +2,7 @@ import app from '../src/index.js';
 import { initDatabase, db, seedIfNeeded } from '../src/db/connection.js';
 import { storageContext } from '../src/db/context.js';
 import { getLocalStore } from '../src/db/local_kv.js';
+import { loginUser } from './helpers.js';
 
 process.env.NODE_ENV = 'test';
 
@@ -19,12 +20,7 @@ async function runTests() {
       console.log("\n--- Running Stock Opname API Tests ---");
 
       // Get auth token for staff
-      const resStaffLogin = await app.request('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: 'staff', password: 'staff123' })
-      });
-      const staffCookie = resStaffLogin.headers.get('set-cookie').split(';')[0];
+      const staffCookie = await loginUser(app, 'staff', 'staff123');
 
       // Query two products from DB to count
       const products = (await db.products.list()).slice(0, 2);

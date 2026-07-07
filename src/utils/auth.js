@@ -43,6 +43,18 @@ export const auth = betterAuth({
   get baseURL() {
     return getBaseUrl();
   },
+  logger: {
+    level: "debug"
+  },
+  user: {
+    additionalFields: {
+      role: {
+        type: "string",
+        required: false,
+        defaultValue: "staff"
+      }
+    }
+  },
   plugins: [
     username()
   ],

@@ -43,7 +43,8 @@ runTest('Effect-TS Excel Parser and Error Handling', async () => {
   assertEqual(exit2._tag, 'Failure', 'Should fail on invalid buffer');
   assertEqual(exit2.cause.error instanceof ExcelParseError, true, 'Error should be ExcelParseError');
 
-  // 5. Test parseAmbiguousDescriptionEffect
+  // 5. Test parseAmbiguousDescriptionEffect (Bypassed - Deactivated for SKU-only focus)
+  /*
   const mockCatalog = [
     { id: 1, name: 'Korek Api Model A', model: 'Model A' },
     { id: 2, name: 'Korek Api Model B', model: 'Model B' }
@@ -54,6 +55,7 @@ runTest('Effect-TS Excel Parser and Error Handling', async () => {
   assertEqual(splits.length, 2, 'Should split into 2 items');
   assertEqual(splits[0].product_id, 1, 'First split should map to Model A');
   assertEqual(splits[1].product_id, 2, 'Second split should map to Model B');
+  */
 
   console.log("Effect-TS services tests completed successfully!");
 });

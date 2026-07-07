@@ -3,6 +3,7 @@ import { initDatabase, db, seedIfNeeded } from '../src/db/connection.js';
 import { storageContext } from '../src/db/context.js';
 import { getLocalStore } from '../src/db/local_kv.js';
 import XLSX from 'xlsx';
+import { getAdminCookie } from './helpers.js';
 
 process.env.NODE_ENV = 'test';
 
@@ -20,12 +21,7 @@ async function runTests() {
       console.log("\n--- Running Review & Resolution API Tests ---");
 
       // Login admin to get auth cookie
-      const resLogin = await app.request('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: 'admin', password: 'admin123' })
-      });
-      const adminCookie = resLogin.headers.get('set-cookie').split(';')[0];
+      const adminCookie = await getAdminCookie(app);
 
       // Helper: Import a sheet containing:
       // 1. One normal order with an ambiguous name (will need confirm-split)

@@ -303,23 +303,10 @@ export const BUNDLE_MAPPINGS = {
  */
 export function resolvePromoProductToBaseItems(skuRef, productNameRaw, orderQty, catalog, dbMappings) {
   const cleanSku = skuRef ? String(skuRef).trim().toLowerCase() : '';
-  const cleanName = productNameRaw ? String(productNameRaw).trim().toLowerCase() : '';
 
   // 1. Check DB SKU mappings first if provided
-  if (dbMappings && dbMappings.length > 0) {
-    let matchedDb = dbMappings.filter(m => m.sku_code && m.sku_code.toLowerCase() === cleanSku);
-    
-    // If not found, try matching by cleanName containing or matching sku_code
-    if (matchedDb.length === 0) {
-      const sortedKeys = [...new Set(dbMappings.map(m => m.sku_code ? m.sku_code.toLowerCase() : '').filter(Boolean))]
-        .sort((a, b) => b.length - a.length);
-      const bestMatchKey = sortedKeys.find(key => {
-        return cleanName === key || (key.length >= 4 && cleanName.includes(key));
-      });
-      if (bestMatchKey) {
-        matchedDb = dbMappings.filter(m => m.sku_code && m.sku_code.toLowerCase() === bestMatchKey);
-      }
-    }
+  if (dbMappings && dbMappings.length > 0 && cleanSku) {
+    const matchedDb = dbMappings.filter(m => m.sku_code && m.sku_code.toLowerCase() === cleanSku);
 
     if (matchedDb.length > 0) {
       return matchedDb.map(item => {
@@ -338,28 +325,7 @@ export function resolvePromoProductToBaseItems(skuRef, productNameRaw, orderQty,
   }
 
   // 2. Fallback to hardcoded BUNDLE_MAPPINGS
-  let mapping = BUNDLE_MAPPINGS[cleanSku];
-
-  // If not found by SKU, try finding by normalized name
-  if (!mapping) {
-    const matchingKey = Object.keys(BUNDLE_MAPPINGS).find(key => {
-      return cleanName === key || (key.length >= 4 && cleanName.includes(key));
-    });
-    if (matchingKey) {
-      mapping = BUNDLE_MAPPINGS[matchingKey];
-    }
-  }
-
-  // Also check if catalog name or model is a mapped SKU
-  if (!mapping && catalog) {
-    const matchedCatalogProduct = catalog.find(p => (p.name || '').toLowerCase() === cleanName || (p.model || '').toLowerCase() === cleanSku);
-    if (matchedCatalogProduct) {
-      const modelLower = (matchedCatalogProduct.model || '').toLowerCase();
-      if (modelLower && BUNDLE_MAPPINGS[modelLower]) {
-        mapping = BUNDLE_MAPPINGS[modelLower];
-      }
-    }
-  }
+  const mapping = BUNDLE_MAPPINGS[cleanSku];
 
   if (mapping) {
     return mapping.map(item => {

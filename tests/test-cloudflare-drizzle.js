@@ -2,7 +2,7 @@ import { Route as productsRoute } from '../app/routes/api/products.js';
 import { storageContext } from '../src/db/context.js';
 import { getLocalStore } from '../src/db/local_sqlite.js';
 import { seedIfNeeded, initDatabase } from '../src/db/connection.js';
-import { signJwt } from './helpers.js';
+import { loginUser } from './helpers.js';
 
 process.env.NODE_ENV = 'test';
 
@@ -15,15 +15,11 @@ async function runTests() {
     await initDatabase();
     await seedIfNeeded(realStorage);
 
-    // 2. Create a token for admin user
-    const payload = {
-      id: 1,
-      username: 'admin',
-      role: 'admin',
-      exp: Math.floor(Date.now() / 1000) + 60 * 60
-    };
-    const secret = process.env.JWT_SECRET || 'dev_secret_key';
-    const token = signJwt(payload, secret);
+    // 2. Create a session for admin user using loginUser helper
+    let tokenCookie;
+    await storageContext.run({ type: 'local', storage: realStorage }, async () => {
+      tokenCookie = await loginUser(null, 'admin', 'admin123');
+    });
 
     // 3. Setup mock Durable Object stub that responds to queries
     let queryValuesCalled = false;
@@ -61,7 +57,7 @@ async function runTests() {
     // 4. Make request to GET /api/products
     const productsReq = new Request('http://localhost/api/products', {
       method: 'GET',
-      headers: { 'Cookie': `token=${token}` }
+      headers: { 'Cookie': tokenCookie }
     });
 
     const productsHandler = productsRoute.options.server.handlers.GET;

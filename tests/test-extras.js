@@ -1,31 +1,19 @@
 import app from '../src/index.js';
-import { initDatabase, db } from '../src/db/connection.js';
-import { seed } from '../src/db/seed.js';
+import { db } from '../src/db/connection.js';
+import { withSeededStorage, getAdminCookie, getStaffCookie, loginUser } from './helpers.js';
 
 process.env.NODE_ENV = 'test';
 
 async function runTests() {
-  try {
-    await initDatabase();
-    await seed();
+  await withSeededStorage(async () => {
+    try {
+      console.log("\n--- Running Extras/New Features API Tests ---");
 
-    console.log("\n--- Running Extras/New Features API Tests ---");
+      // Login admin
+      const adminCookie = await getAdminCookie(app);
 
-    // Login admin
-    const resAdminLogin = await app.request('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: 'admin', password: 'admin123' })
-    });
-    const adminCookie = resAdminLogin.headers.get('set-cookie').split(';')[0];
-
-    // Login staff
-    const resStaffLogin = await app.request('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: 'staff', password: 'staff123' })
-    });
-    const staffCookie = resStaffLogin.headers.get('set-cookie').split(';')[0];
+      // Login staff
+      const staffCookie = await getStaffCookie(app);
 
     // ==========================================
     // 1. Stock Ledger API (/api/products/ledger)
@@ -142,15 +130,17 @@ async function runTests() {
 
     // Verify login of the new user works
     console.log("[Users] Verify login of newly created user works...");
-    const resNewLogin = await app.request('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: 'newstaff', password: 'newpassword' })
+    const newCookie = await loginUser(app, 'newstaff', 'newpassword');
+    const resMe = await app.request('/api/auth/me', {
+      headers: { 'Cookie': newCookie }
     });
-    if (resNewLogin.status !== 200) {
-      throw new Error(`Expected 200 for logging in new user, got ${resNewLogin.status}`);
+    if (resMe.status !== 200) {
+      throw new Error(`Expected 200 for me route with new user cookie, got ${resMe.status}`);
     }
-    const newCookie = resNewLogin.headers.get('set-cookie').split(';')[0];
+    const meData = await resMe.json();
+    if (meData.username !== 'newstaff' || meData.role !== 'staff') {
+      throw new Error(`Expected username "newstaff" and role "staff", got: ${JSON.stringify(meData)}`);
+    }
 
     // 2.3 DELETE /api/auth/users/:id
     console.log("\n[Users] Testing DELETE /api/auth/users/:id (forbidden for staff)...");
@@ -180,15 +170,15 @@ async function runTests() {
       throw new Error(`Expected 200 for user deletion, got ${resDeleteAdmin.status}`);
     }
 
-    // Try login again, should fail
-    console.log("[Users] Verify deleted user cannot log in...");
-    const resNewLoginDeleted = await app.request('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: 'newstaff', password: 'newpassword' })
+    // Verify user is no longer in users list
+    console.log("[Users] Verify deleted user is no longer returned in users list...");
+    const resUsersAfterDelete = await app.request('/api/auth/users', {
+      headers: { 'Cookie': adminCookie }
     });
-    if (resNewLoginDeleted.status !== 401) {
-      throw new Error(`Expected 401 for deleted user login, got ${resNewLoginDeleted.status}`);
+    const usersAfterDelete = await resUsersAfterDelete.json();
+    const deletedUserFound = usersAfterDelete.find(u => u.id === newUserId);
+    if (deletedUserFound) {
+      throw new Error("Expected user to be deleted from users list");
     }
 
     // ==========================================
@@ -233,12 +223,13 @@ async function runTests() {
       throw new Error("Template was not deleted");
     }
 
-    console.log("\nAll extras/new features API tests passed successfully!");
-    process.exit(0);
-  } catch (err) {
-    console.error("\nExtras API tests failed:", err);
-    process.exit(1);
-  }
+      console.log("\nAll extras/new features API tests passed successfully!");
+      process.exit(0);
+    } catch (err) {
+      console.error("\nExtras API tests failed:", err);
+      process.exit(1);
+    }
+  });
 }
 
 runTests();

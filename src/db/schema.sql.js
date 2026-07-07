@@ -144,6 +144,7 @@ CREATE TABLE IF NOT EXISTS user (
     createdAt INTEGER NOT NULL,
     updatedAt INTEGER NOT NULL,
     username TEXT UNIQUE,
+    displayUsername TEXT,
     role TEXT DEFAULT 'staff'
 );
 

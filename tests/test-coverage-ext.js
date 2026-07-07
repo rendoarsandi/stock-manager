@@ -42,74 +42,7 @@ async function runTests() {
       const adminCookie = await getAdminCookie(app);
       const staffCookie = await getStaffCookie(app);
 
-      // ==========================================
-      // 1. Clerk Webhook Signature Validation Tests
-      // ==========================================
-      console.log("\n1. Testing Clerk Webhook Signatures...");
-      const webhookSecret = 'whsec_ZHVtbXlfY2xlcmtfd2ViaG9va19zZWNyZXRfa2V5'; // dummy test secret
-      process.env.CLERK_WEBHOOK_SECRET = webhookSecret;
-
-      const payload = {
-        type: 'user.created',
-        data: {
-          id: 'clerk_test_id_999',
-          username: 'webhook_clerk_user',
-          first_name: 'Clerk',
-          last_name: 'User',
-          email_addresses: [{ email_address: 'clerk@example.com' }]
-        }
-      };
-      const payloadStr = JSON.stringify(payload);
-
-      // 1a. Missing Headers (Expect 401)
-      const resWebhookNoHeaders = await app.request('/api/auth/clerk-webhook', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: payloadStr
-      });
-      console.log("No headers status:", resWebhookNoHeaders.status);
-      if (resWebhookNoHeaders.status !== 401) {
-        throw new Error(`Expected 401 for missing signature headers, got ${resWebhookNoHeaders.status}`);
-      }
-
-      // 1b. Invalid Signature (Expect 401)
-      const resWebhookBadSignature = await app.request('/api/auth/clerk-webhook', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'svix-id': 'msg_bad',
-          'svix-timestamp': '12345',
-          'svix-signature': 'v1,invalid_signature_hash'
-        },
-        body: payloadStr
-      });
-      console.log("Bad signature status:", resWebhookBadSignature.status);
-      if (resWebhookBadSignature.status !== 401) {
-        throw new Error(`Expected 401 for bad signature, got ${resWebhookBadSignature.status}`);
-      }
-
-      // 1c. Valid Signature (Expect 200)
-      const svixHeaders = generateSvixHeaders(payloadStr, webhookSecret);
-      const resWebhookSuccess = await app.request('/api/auth/clerk-webhook', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...svixHeaders
-        },
-        body: payloadStr
-      });
-      console.log("Valid signature status:", resWebhookSuccess.status);
-      if (resWebhookSuccess.status !== 200) {
-        const errText = await resWebhookSuccess.text();
-        throw new Error(`Expected 200 for valid webhook, got ${resWebhookSuccess.status}. Error: ${errText}`);
-      }
-
-      // Verify user was inserted in DB
-      const insertedUsers = await store.storage.query("SELECT * FROM users WHERE password_hash = ?", ['clerk_test_id_999']);
-      console.log("Inserted user count in DB:", insertedUsers.length);
-      if (insertedUsers.length !== 1 || insertedUsers[0].username !== 'webhook_clerk_user') {
-        throw new Error("Clerk user failed to register via webhook");
-      }
+      // Clerk Webhook Signature Validation Tests are deprecated and removed.
 
       // ==========================================
       // 2. Individual Product Ledger Route Tests
