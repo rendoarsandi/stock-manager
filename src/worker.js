@@ -1,11 +1,8 @@
 /* global WebSocketRequestResponsePair */
 import { DurableObject } from 'cloudflare:workers';
 import { app } from './app.js';
-import { storageContext } from './db/context.js';
-import { seedIfNeeded } from './db/connection.js';
 import { schemaSql } from './db/schema.sql.js';
-
-
+import { verifyJwt } from './utils/crypto.js';
 
 import server_default from '../dist/server/server.js';
 
@@ -41,6 +38,35 @@ export default {
   }
 };
 
+// Precompiled regex mapping to check mutations (INSERT, UPDATE, DELETE) for specific tables
+const TABLE_MUTATION_PATTERNS = {
+  users: /(?:UPDATE|INSERT(?:\s+OR\s+\w+)?\s+INTO|DELETE\s+FROM)\s+USERS\b/,
+  products: /(?:UPDATE|INSERT(?:\s+OR\s+\w+)?\s+INTO|DELETE\s+FROM)\s+PRODUCTS\b/,
+  stock_movements: /(?:UPDATE|INSERT(?:\s+OR\s+\w+)?\s+INTO|DELETE\s+FROM)\s+STOCK_MOVEMENTS\b/,
+  orders: /(?:UPDATE|INSERT(?:\s+OR\s+\w+)?\s+INTO|DELETE\s+FROM)\s+ORDERS\b/,
+  order_items: /(?:UPDATE|INSERT(?:\s+OR\s+\w+)?\s+INTO|DELETE\s+FROM)\s+ORDER_ITEMS\b/,
+  stock_opnames: /(?:UPDATE|INSERT(?:\s+OR\s+\w+)?\s+INTO|DELETE\s+FROM)\s+STOCK_OPNAMES\b/
+};
+
+// Helper to detect which tables are modified by a query to support subscriptions
+function getModifiedTables(sqlStr) {
+  // Strip comments (both block and line-level) before analysis to avoid false positives
+  let cleaned = sqlStr.replace(/\/\*[\s\S]*?\*\//g, "");
+  cleaned = cleaned.replace(/--.*$/gm, "").toUpperCase();
+
+  if (!cleaned.includes("INSERT") && !cleaned.includes("UPDATE") && !cleaned.includes("DELETE")) {
+    return [];
+  }
+
+  const modified = [];
+  for (const [table, regex] of Object.entries(TABLE_MUTATION_PATTERNS)) {
+    if (regex.test(cleaned)) {
+      modified.push(table);
+    }
+  }
+  return modified;
+}
+
 // Durable Object Class for SQL Storage and WebSockets
 export class StockRoom extends DurableObject {
   constructor(ctx, env) {
@@ -53,14 +79,6 @@ export class StockRoom extends DurableObject {
       const row = tableCheck.one();
       if (!row) {
         this.sql.exec(schemaSql);
-      } else {
-        // Ensure index statements are executed for existing databases
-        this.sql.exec("CREATE INDEX IF NOT EXISTS idx_stock_movements_product_id ON stock_movements(product_id)");
-        this.sql.exec("CREATE INDEX IF NOT EXISTS idx_stock_movements_created_at ON stock_movements(created_at)");
-        this.sql.exec("CREATE INDEX IF NOT EXISTS idx_orders_import_session_id ON orders(import_session_id)");
-        this.sql.exec("CREATE INDEX IF NOT EXISTS idx_orders_order_id ON orders(order_id)");
-        this.sql.exec("CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id)");
-        this.sql.exec("CREATE INDEX IF NOT EXISTS idx_order_items_product_id ON order_items(product_id)");
       }
     } catch (err) {
       console.error("Failed to check/run schema in DO constructor:", err);
@@ -95,11 +113,38 @@ export class StockRoom extends DurableObject {
     }
   }
 
+  notifyTableChange(tables) {
+    if (!tables || tables.length === 0) return;
+    const websockets = this.ctx.getWebSockets();
+    const payload = JSON.stringify({
+      type: "INVALIDATE",
+      tables: tables
+    });
+    for (const ws of websockets) {
+      try {
+        const attachment = this.ctx.getWebSocketAttachment(ws);
+        const subscriptions = attachment?.subscriptions || [];
+        const hasSubscribed = tables.some(t => subscriptions.includes(t));
+        if (hasSubscribed) {
+          ws.send(payload);
+        }
+      } catch (err) {
+        console.error('Error sending invalidate message to client:', err);
+      }
+    }
+  }
+
   execute(sqlStr, params = []) {
     try {
       this.sql.exec(sqlStr, ...params);
       const cursor = this.sql.exec("SELECT last_insert_rowid() AS id");
       const row = cursor.one();
+
+      const modified = getModifiedTables(sqlStr);
+      if (modified.length > 0) {
+        this.notifyTableChange(modified);
+      }
+
       return {
         lastInsertRowid: row ? row.id : null
       };
@@ -111,13 +156,23 @@ export class StockRoom extends DurableObject {
 
   executeTransaction(queries) {
     const results = [];
+    const allModified = new Set();
     try {
       this.ctx.storage.transactionSync(() => {
         for (const q of queries) {
           this.sql.exec(q.sql, ...(q.params || []));
-          results.push({ lastInsertRowid: null });
+          const cursor = this.sql.exec("SELECT last_insert_rowid() AS id");
+          const row = cursor.one();
+          results.push({ lastInsertRowid: row ? row.id : null });
+          const modified = getModifiedTables(q.sql);
+          for (const t of modified) {
+            allModified.add(t);
+          }
         }
       });
+      if (allModified.size > 0) {
+        this.notifyTableChange(Array.from(allModified));
+      }
     } catch (err) {
       console.error("DO transaction failed", err);
       throw err;
@@ -194,14 +249,78 @@ export class StockRoom extends DurableObject {
       } catch (e) {}
 
       if (parsed && parsed.type === 'IDENTIFY') {
-        if (parsed.userId) {
-          const userId = parseInt(parsed.userId, 10);
+        let userId = null;
+        if (parsed.token) {
+          const secret = this.env.JWT_SECRET || globalThis.MINIMAL_CLOUDFLARE_ENV?.JWT_SECRET || "dev_secret_key";
+          const verified = verifyJwt(parsed.token, secret);
+          if (verified && verified.userId) {
+            userId = parseInt(verified.userId, 10);
+          }
+        } else if (parsed.userId && (!this.env.JWT_SECRET && !globalThis.MINIMAL_CLOUDFLARE_ENV?.JWT_SECRET)) {
+          // Backward compatibility fallback for dev mode / tests
+          userId = parseInt(parsed.userId, 10);
+        }
+
+        if (userId) {
           ws.userId = userId;
           try {
-            this.ctx.setWebSocketAttachment(ws, { userId });
+            const attachment = this.ctx.getWebSocketAttachment(ws) || {};
+            attachment.userId = userId;
+            this.ctx.setWebSocketAttachment(ws, attachment);
+          } catch (e) {}
+        } else {
+          console.warn("Invalid IDENTIFY token received, closing websocket.");
+          try {
+            ws.close(4001, "Invalid Authentication Token");
           } catch (e) {}
         }
         return; // Don't broadcast IDENTIFY messages
+      }
+
+      if (parsed && parsed.type === 'SUBSCRIBE') {
+        const authenticatedId = ws.userId;
+        if (!authenticatedId) {
+          try { ws.close(4002, "Authentication Required for Subscriptions"); } catch (e) {}
+          return;
+        }
+        if (Array.isArray(parsed.tables)) {
+          try {
+            const attachment = this.ctx.getWebSocketAttachment(ws) || {};
+            attachment.subscriptions = Array.from(new Set([
+              ...(attachment.subscriptions || []),
+              ...parsed.tables
+            ]));
+            this.ctx.setWebSocketAttachment(ws, attachment);
+          } catch (e) {}
+        }
+        return;
+      }
+
+      if (parsed && parsed.type === 'UNSUBSCRIBE') {
+        const authenticatedId = ws.userId;
+        if (!authenticatedId) {
+          try { ws.close(4002, "Authentication Required"); } catch (e) {}
+          return;
+        }
+        if (Array.isArray(parsed.tables)) {
+          try {
+            const attachment = this.ctx.getWebSocketAttachment(ws) || {};
+            if (attachment.subscriptions) {
+              attachment.subscriptions = attachment.subscriptions.filter(t => !parsed.tables.includes(t));
+              this.ctx.setWebSocketAttachment(ws, attachment);
+            }
+          } catch (e) {}
+        }
+        return;
+      }
+
+      // Block sender identity spoofing: CHAT_MESSAGE sender_id must match authenticated userId
+      if (parsed && parsed.type === 'CHAT_MESSAGE') {
+        const authenticatedId = ws.userId;
+        if (!authenticatedId || parseInt(parsed.sender_id, 10) !== authenticatedId) {
+          console.warn(`Impersonation blocked: Client ${authenticatedId} tried sending chat as ${parsed.sender_id}`);
+          return; // Ignore / drop spoofed payload
+        }
       }
 
       // Broadcast client message directly to all other clients

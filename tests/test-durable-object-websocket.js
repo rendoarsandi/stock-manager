@@ -29,11 +29,23 @@ async function runTests() {
 
     // Mock SQL DB interface
     const mockSql = {
-      exec: () => ({
-        toArray: () => [],
-        raw: () => ({ toArray: () => [] }),
-        one: () => null
-      })
+      exec: (sql) => {
+        if (sql.includes("last_insert_rowid()")) {
+          return {
+            one: () => ({ id: 42 })
+          };
+        }
+        if (sql.includes("sqlite_master")) {
+          return {
+            one: () => ({ name: 'users' })
+          };
+        }
+        return {
+          toArray: () => [],
+          raw: () => ({ toArray: () => [] }),
+          one: () => null
+        };
+      }
     };
 
     class MockWebSocket {
@@ -57,7 +69,8 @@ async function runTests() {
 
     const mockCtx = {
       storage: {
-        sql: mockSql
+        sql: mockSql,
+        transactionSync: (fn) => fn()
       },
       websockets,
       getWebSockets() {
@@ -135,11 +148,118 @@ async function runTests() {
 
     console.log("✅ Private chat filtering verified: no leaks to bystander or unidentified connections.");
 
+    // 3.5 Test Table-based Subscriptions
+    // Reset sent buffers
+    websockets.forEach(ws => ws.sent = []);
+
+    // Subscribe Client A (index 0) to 'products' and 'orders'
+    stockRoom.webSocketMessage(websockets[0], JSON.stringify({ type: 'SUBSCRIBE', tables: ['products', 'orders'] }));
+    // Subscribe Client B (index 1) to 'orders' and 'stock_movements'
+    stockRoom.webSocketMessage(websockets[1], JSON.stringify({ type: 'SUBSCRIBE', tables: ['orders', 'stock_movements'] }));
+
+    // Verify subscription attachments are stored correctly
+    assert.deepStrictEqual(mockCtx.getWebSocketAttachment(websockets[0]).subscriptions, ['products', 'orders']);
+    assert.deepStrictEqual(mockCtx.getWebSocketAttachment(websockets[1]).subscriptions, ['orders', 'stock_movements']);
+
+    // Clear sent buffers from subscription confirmations (they don't send individual replies)
+    websockets.forEach(ws => ws.sent = []);
+
+    // Trigger an execute that modifies 'products'
+    stockRoom.execute("INSERT INTO products (id, name) VALUES (12, 'Amazing Product')");
+
+    // Client A should receive INVALIDATE message for products
+    const clientAProductsMsg = websockets[0].sent.find(msg => {
+      try {
+        const parsed = JSON.parse(msg);
+        return parsed.type === 'INVALIDATE' && parsed.tables.includes('products');
+      } catch (e) { return false; }
+    });
+    assert.ok(clientAProductsMsg, "Client A should receive products invalidation");
+
+    // Client B should NOT receive anything (not subscribed to products)
+    assert.strictEqual(websockets[1].sent.length, 0, "Client B should not receive product invalidation");
+
+    // Clear sent buffers
+    websockets.forEach(ws => ws.sent = []);
+
+    // Trigger an executeTransaction modifying 'orders' and 'stock_movements'
+    const txResults = stockRoom.executeTransaction([
+      { sql: "UPDATE orders SET status = 'completed' WHERE id = 1" },
+      { sql: "INSERT INTO stock_movements (product_id, quantity) VALUES (1, -5)" }
+    ]);
+
+    // Assert that transaction results return the valid lastInsertRowid
+    assert.deepStrictEqual(txResults, [
+      { lastInsertRowid: 42 },
+      { lastInsertRowid: 42 }
+    ]);
+
+    // Client A should receive invalidation containing 'orders'
+    const clientAOrdersMsg = websockets[0].sent.find(msg => {
+      try {
+        const parsed = JSON.parse(msg);
+        return parsed.type === 'INVALIDATE' && parsed.tables.includes('orders');
+      } catch (e) { return false; }
+    });
+    assert.ok(clientAOrdersMsg, "Client A should receive orders invalidation");
+
+    // Client B should receive invalidation containing both 'orders' and 'stock_movements'
+    const clientBOrdersMsg = websockets[1].sent.find(msg => {
+      try {
+        const parsed = JSON.parse(msg);
+        return parsed.type === 'INVALIDATE' && (parsed.tables.includes('orders') || parsed.tables.includes('stock_movements'));
+      } catch (e) { return false; }
+    });
+    assert.ok(clientBOrdersMsg, "Client B should receive orders/movements invalidation");
+
+    // Clear sent buffers
+    websockets.forEach(ws => ws.sent = []);
+
+    // Test UNSUBSCRIBE: Unsubscribe Client A from 'products'
+    stockRoom.webSocketMessage(websockets[0], JSON.stringify({ type: 'UNSUBSCRIBE', tables: ['products'] }));
+    assert.deepStrictEqual(mockCtx.getWebSocketAttachment(websockets[0]).subscriptions, ['orders']);
+
+    // Trigger update on 'products' again
+    stockRoom.execute("UPDATE products SET price = 99 WHERE id = 12");
+
+    // Client A should NOT receive invalidation for products anymore
+    assert.strictEqual(websockets[0].sent.length, 0, "Client A should not receive products invalidation after unsubscribing");
+
+    console.log("✅ Real-time table subscription, invalidation, and unsubscription logic verified.");
+
+    // 3.6 Test Chat Spoofing and Unauthenticated Actions Protection
+    // Clear sent buffers
+    websockets.forEach(ws => ws.sent = []);
+
+    // Authenticated Client A (userId = 1) tries to send a spoofed message pretending to be Client B (sender_id = 2)
+    const spoofedChat = JSON.stringify({
+      type: 'CHAT_MESSAGE',
+      sender_id: 2, // Spoofed! A is authenticated as 1
+      receiver_id: 3,
+      message: 'Impersonation attempt'
+    });
+
+    stockRoom.webSocketMessage(websockets[0], spoofedChat);
+
+    // Verify that the message was dropped and NOT broadcasted to any client
+    assert.strictEqual(websockets[1].sent.length, 0, "Spoofed chat message must not be broadcasted to Client B");
+    assert.strictEqual(websockets[2].sent.length, 0, "Spoofed chat message must not be broadcasted to Client C");
+
+    // Unauthenticated Client D (unidentified) tries to subscribe to products
+    const mockUnauthWs = new MockWebSocket('client-unauth');
+    stockRoom.webSocketMessage(mockUnauthWs, JSON.stringify({ type: 'SUBSCRIBE', tables: ['products'] }));
+    
+    // Verify unauthenticated subscriptions are rejected
+    assert.ok(!mockUnauthWs.attachment?.subscriptions, "Unauthenticated connection must not have subscriptions registered");
+
+    console.log("✅ Chat spoofing and unauthenticated subscription blocking verified.");
+
     // 4. Test WebSocket handshake in fetch()
     let acceptCalled = false;
     const mockState = {
       storage: {
-        sql: mockSql
+        sql: mockSql,
+        transactionSync: (fn) => fn()
       },
       websockets: [...websockets],
       getWebSockets() {
