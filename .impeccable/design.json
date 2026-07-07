@@ -1,0 +1,146 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-07T10:35:45Z",
+  "title": "Design System: Stock Manager",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Ink Black",
+        "canonical": "#0f172a",
+        "tonalRamp": ["#020617", "#0f172a", "#1e293b", "#334155", "#475569", "#64748b", "#cbd5e1", "#f8fafc"]
+      },
+      "neutral-bg": {
+        "role": "neutral",
+        "displayName": "Slate Canvas",
+        "canonical": "#f8fafc",
+        "tonalRamp": ["#0f172a", "#1e293b", "#475569", "#64748b", "#94a3b8", "#cbd5e1", "#f1f5f9", "#f8fafc"]
+      },
+      "neutral-surface": {
+        "role": "neutral",
+        "displayName": "Slate Surface",
+        "canonical": "#ffffff",
+        "tonalRamp": ["#0f172a", "#1e293b", "#475569", "#64748b", "#94a3b8", "#cbd5e1", "#f8fafc", "#ffffff"]
+      },
+      "success": {
+        "role": "success",
+        "displayName": "Emerald Green",
+        "canonical": "#10b981",
+        "tonalRamp": ["#064e3b", "#065f46", "#0f766e", "#10b981", "#34d399", "#6ee7b7", "#a7f3d0", "#ecfdf5"]
+      },
+      "warning": {
+        "role": "warning",
+        "displayName": "Amber Gold",
+        "canonical": "#f59e0b",
+        "tonalRamp": ["#78350f", "#92400e", "#b45309", "#d97706", "#f59e0b", "#fbbf24", "#fde68a", "#fffbeb"]
+      },
+      "danger": {
+        "role": "danger",
+        "displayName": "Crimson Red",
+        "canonical": "#ef4444",
+        "tonalRamp": ["#450a0a", "#7f1d1d", "#991b1b", "#b91c1c", "#dc2626", "#ef4444", "#fca5a5", "#fef2f2"]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display Metric", "purpose": "Main metrics and numbers on the dashboard." },
+      "headline": { "displayName": "Headline Header", "purpose": "Primary page title headers." },
+      "title": { "displayName": "Section Title", "purpose": "Cards, subsections, and modal headers." },
+      "body": { "displayName": "Body Standard", "purpose": "Grid and table content, descriptions, and labels." },
+      "label": { "displayName": "Status Label", "purpose": "Table headers, action buttons, and small badges." }
+    },
+    "shadows": [
+      {
+        "name": "tactile-hover",
+        "value": "0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -2px rgba(0,0,0,0.025)",
+        "purpose": "Applied to active hover states on cards and buttons."
+      },
+      {
+        "name": "modal-overlay",
+        "value": "0 10px 15px -3px rgba(0,0,0,0.05), 0 4px 6px -4px rgba(0,0,0,0.025)",
+        "purpose": "Applied exclusively to dropdowns and modals."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-standard",
+        "value": "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+        "purpose": "Standard tactile hover transition."
+      }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Standard action button for primary triggers.",
+      "html": "<button class=\"ds-btn-primary\">Accept Match</button>",
+      "css": ".ds-btn-primary { background: #0f172a; color: #ffffff; padding: 12px 24px; border: none; border-radius: 8px; font-family: Inter, system-ui, sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 1px 2px rgba(0,0,0,0.05); } .ds-btn-primary:hover { background: #1e293b; transform: translateY(-1px); box-shadow: 0 4px 6px rgba(0,0,0,0.05); } .ds-btn-primary:active { background: #0f172a; transform: translateY(0); }"
+    },
+    {
+      "name": "Search Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Dense searchable field for SKU model filtering.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"Search product model...\" />",
+      "css": ".ds-input { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; color: #0f172a; padding: 10px 14px; font-family: Inter, system-ui, sans-serif; font-size: 14px; width: 100%; box-sizing: border-box; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); } .ds-input:focus { outline: none; border-color: #0f172a; box-shadow: 0 0 0 2px #f1f5f9, 0 0 0 4px #0f172a; }"
+    },
+    {
+      "name": "Fuzzy Suggestion Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Inline card showcasing medium-confidence Sorensen-Dice fuzzy match suggestions.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-header\"><span class=\"ds-badge ds-badge-amber\">💡 Suggested Match</span><span class=\"ds-similarity\">64% Match</span></div><p class=\"ds-match-text\">\"crokie super jet\" matches <strong>CROCKIE SUPER JET - Blue</strong></p><div class=\"ds-card-actions\"><button class=\"ds-btn-sm ds-btn-primary-sm\">Accept Suggestion</button><button class=\"ds-btn-sm ds-btn-secondary\">Ignore</button></div></div>",
+      "css": ".ds-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; font-family: Inter, system-ui, sans-serif; display: flex; flex-direction: column; gap: 12px; } .ds-card-header { display: flex; justify-content: space-between; align-items: center; } .ds-badge { font-size: 11px; font-weight: 600; padding: 4px 8px; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.05em; } .ds-badge-amber { background: #fffbeb; color: #f59e0b; border: 1px solid #fef3c7; } .ds-similarity { font-size: 12px; color: #64748b; font-weight: 500; } .ds-match-text { font-size: 14px; color: #0f172a; margin: 0; } .ds-card-actions { display: flex; gap: 8px; } .ds-btn-sm { padding: 8px 16px; font-size: 12px; border-radius: 6px; border: none; cursor: pointer; transition: all 0.15s ease; } .ds-btn-primary-sm { background: #0f172a; color: #ffffff; } .ds-btn-primary-sm:hover { background: #1e293b; } .ds-btn-secondary { background: transparent; border: 1px solid #e2e8f0; color: #64748b; } .ds-btn-secondary:hover { background: #f1f5f9; color: #0f172a; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Command Deck",
+    "overview": "The Command Deck is a high-density, precise control center engineered for rapid inventory operations. The aesthetic priorities are speed of interpretation, absolute data integrity, and unambiguous system state feedback. It leverages structured sub-borders, clear keyboard focus rings, and explicit status states to turn complex administrative actions (like importing order sheets and fuzzy-matching SKU codes) into low-friction, high-speed micro-interactions.",
+    "keyCharacteristics": [
+      "High informational density without visual noise.",
+      "Crisp, slate-based neutral dividers and micro-borders defining logical boundaries.",
+      "Prompt-feedback visual hierarchy for fuzzy matching confidence tiers."
+    ],
+    "rules": [
+      {
+        "name": "The Rarity of Primary Accent Rule",
+        "body": "The high-contrast Ink Black primary accent is restricted to dominant action points and main headers (≤10% of screen elements). This ensures the user's eye is instantly drawn to core action triggers.",
+        "section": "colors"
+      },
+      {
+        "name": "The Contrast Over Elegance Rule",
+        "body": "High-contrast readability is mandatory. Gray text against white or off-white backgrounds must meet WCAG AA standards (minimum contrast ratio of 4.5:1). 'Elegant' light-gray text on tinted white is strictly prohibited.",
+        "section": "colors"
+      },
+      {
+        "name": "The Text-Wrap Balance Rule",
+        "body": "All H1 through H3 titles must utilize `text-wrap: balance` to prevent awkward typography wrapping on narrow screens. Long tables or descriptions must use `text-wrap: pretty` to eliminate typographic orphans.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat-by-Default Rule",
+        "body": "All workspace surfaces, tables, lists, and forms must remain entirely flat at rest. Depth is established through slate borders (#e2e8f0) and subtle background variations rather than shadows. Shadows are reserved for reactive hover responses or floating UI.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do maintain a strict 1px slate-border separating primary tables and spreadsheet rows.",
+      "Do use clear semantic color alerts (Emerald, Amber, Crimson) specifically to denote Sorensen-Dice fuzzy-match confidence tiers.",
+      "Do apply dual-ring focus outline indicators on every keyboard focus action.",
+      "Do clamp long body copy to a maximum line length of 75ch to prevent scanning fatigue."
+    ],
+    "donts": [
+      "Don't use colored side-stripe borders (e.g. border-left thicker than 1px) to decorate card or spreadsheet lists.",
+      "Don't apply decorative gradients or text-background-clipping.",
+      "Don't use glassmorphism or backdrop filters as default scaffolding.",
+      "Don't hide critical system alerts under low-contrast gray text on tinted white backgrounds.",
+      "Don't create identical repeating grid cards of simple icons and labels; use structured lists instead."
+    ]
+  }
+}
