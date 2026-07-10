@@ -21,6 +21,7 @@ const tests = [
   'test-cloudflare-drizzle.js',
   'test-do-operation-budget.js',
   'test-seed-query-count.js',
+  'test-robustness-fixes.js',
   
   // Authentication & API
   'test-api.js',

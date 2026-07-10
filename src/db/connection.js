@@ -328,17 +328,8 @@ export const db = {
     },
     async insert(product) {
       const db = getActiveDb();
-      
-      // Find lowest unused ID starting from 1
-      const allProducts = await db.select({ id: products.id }).from(products);
-      const existingIds = new Set(allProducts.map(p => p.id));
-      let targetId = 1;
-      while (existingIds.has(targetId)) {
-        targetId++;
-      }
 
       const rows = await db.insert(products).values({
-        id: targetId,
         name: product.name,
         model: product.model || null,
         master_sku: product.master_sku || null,

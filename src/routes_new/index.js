@@ -119,11 +119,7 @@ async function getAuthUser(request) {
   const hostname = url.hostname.toLowerCase();
   const isLocalDev = 
     nodeEnv !== 'test' && (
-      hostname === 'localhost' || 
-      hostname === '127.0.0.1' || 
-      hostname === '[::1]' || 
-      hostname === '::1' || 
-      hostname === '0.0.0.0' ||
+      nodeEnv === 'development' ||
       (typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'development') ||
       (globalThis.MINIMAL_CLOUDFLARE_ENV && globalThis.MINIMAL_CLOUDFLARE_ENV.NODE_ENV === 'development')
     );

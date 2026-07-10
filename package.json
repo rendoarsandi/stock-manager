@@ -9,6 +9,8 @@
     "start": "node src/server_node.js",
     "test": "node tests/run.js",
     "test-full": "node tests/run.js --full",
+    "test:vitest": "SEED_ADMIN_PASSWORD=admin123 vitest run --pool=forks",
+    "test:vitest-watch": "SEED_ADMIN_PASSWORD=admin123 vitest --pool=forks",
     "migrate-local": "node data/migrate_to_do.cjs",
     "lint": "node node_modules/eslint/bin/eslint.js src tests"
   },
@@ -41,6 +43,7 @@
     "shadcn": "^4.13.0",
     "tailwindcss": "^4.0.0",
     "vite": "^6.0.0 || ^8.0.0",
+    "vitest": "^4.1.10",
     "wrangler": "^4.107.0"
   },
   "overrides": {
