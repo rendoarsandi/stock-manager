@@ -118,6 +118,24 @@ runTest('Products API', async () => {
     assertArrayLength(remainingMovements, 0, 'deleted product movements');
 
     // =========================================================================
+    // Concurrent Stock Adjustment Verification
+    // =========================================================================
+    const initialProduct = await db.products.get(1);
+    const startStock = initialProduct.current_stock;
+    
+    // Simulate 5 concurrent stock adjustments (+10 each)
+    await Promise.all([
+      db.products.adjustStock(1, 10),
+      db.products.adjustStock(1, 10),
+      db.products.adjustStock(1, 10),
+      db.products.adjustStock(1, 10),
+      db.products.adjustStock(1, 10)
+    ]);
+
+    const finalProduct = await db.products.get(1);
+    assertEqual(finalProduct.current_stock, startStock + 50, 'atomic stock adjustment handles concurrent edits correctly');
+
+    // =========================================================================
     // localeCompare Sorting Robustness Verification (with missing/null/undefined names)
     // =========================================================================
     const originalProductsList = db.products.list;

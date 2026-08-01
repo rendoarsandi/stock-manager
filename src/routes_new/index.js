@@ -757,25 +757,37 @@ export function handleAdjustStockEffect(req, params) {
       return yield* Effect.fail({ status: 404, message: 'Product not found' });
     }
 
+    const activeStorage = getActiveStorage();
+    const queries = [
+      {
+        sql: `INSERT INTO stock_movements (product_id, quantity_change, movement_type, reference, user_id, created_at) VALUES (?, ?, ?, ?, ?, COALESCE(?, datetime('now', 'localtime')))`,
+        params: [id, change, type, ref, user.id, insertCreatedAt || null]
+      },
+      {
+        sql: `UPDATE products SET current_stock = current_stock + ?, updated_at = datetime('now', 'localtime') WHERE id = ?`,
+        params: [change, id]
+      }
+    ];
+
     yield* Effect.tryPromise({
-      try: () => db.movements.insert({
-        product_id: id,
-        quantity_change: change,
-        movement_type: type,
-        reference: ref,
-        user_id: user.id,
-        created_at: insertCreatedAt
-      }),
-      catch: (error) => new Error(`Database insert failed: ${error.message}`)
+      try: () => activeStorage.executeTransaction(queries),
+      catch: (error) => new Error(`Database stock adjustment transaction failed: ${error.message}`)
     });
 
-    const newStock = product.current_stock + change;
-    yield* Effect.tryPromise({
-      try: () => db.products.update(id, { current_stock: newStock }),
-      catch: (error) => new Error(`Database update failed: ${error.message}`)
+    const updatedProduct = yield* Effect.tryPromise({
+      try: () => db.products.get(id),
+      catch: (error) => new Error(`Database query failed: ${error.message}`)
     });
 
-    return { success: true, current_stock: newStock };
+    if (updatedProduct) {
+      const { broadcast } = yield* Effect.tryPromise({
+        try: () => import('../ws/broker.js'),
+        catch: () => ({ broadcast: () => {} })
+      });
+      broadcast({ type: 'PRODUCT_UPDATED', payload: updatedProduct });
+    }
+
+    return { success: true, current_stock: updatedProduct ? updatedProduct.current_stock : product.current_stock + change };
   });
 }
 
@@ -2010,59 +2022,42 @@ export function handleResolveReviewOrderEffect(req) {
       catch: (error) => new Error(`Database query failed: ${error.message}`)
     });
 
+    const activeStorage = getActiveStorage();
+    const queries = [];
+
     if (resolution === 'lost') {
       for (const item of items) {
         if (item.product_id) {
-          yield* Effect.tryPromise({
-            try: () => db.movements.insert({
-              product_id: item.product_id,
-              quantity_change: -item.quantity,
-              movement_type: 'write_off',
-              reference: `Lost Order ID: ${order.order_id}`,
-              user_id: user.id
-            }),
-            catch: (error) => new Error(`Database insert failed: ${error.message}`)
+          queries.push({
+            sql: `INSERT INTO stock_movements (product_id, quantity_change, movement_type, reference, user_id, created_at) VALUES (?, ?, 'write_off', ?, ?, datetime('now', 'localtime'))`,
+            params: [item.product_id, -item.quantity, `Lost Order ID: ${order.order_id}`, user.id]
           });
-
-          const prod = yield* Effect.tryPromise({
-            try: () => db.products.get(item.product_id),
-            catch: (error) => new Error(`Database query failed: ${error.message}`)
+          queries.push({
+            sql: `UPDATE products SET current_stock = current_stock - ?, updated_at = datetime('now', 'localtime') WHERE id = ?`,
+            params: [item.quantity, item.product_id]
           });
-          if (prod) {
-            yield* Effect.tryPromise({
-              try: () => db.products.update(item.product_id, {
-                current_stock: prod.current_stock - item.quantity
-              }),
-              catch: (error) => new Error(`Database update failed: ${error.message}`)
-            });
-          }
         }
       }
     } else if (resolution === 'returned') {
       for (const item of items) {
         if (item.product_id) {
-          yield* Effect.tryPromise({
-            try: () => db.movements.insert({
-              product_id: item.product_id,
-              quantity_change: 0,
-              movement_type: 'return',
-              reference: `Returned Order ID: ${order.order_id} (No stock adjustment needed)`,
-              user_id: user.id
-            }),
-            catch: (error) => new Error(`Database insert failed: ${error.message}`)
+          queries.push({
+            sql: `INSERT INTO stock_movements (product_id, quantity_change, movement_type, reference, user_id, created_at) VALUES (?, 0, 'return', ?, ?, datetime('now', 'localtime'))`,
+            params: [item.product_id, `Returned Order ID: ${order.order_id} (No stock adjustment needed)`, user.id]
           });
         }
       }
     }
 
+    const nowIso = new Date().toISOString();
+    queries.push({
+      sql: `UPDATE orders SET system_status = 'resolved', resolution = ?, resolution_notes = ?, resolved_at = ? WHERE id = ?`,
+      params: [resolution, resolution_notes || '', nowIso, orderIdNum]
+    });
+
     yield* Effect.tryPromise({
-      try: () => db.orders.update(orderIdNum, {
-        system_status: 'resolved',
-        resolution,
-        resolution_notes: resolution_notes || '',
-        resolved_at: new Date().toISOString()
-      }),
-      catch: (error) => new Error(`Database update failed: ${error.message}`)
+      try: () => activeStorage.executeTransaction(queries),
+      catch: (error) => new Error(`Resolve order transaction failed: ${error.message}`)
     });
 
     return { success: true, status: 'resolved' };
@@ -2174,40 +2169,29 @@ export function handleConfirmSplitEffect(req) {
 
     const user = req.user;
 
-    yield* Effect.tryPromise({
-      try: () => db.orderItems.update(itemIdNum, {
-        product_id: productIdNum,
-        quantity: qty,
-        is_confirmed: 1
-      }),
-      catch: (error) => new Error(`Database update failed: ${error.message}`)
-    });
+    const activeStorage = getActiveStorage();
+    const queries = [
+      {
+        sql: `UPDATE order_items SET product_id = ?, quantity = ?, is_confirmed = 1 WHERE id = ?`,
+        params: [productIdNum, qty, itemIdNum]
+      }
+    ];
 
     if (order.system_status === 'normal') {
-      yield* Effect.tryPromise({
-        try: () => db.movements.insert({
-          product_id: productIdNum,
-          quantity_change: -qty,
-          movement_type: 'sale',
-          reference: `Confirmed Split Order: ${order.order_id}`,
-          user_id: user.id
-        }),
-        catch: (error) => new Error(`Database insert failed: ${error.message}`)
+      queries.push({
+        sql: `INSERT INTO stock_movements (product_id, quantity_change, movement_type, reference, user_id, created_at) VALUES (?, ?, 'sale', ?, ?, datetime('now', 'localtime'))`,
+        params: [productIdNum, -qty, `Confirmed Split Order: ${order.order_id}`, user.id]
       });
-
-      const prod = yield* Effect.tryPromise({
-        try: () => db.products.get(productIdNum),
-        catch: (error) => new Error(`Database query failed: ${error.message}`)
+      queries.push({
+        sql: `UPDATE products SET current_stock = current_stock - ?, updated_at = datetime('now', 'localtime') WHERE id = ?`,
+        params: [qty, productIdNum]
       });
-      if (prod) {
-        yield* Effect.tryPromise({
-          try: () => db.products.update(productIdNum, {
-            current_stock: prod.current_stock - qty
-          }),
-          catch: (error) => new Error(`Database update failed: ${error.message}`)
-        });
-      }
     }
+
+    yield* Effect.tryPromise({
+      try: () => activeStorage.executeTransaction(queries),
+      catch: (error) => new Error(`Confirm split order transaction failed: ${error.message}`)
+    });
 
     return { success: true };
   });
@@ -2494,11 +2478,12 @@ export function handleCreateOpnameEffect(req) {
     });
 
     const opnameId = newOpname.id;
+    const activeStorage = getActiveStorage();
+    const queries = [];
 
     for (const item of items) {
-      const { product_id, physical_stock } = item;
-      const prodId = parseInt(product_id, 10);
-      const physStock = parseInt(physical_stock, 10);
+      const prodId = parseInt(item.product_id, 10);
+      const physStock = parseInt(item.physical_stock, 10);
 
       const product = yield* Effect.tryPromise({
         try: () => db.products.get(prodId),
@@ -2511,34 +2496,26 @@ export function handleCreateOpnameEffect(req) {
       const systemStock = product.current_stock;
       const variance = physStock - systemStock;
 
-      yield* Effect.tryPromise({
-        try: () => db.opnameItems.insert({
-          opname_id: opnameId,
-          product_id: prodId,
-          system_stock: systemStock,
-          physical_stock: physStock,
-          variance
-        }),
-        catch: (err) => new Error(`db.opnameItems.insert failed: ${err.message}`)
+      queries.push({
+        sql: `INSERT INTO stock_opname_items (opname_id, product_id, system_stock, physical_stock, variance) VALUES (?, ?, ?, ?, ?)`,
+        params: [opnameId, prodId, systemStock, physStock, variance]
       });
 
-      yield* Effect.tryPromise({
-        try: () => db.products.update(prodId, {
-          current_stock: physStock
-        }),
-        catch: (err) => new Error(`db.products.update failed: ${err.message}`)
+      queries.push({
+        sql: `UPDATE products SET current_stock = ?, updated_at = datetime('now', 'localtime') WHERE id = ?`,
+        params: [physStock, prodId]
       });
 
+      queries.push({
+        sql: `INSERT INTO stock_movements (product_id, quantity_change, movement_type, reference, user_id, created_at) VALUES (?, ?, 'manual_adjust', ?, ?, ?)`,
+        params: [prodId, variance, `Stock Opname #${opnameId}`, user.id, newOpname.created_at]
+      });
+    }
+
+    if (queries.length > 0) {
       yield* Effect.tryPromise({
-        try: () => db.movements.insert({
-          product_id: prodId,
-          quantity_change: variance,
-          movement_type: 'manual_adjust',
-          reference: `Stock Opname #${opnameId}`,
-          user_id: user.id,
-          created_at: newOpname.created_at
-        }),
-        catch: (err) => new Error(`db.movements.insert failed: ${err.message}`)
+        try: () => activeStorage.executeTransaction(queries),
+        catch: (err) => new Error(`Stock opname transaction failed: ${err.message}`)
       });
     }
 
@@ -2581,37 +2558,36 @@ export function handleDeleteOpnameEffect(req, params) {
       catch: (err) => new Error(`db.opnameItems.getByOpnameId failed: ${err.message}`)
     });
 
+    const activeStorage = getActiveStorage();
+    const queries = [];
+
     // Revert stock adjustments for each product
     for (const item of opnameItemsList) {
-      const product = yield* Effect.tryPromise({
-        try: () => db.products.get(item.product_id),
-        catch: (err) => new Error(`db.products.get failed: ${err.message}`)
+      queries.push({
+        sql: `UPDATE products SET current_stock = current_stock - ?, updated_at = datetime('now', 'localtime') WHERE id = ?`,
+        params: [item.variance, item.product_id]
       });
-      if (product) {
-        const revertedStock = product.current_stock - item.variance;
-        yield* Effect.tryPromise({
-          try: () => db.products.update(item.product_id, {
-            current_stock: revertedStock
-          }),
-          catch: (err) => new Error(`db.products.update failed: ${err.message}`)
-        });
-      }
     }
 
     // Delete associated stock movements
-    const activeStorage = getActiveStorage();
-    yield* Effect.tryPromise({
-      try: () => activeStorage.execute(
-        `DELETE FROM stock_movements WHERE reference = ?`,
-        [`Stock Opname #${id}`]
-      ),
-      catch: (err) => new Error(`activeStorage.execute failed: ${err.message}`)
+    queries.push({
+      sql: `DELETE FROM stock_movements WHERE reference = ?`,
+      params: [`Stock Opname #${id}`]
     });
 
     // Delete opname report (cascades to items)
+    queries.push({
+      sql: `DELETE FROM stock_opname_items WHERE opname_id = ?`,
+      params: [id]
+    });
+    queries.push({
+      sql: `DELETE FROM stock_opnames WHERE id = ?`,
+      params: [id]
+    });
+
     yield* Effect.tryPromise({
-      try: () => db.opnames.delete(id),
-      catch: (err) => new Error(`db.opnames.delete failed: ${err.message}`)
+      try: () => activeStorage.executeTransaction(queries),
+      catch: (err) => new Error(`Delete stock opname transaction failed: ${err.message}`)
     });
 
     return { success: true };
@@ -2710,6 +2686,7 @@ export function handleUpdateOpnameEffect(req, params) {
         catch: (err) => new Error(`db.opnameItems.getByOpnameId failed: ${err.message}`)
       });
       const oldItemMap = new Map(oldItems.map(item => [item.product_id, item]));
+      const itemQueries = [];
 
       for (const item of items) {
         const prodId = parseInt(item.product_id, 10);
@@ -2723,30 +2700,16 @@ export function handleUpdateOpnameEffect(req, params) {
           const oldVariance = oldItem.variance;
           const diff = newVariance - oldVariance;
 
-          // Update stock opname item
-          yield* Effect.tryPromise({
-            try: () => activeStorage.execute(
-              `UPDATE stock_opname_items SET physical_stock = ?, variance = ? WHERE id = ?`,
-              [newPhysStock, newVariance, oldItem.id]
-            ),
-            catch: (err) => new Error(`activeStorage.execute failed: ${err.message}`)
+          itemQueries.push({
+            sql: `UPDATE stock_opname_items SET physical_stock = ?, variance = ? WHERE id = ?`,
+            params: [newPhysStock, newVariance, oldItem.id]
           });
 
-          // Adjust product stock
-          const product = yield* Effect.tryPromise({
-            try: () => db.products.get(prodId),
-            catch: (err) => new Error(`db.products.get failed: ${err.message}`)
+          itemQueries.push({
+            sql: `UPDATE products SET current_stock = current_stock + ?, updated_at = datetime('now', 'localtime') WHERE id = ?`,
+            params: [diff, prodId]
           });
-          if (product) {
-            yield* Effect.tryPromise({
-              try: () => db.products.update(prodId, {
-                current_stock: product.current_stock + diff
-              }),
-              catch: (err) => new Error(`db.products.update failed: ${err.message}`)
-            });
-          }
 
-          // Update or insert stock movement
           const movementRows = yield* Effect.tryPromise({
             try: () => activeStorage.query(
               `SELECT id FROM stock_movements WHERE reference = ? AND product_id = ?`,
@@ -2754,28 +2717,26 @@ export function handleUpdateOpnameEffect(req, params) {
             ),
             catch: (err) => new Error(`activeStorage.query failed: ${err.message}`)
           });
+
           if (movementRows && movementRows.length > 0) {
-            yield* Effect.tryPromise({
-              try: () => activeStorage.execute(
-                `UPDATE stock_movements SET quantity_change = ?, created_at = ? WHERE id = ?`,
-                [newVariance, newCreatedAt, movementRows[0].id]
-              ),
-              catch: (err) => new Error(`activeStorage.execute failed: ${err.message}`)
+            itemQueries.push({
+              sql: `UPDATE stock_movements SET quantity_change = ?, created_at = ? WHERE id = ?`,
+              params: [newVariance, newCreatedAt, movementRows[0].id]
             });
           } else {
-            yield* Effect.tryPromise({
-              try: () => db.movements.insert({
-                product_id: prodId,
-                quantity_change: newVariance,
-                movement_type: 'manual_adjust',
-                reference: `Stock Opname #${id}`,
-                user_id: report.user_id,
-                created_at: newCreatedAt
-              }),
-              catch: (err) => new Error(`db.movements.insert failed: ${err.message}`)
+            itemQueries.push({
+              sql: `INSERT INTO stock_movements (product_id, quantity_change, movement_type, reference, user_id, created_at) VALUES (?, ?, 'manual_adjust', ?, ?, ?)`,
+              params: [prodId, newVariance, `Stock Opname #${id}`, report.user_id, newCreatedAt]
             });
           }
         }
+      }
+
+      if (itemQueries.length > 0) {
+        yield* Effect.tryPromise({
+          try: () => activeStorage.executeTransaction(itemQueries),
+          catch: (err) => new Error(`Update stock opname items transaction failed: ${err.message}`)
+        });
       }
     }
 
@@ -3176,24 +3137,43 @@ export function handleUpdateMovementEffect(req, params) {
       }
       fields.quantity_change = newQty;
 
-      // Update the product's current stock
-      const product = yield* Effect.tryPromise({
-        try: () => db.products.get(movement.product_id),
-        catch: (error) => new Error(`Database query failed: ${error.message}`)
-      });
-      if (product) {
-        const diff = newQty - movement.quantity_change;
-        const newStock = product.current_stock + diff;
-        yield* Effect.tryPromise({
-          try: () => db.products.update(movement.product_id, { current_stock: newStock }),
-          catch: (error) => new Error(`Database update failed: ${error.message}`)
+      const diff = newQty - movement.quantity_change;
+      const activeStorage = getActiveStorage();
+      const queries = [
+        {
+          sql: `UPDATE products SET current_stock = current_stock + ?, updated_at = datetime('now', 'localtime') WHERE id = ?`,
+          params: [diff, movement.product_id]
+        }
+      ];
+
+      const setCols = [];
+      const setParams = [];
+      if (fields.quantity_change !== undefined) { setCols.push('quantity_change = ?'); setParams.push(fields.quantity_change); }
+      if (fields.movement_type !== undefined) { setCols.push('movement_type = ?'); setParams.push(fields.movement_type); }
+      if (fields.reference !== undefined) { setCols.push('reference = ?'); setParams.push(fields.reference); }
+      if (fields.created_at !== undefined) { setCols.push('created_at = ?'); setParams.push(fields.created_at); }
+
+      if (setCols.length > 0) {
+        queries.push({
+          sql: `UPDATE stock_movements SET ${setCols.join(', ')} WHERE id = ?`,
+          params: [...setParams, id]
         });
       }
+
+      yield* Effect.tryPromise({
+        try: () => activeStorage.executeTransaction(queries),
+        catch: (error) => new Error(`Update movement transaction failed: ${error.message}`)
+      });
+    } else if (Object.keys(fields).length > 0) {
+      yield* Effect.tryPromise({
+        try: () => db.movements.update(id, fields),
+        catch: (error) => new Error(`Database update failed: ${error.message}`)
+      });
     }
 
     const updated = yield* Effect.tryPromise({
-      try: () => db.movements.update(id, fields),
-      catch: (error) => new Error(`Database update failed: ${error.message}`)
+      try: () => db.movements.get(id),
+      catch: (error) => new Error(`Database query failed: ${error.message}`)
     });
     return { success: true, movement: updated };
   });
@@ -3229,21 +3209,21 @@ export function handleDeleteMovementEffect(req, params) {
       return yield* Effect.fail({ status: 404, message: 'Movement not found' });
     }
 
-    const product = yield* Effect.tryPromise({
-      try: () => db.products.get(movement.product_id),
-      catch: (error) => new Error(`Database query failed: ${error.message}`)
-    });
-    if (product) {
-      const newStock = product.current_stock - movement.quantity_change;
-      yield* Effect.tryPromise({
-        try: () => db.products.update(movement.product_id, { current_stock: newStock }),
-        catch: (error) => new Error(`Database update failed: ${error.message}`)
-      });
-    }
+    const activeStorage = getActiveStorage();
+    const queries = [
+      {
+        sql: `UPDATE products SET current_stock = current_stock - ?, updated_at = datetime('now', 'localtime') WHERE id = ?`,
+        params: [movement.quantity_change, movement.product_id]
+      },
+      {
+        sql: `DELETE FROM stock_movements WHERE id = ?`,
+        params: [id]
+      }
+    ];
 
     yield* Effect.tryPromise({
-      try: () => db.movements.delete(id),
-      catch: (error) => new Error(`Database delete failed: ${error.message}`)
+      try: () => activeStorage.executeTransaction(queries),
+      catch: (error) => new Error(`Delete movement transaction failed: ${error.message}`)
     });
     return { success: true };
   });

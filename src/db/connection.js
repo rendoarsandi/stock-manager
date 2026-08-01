@@ -17,17 +17,7 @@ import {
 import { hashPassword } from '../utils/crypto.js';
 import { broadcast } from '../ws/broker.js';
 import productsSeed from './products_seed.json' with { type: 'json' };
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import * as XLSX from 'xlsx';
 
-let __filename = '';
-let __dirname = '';
-try {
-  __filename = fileURLToPath(import.meta.url);
-  __dirname = path.dirname(__filename);
-} catch (e) {}
 
 // Seeding implementation using SQL statements
 export async function seedIfNeeded(storage) {
@@ -350,10 +340,6 @@ export const db = {
       if (updates.model !== undefined) setValues.model = updates.model || null;
       if (updates.master_sku !== undefined) setValues.master_sku = updates.master_sku || null;
       if (updates.description !== undefined) setValues.description = updates.description;
-      if (updates.current_stock !== undefined) {
-        const parsed = parseInt(updates.current_stock, 10);
-        setValues.current_stock = isNaN(parsed) ? 0 : parsed;
-      }
       if (updates.low_stock_threshold !== undefined) {
         const parsed = parseInt(updates.low_stock_threshold, 10);
         setValues.low_stock_threshold = isNaN(parsed) ? 10 : parsed;
@@ -365,6 +351,25 @@ export const db = {
           updated_at: sql`datetime('now', 'localtime')`
         })
         .where(eq(products.id, parseInt(id, 10)))
+        .returning();
+      const updated = rows[0] || null;
+      if (updated) {
+        broadcast({ type: 'PRODUCT_UPDATED', payload: updated });
+      }
+      return updated;
+    },
+    async adjustStock(id, delta) {
+      const db = getActiveDb();
+      const parsedId = parseInt(id, 10);
+      const parsedDelta = parseInt(delta, 10);
+      if (isNaN(parsedId) || isNaN(parsedDelta)) return null;
+
+      const rows = await db.update(products)
+        .set({
+          current_stock: sql`${products.current_stock} + ${parsedDelta}`,
+          updated_at: sql`datetime('now', 'localtime')`
+        })
+        .where(eq(products.id, parsedId))
         .returning();
       const updated = rows[0] || null;
       if (updated) {
