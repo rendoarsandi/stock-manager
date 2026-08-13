@@ -44,7 +44,7 @@ export const auth = betterAuth({
     return getBaseUrl();
   },
   logger: {
-    level: "debug"
+    level: "error"
   },
   user: {
     additionalFields: {

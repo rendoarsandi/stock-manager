@@ -50,7 +50,9 @@ export async function seedIfNeeded(storage) {
   if (!hasProducts) {
     // Seed products whenever the products table is empty (independent of user seeding)
     {
-      console.log("Database empty. Seeding initial data...");
+      if (process.env.NODE_ENV !== 'test') {
+        console.log("Database empty. Seeding initial data...");
+      }
 
       // Helper function to clean up and structure product names
       function getProductName(groupName, variationSku, skuInduk) {
@@ -106,8 +108,9 @@ export async function seedIfNeeded(storage) {
           [productId, p.current_stock, 'initial', 'Initial seeding', 1, '2026-06-01 00:00:00']
         );
       }
-
-      console.log("Database seeded successfully.");
+      if (process.env.NODE_ENV !== 'test') {
+        console.log("Database seeded successfully.");
+      }
     }
 
     // Attempt to seed SKU mappings during initial database seeding
@@ -162,7 +165,7 @@ export async function seedIfNeeded(storage) {
         sku_ref: "Nomor Referensi SKU",
         cancellation_reason: "",
         cancel_return_status: "",
-        parent_sku: ""
+        parent_sku: "SKU Induk"
       };
 
       await storage.execute(
@@ -174,7 +177,9 @@ export async function seedIfNeeded(storage) {
         "INSERT OR IGNORE INTO import_templates (id, name, column_mapping, created_at) VALUES (?, ?, ?, ?)",
         [2, 'Tokopedia', JSON.stringify(tokopediaMapping), now]
       );
-      console.log("Templates seeded successfully.");
+      if (process.env.NODE_ENV !== 'test') {
+        console.log("Templates seeded successfully.");
+      }
     }
   } catch (err) {
     console.error("Error seeding templates:", err);
@@ -340,6 +345,10 @@ export const db = {
       if (updates.model !== undefined) setValues.model = updates.model || null;
       if (updates.master_sku !== undefined) setValues.master_sku = updates.master_sku || null;
       if (updates.description !== undefined) setValues.description = updates.description;
+      if (updates.current_stock !== undefined) {
+        const parsed = parseInt(updates.current_stock, 10);
+        setValues.current_stock = isNaN(parsed) ? 0 : parsed;
+      }
       if (updates.low_stock_threshold !== undefined) {
         const parsed = parseInt(updates.low_stock_threshold, 10);
         setValues.low_stock_threshold = isNaN(parsed) ? 10 : parsed;

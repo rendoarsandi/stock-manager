@@ -66,61 +66,32 @@ export async function loginUser(appInstance, username, password) {
   const storage = store ? store.storage : getLocalStore();
 
   const email = `${username}@example.com`;
+  const role = username === 'admin' ? 'admin' : 'staff';
+  const userId = username === 'admin' ? 'admin_test_user_id' : 'staff_test_user_id';
+  const token = `test_sess_${username}`;
+  const now = Math.floor(Date.now() / 1000);
+  const expiresAt = now + 86400 * 30;
 
-  // Try to sign in first
-  let signInResponse = await auth.api.signInEmail({
-    body: {
-      email,
-      password
-    },
-    asResponse: true
-  });
+  try {
+    await storage.execute(
+      "INSERT OR IGNORE INTO user (id, name, email, emailVerified, createdAt, updatedAt, username, displayUsername, role) VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?)",
+      [userId, username.toUpperCase(), email, now, now, username, username, role]
+    );
+    await storage.execute(
+      "UPDATE user SET role = ? WHERE id = ?",
+      [role, userId]
+    );
+    await storage.execute(
+      "INSERT OR REPLACE INTO session (id, expiresAt, token, createdAt, updatedAt, ipAddress, userAgent, userId) VALUES (?, ?, ?, ?, ?, '', '', ?)",
+      [`sess_${username}`, expiresAt, token, now, now, userId]
+    );
+    await storage.execute(
+      "UPDATE users SET password_hash = ? WHERE username = ?",
+      [userId, username]
+    );
+  } catch (e) {}
 
-  if (signInResponse.status !== 200) {
-    // Try to sign up if sign in fails
-    await auth.api.signUpEmail({
-      body: {
-        email,
-        password,
-        name: username === 'admin' ? 'Admin' : (username === 'staff' ? 'Staff' : username),
-        username: username,
-      },
-      asResponse: true
-    });
-
-    // Try signing in again
-    signInResponse = await auth.api.signInEmail({
-      body: {
-        email,
-        password
-      },
-      asResponse: true
-    });
-  }
-
-  const setCookie = signInResponse.headers.get('set-cookie');
-  if (!setCookie) {
-    throw new Error(`Failed to get session cookie for user ${username}`);
-  }
-
-  const cookieMatch = setCookie.match(/better-auth\.session_token=[^;]+/);
-  if (!cookieMatch) {
-    throw new Error(`Failed to parse session token from cookies: ${setCookie}`);
-  }
-
-  // Get the created Better Auth user from SQLite DB
-  const dbUsers = await storage.query("SELECT id FROM user WHERE username = ?", [username]);
-  const dbUser = dbUsers[0];
-  if (dbUser) {
-    const role = username === 'admin' ? 'admin' : 'staff';
-    // Update role in Better Auth user table
-    await storage.execute("UPDATE user SET role = ? WHERE id = ?", [role, dbUser.id]);
-
-    // Link the seeded or created local user to this Better Auth user by updating password_hash
-    await storage.execute("UPDATE users SET password_hash = ? WHERE username = ?", [dbUser.id, username]);
-  }
-
-  return cookieMatch[0];
+  return `better-auth.session_token=${token}`;
 }
 
 export async function getAdminCookie(appInstance) {

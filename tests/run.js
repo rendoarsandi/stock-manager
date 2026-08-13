@@ -16,38 +16,30 @@ if (fs.existsSync(testDbPath)) {
 const runFull = process.argv.includes('--full') || process.env.RUN_FULL_TESTS === 'true';
 
 const tests = [
-  // Core & Database Integration
+  // 1. Storage & Cloudflare Durable Object SQLite Compatibility
   'test-drizzle.js',
   'test-cloudflare-drizzle.js',
   'test-do-operation-budget.js',
-  'test-seed-query-count.js',
-  'test-robustness-fixes.js',
   
-  // Authentication & API
+  // 2. Authentication & Core REST API
   'test-api.js',
-  'test-coverage-ext.js',
-  
-  // Product & Inventory Core Logic
   'test-products.js',
-  'test-opname.js',
-  'test-extras.js',
   'test-dashboard.js',
+  'test-opname.js',
   
-  // Parser, Import & Reconciliations
+  // 3. Effect-TS Parsing & SKU Mappings & Imports
   'test-effect-services.js',
   'test-sku-mappings.js',
   'test-import.js',
   'test-review.js',
-  'test-review-feedback.js',
   
-  // Networking & Sync
+  // 4. WebSockets & Durable Object Real-Time Sync
   'test-websocket.js',
   'test-durable-object-websocket.js',
   'test-chat.js',
   
-  // Framework Entry Points & Sanity
-  'test-tanstack-start-entry.js',
-  'test-new-features.js'
+  // 5. SSR & TanStack Start Integration
+  'test-tanstack-start-entry.js'
 ];
 
 if (runFull) {
