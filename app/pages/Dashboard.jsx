@@ -42,66 +42,46 @@ export default function Dashboard() {
   if (isLoading) {
     return (
       <div className="flex flex-col gap-6" aria-busy="true" aria-label="Loading dashboard">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="h-16 bg-slate-200/50 dark:bg-[#131b2e] rounded-2xl animate-pulse" />
+
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
           {[1, 2, 3, 4].map((i) => (
             <Card key={i} className="animate-pulse">
-              <CardContent className="p-6">
+              <CardContent className="p-4 sm:p-5">
                 <div className="flex justify-between items-start">
-                  <div className="h-4 bg-slate-200 dark:bg-slate-800 rounded w-24"></div>
-                  <div className="h-8 w-8 bg-slate-200 dark:bg-slate-800 rounded-full"></div>
+                  <div className="h-3.5 bg-slate-200 dark:bg-[#1f2b44] rounded w-20" />
+                  <div className="h-8 w-8 bg-slate-200 dark:bg-[#1f2b44] rounded-xl" />
                 </div>
-                <div className="h-8 bg-slate-200 dark:bg-slate-800 rounded w-16 mt-4 mb-2"></div>
-                <div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-32"></div>
+                <div className="h-7 bg-slate-200 dark:bg-[#1f2b44] rounded w-14 mt-4 mb-2" />
+                <div className="h-3 bg-slate-200 dark:bg-[#1f2b44] rounded w-24" />
               </CardContent>
             </Card>
           ))}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mt-2">
-          <Card className="animate-pulse h-80 lg:col-span-3 p-6 flex flex-col justify-between">
-            <div className="flex justify-between items-center mb-4">
-              <div className="h-5 bg-slate-200 dark:bg-slate-800 rounded w-48"></div>
-              <div className="h-8 bg-slate-200 dark:bg-slate-800 rounded w-16"></div>
-            </div>
-            <div className="space-y-3 flex-1 justify-center py-4">
-              <div className="h-8 bg-slate-100 dark:bg-slate-900 rounded w-full"></div>
-              <div className="h-8 bg-slate-100 dark:bg-slate-900 rounded w-full"></div>
-              <div className="h-8 bg-slate-100 dark:bg-slate-900 rounded w-full"></div>
-              <div className="h-8 bg-slate-100 dark:bg-slate-900 rounded w-full"></div>
-            </div>
-          </Card>
-          <Card className="animate-pulse h-80 lg:col-span-2 p-6 flex flex-col justify-between">
-            <div className="flex justify-between items-center mb-4">
-              <div className="h-5 bg-slate-200 dark:bg-slate-800 rounded w-36"></div>
-              <div className="h-8 bg-slate-200 dark:bg-slate-800 rounded w-24"></div>
-            </div>
-            <div className="space-y-3 flex-1 justify-center py-4">
-              <div className="h-8 bg-slate-100 dark:bg-slate-900 rounded w-full"></div>
-              <div className="h-8 bg-slate-100 dark:bg-slate-900 rounded w-full"></div>
-              <div className="h-8 bg-slate-100 dark:bg-slate-900 rounded w-full"></div>
-              <div className="h-8 bg-slate-100 dark:bg-slate-900 rounded w-full"></div>
-            </div>
-          </Card>
+          <Card className="animate-pulse h-80 lg:col-span-3 p-6" />
+          <Card className="animate-pulse h-80 lg:col-span-2 p-6" />
         </div>
       </div>
     );
   }
 
-  // Error/Empty state
+  // Error state
   if (error || !data) {
     return (
       <div 
-        className="flex flex-col items-center justify-center p-12 text-center border border-dashed rounded-xl border-slate-200 dark:border-slate-800"
+        className="flex flex-col items-center justify-center p-10 text-center border border-dashed rounded-2xl border-red-300 dark:border-red-900/50 bg-red-50/40 dark:bg-red-950/20 my-4"
         role="alert"
       >
-        <div className="p-3 bg-red-50 dark:bg-red-950/20 text-red-500 rounded-full mb-4">
+        <div className="p-3 bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 rounded-2xl mb-4 shadow-xs">
           <svg className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
         </div>
-        <h3 className="text-lg font-semibold text-slate-950 dark:text-slate-50 text-wrap-balance mb-1">Failed to Load Dashboard</h3>
-        <p className="text-sm text-slate-500 dark:text-slate-400 text-wrap-pretty max-w-sm mb-4">
-          There was an error communicating with the stock database. Please check your network connection or try reloading.
+        <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 mb-1">Database Sync Error</h3>
+        <p className="text-xs text-slate-600 dark:text-slate-400 max-w-sm mb-4">
+          Could not communicate with the SQLite database. Try refreshing the query.
         </p>
         <Button onClick={() => queryClient.invalidateQueries({ queryKey: ['dashboardStats'] })}>
           Retry Connection
@@ -113,118 +93,238 @@ export default function Dashboard() {
   const lowStockCount = data.low_stock_count || 0;
   const pendingReviewCount = data.pending_review_count || 0;
   const ambiguousCount = data.ambiguous_count || 0;
+  const totalProducts = data.total_products || 0;
 
   return (
-    <div className="flex flex-col gap-8">
-      {/* Cards Statistics Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        
-        {/* Card 1: Total Products */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider text-wrap-balance">Total Products</CardTitle>
-            <div className="p-2 bg-slate-50 dark:bg-slate-900 rounded-lg text-slate-500 border border-slate-100 dark:border-slate-800">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-              </svg>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold tracking-tight">{data.total_products}</div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 text-wrap-pretty mt-1">Match models registered</p>
-          </CardContent>
-        </Card>
+    <div className="flex flex-col gap-6 pb-12">
+      {/* Quick Action Navigation Grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3.5">
+        <Link
+          to="/products"
+          className="flex items-center gap-2.5 p-3 sm:p-3.5 rounded-xl border border-slate-200/90 dark:border-[#26334d] bg-white dark:bg-[#131b2e] hover:border-sky-500/60 dark:hover:border-sky-500/60 hover:shadow-sm transition-all group"
+        >
+          <div className="w-8 h-8 rounded-lg bg-sky-50 dark:bg-sky-950/50 text-sky-600 dark:text-sky-400 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+          </div>
+          <div className="overflow-hidden">
+            <div className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">New Product</div>
+            <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">Add SKU to catalog</div>
+          </div>
+        </Link>
 
-        {/* Card 2: Low Stock */}
-        <Card className={lowStockCount > 0 ? 'border-red-500/50' : ''}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider text-wrap-balance">Low Stock Alert</CardTitle>
-            <div className={`p-2 rounded-lg border ${
-              lowStockCount > 0 
-                ? 'bg-red-50 dark:bg-red-950/20 text-red-500 border-red-100 dark:border-red-900/30' 
-                : 'bg-green-50 dark:bg-green-950/20 text-green-500 border-green-100 dark:border-green-900/30'
-            }`}>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold tracking-tight">{lowStockCount}</div>
-            <p className={`text-xs font-medium text-wrap-pretty mt-1 ${lowStockCount > 0 ? 'text-red-500' : 'text-slate-500 dark:text-slate-400'}`}>
-              {lowStockCount > 0 ? `⚠️ ${lowStockCount} items below threshold` : 'All stock levels healthy'}
-            </p>
-          </CardContent>
-        </Card>
+        <Link
+          to="/import"
+          className="flex items-center gap-2.5 p-3 sm:p-3.5 rounded-xl border border-slate-200/90 dark:border-[#26334d] bg-white dark:bg-[#131b2e] hover:border-indigo-500/60 dark:hover:border-indigo-500/60 hover:shadow-sm transition-all group"
+        >
+          <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+            </svg>
+          </div>
+          <div className="overflow-hidden">
+            <div className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">Import Excel</div>
+            <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">Marketplace reports</div>
+          </div>
+        </Link>
 
-        {/* Card 3: Pending Review */}
-        <Card className={pendingReviewCount > 0 ? 'border-amber-500/50' : ''}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider text-wrap-balance">Pending Review</CardTitle>
-            <div className={`p-2 rounded-lg border ${
-              pendingReviewCount > 0 
-                ? 'bg-amber-50 dark:bg-amber-950/20 text-amber-500 border-amber-100 dark:border-amber-900/30' 
-                : 'bg-slate-50 dark:bg-slate-900 text-slate-400 border-slate-100 dark:border-slate-800'
-            }`}>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-              </svg>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold tracking-tight">{pendingReviewCount}</div>
-            <p className={`text-xs font-medium text-wrap-pretty mt-1 ${pendingReviewCount > 0 ? 'text-amber-500' : 'text-slate-500 dark:text-slate-400'}`}>
-              {pendingReviewCount > 0 ? `⚠️ ${pendingReviewCount} orders require action` : 'No cancelled orders pending'}
-            </p>
-          </CardContent>
-        </Card>
+        <Link
+          to="/products/in-out"
+          className="flex items-center gap-2.5 p-3 sm:p-3.5 rounded-xl border border-slate-200/90 dark:border-[#26334d] bg-white dark:bg-[#131b2e] hover:border-emerald-500/60 dark:hover:border-emerald-500/60 hover:shadow-sm transition-all group"
+        >
+          <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+            </svg>
+          </div>
+          <div className="overflow-hidden">
+            <div className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">Stock In / Out</div>
+            <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">Manual movement</div>
+          </div>
+        </Link>
 
-        {/* Card 4: Ambiguous Items */}
-        <Card className={ambiguousCount > 0 ? 'border-amber-500/50' : ''}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider text-wrap-balance">Ambiguous Items</CardTitle>
-            <div className={`p-2 rounded-lg border ${
-              ambiguousCount > 0 
-                ? 'bg-amber-50 dark:bg-amber-950/20 text-amber-500 border-amber-100 dark:border-amber-900/30' 
-                : 'bg-slate-50 dark:bg-slate-900 text-slate-400 border-slate-100 dark:border-slate-800'
-            }`}>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold tracking-tight">{ambiguousCount}</div>
-            <p className={`text-xs font-medium text-wrap-pretty mt-1 ${ambiguousCount > 0 ? 'text-amber-500' : 'text-slate-500 dark:text-slate-400'}`}>
-              {ambiguousCount > 0 ? `⚠️ ${ambiguousCount} items need mapping` : 'Descriptions clean'}
-            </p>
-          </CardContent>
-        </Card>
+        <Link
+          to="/opname"
+          className="flex items-center gap-2.5 p-3 sm:p-3.5 rounded-xl border border-slate-200/90 dark:border-[#26334d] bg-white dark:bg-[#131b2e] hover:border-amber-500/60 dark:hover:border-amber-500/60 hover:shadow-sm transition-all group"
+        >
+          <div className="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+            </svg>
+          </div>
+          <div className="overflow-hidden">
+            <div className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">Stock Opname</div>
+            <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">Audit physical count</div>
+          </div>
+        </Link>
       </div>
 
-      {/* Analytics Dashboard Visualizations */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mt-2">
-        {/* Stock Movement Trends (SVG line/area chart) */}
-        <Card className="lg:col-span-3 border-slate-200 dark:border-slate-800 flex flex-col justify-between">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
+      {/* Cards Statistics Grid */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
+        
+        {/* Card 1: Total Products */}
+        <Link to="/products" className="block focus:outline-none">
+          <Card className="hover:border-sky-500/60 dark:hover:border-sky-500/60 hover:shadow-md transition-all h-full cursor-pointer group">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 sm:p-5 pb-2">
+              <CardTitle className="text-[11px] sm:text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Total Products
+              </CardTitle>
+              <div className="p-2 sm:p-2.5 bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 rounded-xl border border-sky-100 dark:border-sky-800/50 group-hover:scale-105 transition-transform">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                </svg>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 sm:p-5 pt-0">
+              <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-50">{totalProducts}</div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex items-center justify-between font-medium">
+                <span>SKU catalog</span>
+                <span className="text-sky-600 dark:text-sky-400 font-semibold group-hover:translate-x-0.5 transition-transform">Manage →</span>
+              </p>
+            </CardContent>
+          </Card>
+        </Link>
+
+        {/* Card 2: Low Stock */}
+        <Link to="/products" className="block focus:outline-none">
+          <Card className={`hover:shadow-md transition-all h-full cursor-pointer group ${
+            lowStockCount > 0 
+              ? 'border-red-500/70 bg-red-50/30 dark:bg-red-950/20 dark:border-red-800/70' 
+              : 'hover:border-emerald-500/60 dark:hover:border-emerald-500/60'
+          }`}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 sm:p-5 pb-2">
+              <CardTitle className="text-[11px] sm:text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Low Stock Alert
+              </CardTitle>
+              <div className={`p-2 sm:p-2.5 rounded-xl border group-hover:scale-105 transition-transform ${
+                lowStockCount > 0 
+                  ? 'bg-red-100 dark:bg-red-900/60 text-red-600 dark:text-red-400 border-red-200 dark:border-red-700/60' 
+                  : 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-800/50'
+              }`}>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 sm:p-5 pt-0">
+              <div className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${lowStockCount > 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-slate-50'}`}>
+                {lowStockCount}
+              </div>
+              <p className={`text-[11px] mt-1 font-semibold ${lowStockCount > 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                {lowStockCount > 0 ? `⚠️ ${lowStockCount} below threshold` : '✓ Stock levels healthy'}
+              </p>
+            </CardContent>
+          </Card>
+        </Link>
+
+        {/* Card 3: Pending Review */}
+        <Link to="/review" className="block focus:outline-none">
+          <Card className={`hover:shadow-md transition-all h-full cursor-pointer group ${
+            pendingReviewCount > 0 
+              ? 'border-amber-500/70 bg-amber-50/30 dark:bg-amber-950/20 dark:border-amber-800/70' 
+              : 'hover:border-amber-500/60 dark:hover:border-amber-500/60'
+          }`}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 sm:p-5 pb-2">
+              <CardTitle className="text-[11px] sm:text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Pending Review
+              </CardTitle>
+              <div className={`p-2 sm:p-2.5 rounded-xl border group-hover:scale-105 transition-transform ${
+                pendingReviewCount > 0 
+                  ? 'bg-amber-100 dark:bg-amber-900/60 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-700/60' 
+                  : 'bg-slate-100 dark:bg-slate-800/80 text-slate-500 border-slate-200 dark:border-slate-700'
+              }`}>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                </svg>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 sm:p-5 pt-0">
+              <div className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${pendingReviewCount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-900 dark:text-slate-50'}`}>
+                {pendingReviewCount}
+              </div>
+              <p className={`text-[11px] mt-1 font-semibold ${pendingReviewCount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-500 dark:text-slate-400'}`}>
+                {pendingReviewCount > 0 ? `⚠️ ${pendingReviewCount} orders pending` : 'No flagged orders'}
+              </p>
+            </CardContent>
+          </Card>
+        </Link>
+
+        {/* Card 4: Ambiguous Items */}
+        <Link to="/review" className="block focus:outline-none">
+          <Card className={`hover:shadow-md transition-all h-full cursor-pointer group ${
+            ambiguousCount > 0 
+              ? 'border-purple-500/70 bg-purple-50/30 dark:bg-purple-950/20 dark:border-purple-800/70' 
+              : 'hover:border-purple-500/60 dark:hover:border-purple-500/60'
+          }`}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 sm:p-5 pb-2">
+              <CardTitle className="text-[11px] sm:text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Ambiguous Items
+              </CardTitle>
+              <div className={`p-2 sm:p-2.5 rounded-xl border group-hover:scale-105 transition-transform ${
+                ambiguousCount > 0 
+                  ? 'bg-purple-100 dark:bg-purple-900/60 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-700/60' 
+                  : 'bg-slate-100 dark:bg-slate-800/80 text-slate-500 border-slate-200 dark:border-slate-700'
+              }`}>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 sm:p-5 pt-0">
+              <div className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${ambiguousCount > 0 ? 'text-purple-600 dark:text-purple-400' : 'text-slate-900 dark:text-slate-50'}`}>
+                {ambiguousCount}
+              </div>
+              <p className={`text-[11px] mt-1 font-semibold ${ambiguousCount > 0 ? 'text-purple-600 dark:text-purple-400' : 'text-slate-500 dark:text-slate-400'}`}>
+                {ambiguousCount > 0 ? `⚠️ ${ambiguousCount} items to map` : 'Descriptions verified'}
+              </p>
+            </CardContent>
+          </Card>
+        </Link>
+      </div>
+
+      {/* Analytics Visualizations Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        
+        {/* Stock Movement Trends */}
+        <Card className="lg:col-span-3 flex flex-col justify-between">
+          <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-slate-100 dark:border-[#26334d]">
             <div>
-              <CardTitle className="text-lg text-wrap-balance">Stock Movement Trends</CardTitle>
-              <p className="text-xs text-slate-500 dark:text-slate-400 text-wrap-pretty">Flow of inventory over the last 30 days</p>
+              <CardTitle className="text-sm sm:text-base font-bold text-slate-900 dark:text-slate-100">Stock Movement Trends</CardTitle>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Flow of inventory in & out over the last 30 days</p>
             </div>
-            <div className="flex gap-4 text-xs font-semibold">
-              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span> Stock In</span>
-              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-red-500 inline-block"></span> Stock Out</span>
+            <div className="flex gap-3 text-xs font-semibold">
+              <span className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" /> In
+              </span>
+              <span className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
+                <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block" /> Out
+              </span>
             </div>
           </CardHeader>
-          <CardContent className="flex-1 flex flex-col justify-end p-4">
+          <CardContent className="flex-1 flex flex-col justify-center p-4 sm:p-6">
             {(!data.stock_trends || data.stock_trends.length === 0) ? (
-              <div className="h-48 flex flex-col items-center justify-center text-sm text-slate-400 dark:text-slate-500">
-                <span className="text-wrap-pretty">No stock movements registered in the last 30 days.</span>
+              <div className="py-8 sm:py-10 flex flex-col items-center justify-center text-center border border-dashed border-slate-200 dark:border-[#26334d] bg-slate-50/50 dark:bg-[#0e1526]/50 rounded-xl p-4">
+                <div className="w-11 h-11 rounded-xl bg-slate-100 dark:bg-[#1a243b] flex items-center justify-center text-slate-400 dark:text-slate-400 mb-3 border border-slate-200/80 dark:border-[#2e3e5f]">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+                  </svg>
+                </div>
+                <h4 className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200 mb-1">No Recent Movement Trends</h4>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 max-w-xs mb-3.5">
+                  Incoming shipments and dispatches will generate trend curves here.
+                </p>
+                <Link
+                  to="/products/in-out"
+                  className="inline-flex items-center gap-1 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs transition-colors"
+                >
+                  Record In / Out Movement
+                </Link>
               </div>
             ) : (() => {
               const trends = data.stock_trends;
               const maxVal = Math.max(...trends.flatMap(t => [t.stock_in, t.stock_out]), 10);
-              const padding = { top: 10, right: 10, bottom: 25, left: 35 };
+              const padding = { top: 15, right: 15, bottom: 30, left: 40 };
               const chartWidth = 600 - padding.left - padding.right;
               const chartHeight = 180 - padding.top - padding.bottom;
 
@@ -260,12 +360,12 @@ export default function Dashboard() {
                   <svg viewBox="0 0 600 180" className="w-full h-auto overflow-visible">
                     <defs>
                       <linearGradient id="gradientIn" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#10b981" stopOpacity="0.25" />
+                        <stop offset="0%" stopColor="#10b981" stopOpacity="0.35" />
                         <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
                       </linearGradient>
                       <linearGradient id="gradientOut" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#ef4444" stopOpacity="0.2" />
-                        <stop offset="100%" stopColor="#ef4444" stopOpacity="0.0" />
+                        <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.3" />
+                        <stop offset="100%" stopColor="#f43f5e" stopOpacity="0.0" />
                       </linearGradient>
                     </defs>
 
@@ -275,20 +375,20 @@ export default function Dashboard() {
                       const val = Math.round(maxVal * (1 - ratio));
                       return (
                         <g key={i}>
-                          <line x1={padding.left} y1={y} x2={padding.left + chartWidth} y2={y} stroke="var(--border-primary)" strokeWidth="0.5" strokeDasharray="3 3" opacity="0.3" />
-                          <text x={padding.left - 8} y={y + 4} textAnchor="end" fontSize="9" fill="var(--text-muted)" className="font-medium">{val}</text>
+                          <line x1={padding.left} y1={y} x2={padding.left + chartWidth} y2={y} stroke="currentColor" className="text-slate-200 dark:text-[#26334d]" strokeWidth="1" strokeDasharray="3 3" />
+                          <text x={padding.left - 8} y={y + 4} textAnchor="end" fontSize="10" className="fill-slate-400 dark:fill-slate-400 font-medium">{val}</text>
                         </g>
                       );
                     })}
 
                     {/* Date labels at bottom */}
-                    {trends.filter((_, i) => i % Math.max(Math.round(trends.length / 5), 1) === 0).map((t, idx, arr) => {
+                    {trends.filter((_, i) => i % Math.max(Math.round(trends.length / 5), 1) === 0).map((t, idx) => {
                       const itemIdx = trends.indexOf(t);
                       const x = padding.left + (itemIdx / Math.max(trends.length - 1, 1)) * chartWidth;
                       const dateParts = t.movement_date.split('-');
                       const displayDate = dateParts.length === 3 ? `${dateParts[1]}/${dateParts[2]}` : t.movement_date;
                       return (
-                        <text key={idx} x={x} y={padding.top + chartHeight + 15} textAnchor="middle" fontSize="9" fill="var(--text-muted)" className="font-semibold">{displayDate}</text>
+                        <text key={idx} x={x} y={padding.top + chartHeight + 18} textAnchor="middle" fontSize="10" className="fill-slate-400 dark:fill-slate-400 font-semibold">{displayDate}</text>
                       );
                     })}
 
@@ -297,14 +397,14 @@ export default function Dashboard() {
                     {pointsOut.length > 0 && <path d={areaD(pointsOut)} fill="url(#gradientOut)" />}
 
                     {/* Line paths */}
-                    {pointsIn.length > 0 && <path d={pathD(pointsIn)} fill="none" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />}
-                    {pointsOut.length > 0 && <path d={pathD(pointsOut)} fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />}
+                    {pointsIn.length > 0 && <path d={pathD(pointsIn)} fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />}
+                    {pointsOut.length > 0 && <path d={pathD(pointsOut)} fill="none" stroke="#f43f5e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />}
 
-                    {/* Decorative dots for hover points */}
+                    {/* Decorative dots for latest points */}
                     {trends.length > 0 && (
                       <>
-                        <circle cx={pointsIn[pointsIn.length - 1].x} cy={pointsIn[pointsIn.length - 1].y} r="4" fill="#10b981" stroke="#fff" strokeWidth="1.5" />
-                        <circle cx={pointsOut[pointsOut.length - 1].x} cy={pointsOut[pointsOut.length - 1].y} r="4" fill="#ef4444" stroke="#fff" strokeWidth="1.5" />
+                        <circle cx={pointsIn[pointsIn.length - 1].x} cy={pointsIn[pointsIn.length - 1].y} r="4.5" fill="#10b981" stroke="#fff" strokeWidth="2" />
+                        <circle cx={pointsOut[pointsOut.length - 1].x} cy={pointsOut[pointsOut.length - 1].y} r="4.5" fill="#f43f5e" stroke="#fff" strokeWidth="2" />
                       </>
                     )}
                   </svg>
@@ -314,33 +414,52 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Top Moving Products (Horizontal Bar Chart) */}
-        <Card className="lg:col-span-2 border-slate-200 dark:border-slate-800 flex flex-col justify-between">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg text-wrap-balance">Top Moving Products</CardTitle>
-            <p className="text-xs text-slate-500 dark:text-slate-400 text-wrap-pretty">Products with highest volume sold in 30 days</p>
+        {/* Top Moving Products */}
+        <Card className="lg:col-span-2 flex flex-col justify-between">
+          <CardHeader className="pb-3 border-b border-slate-100 dark:border-[#26334d]">
+            <CardTitle className="text-sm sm:text-base font-bold text-slate-900 dark:text-slate-100">Top Moving Products</CardTitle>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Highest sales volume products in 30 days</p>
           </CardHeader>
-          <CardContent className="flex-1 p-4 space-y-4">
+          <CardContent className="flex-1 p-4 sm:p-6 flex flex-col justify-center">
             {(!data.top_moving_products || data.top_moving_products.length === 0) ? (
-              <div className="h-48 flex flex-col items-center justify-center text-sm text-slate-400 dark:text-slate-500">
-                <span className="text-wrap-pretty">No sales data found.</span>
+              <div className="py-8 sm:py-10 flex flex-col items-center justify-center text-center border border-dashed border-slate-200 dark:border-[#26334d] bg-slate-50/50 dark:bg-[#0e1526]/50 rounded-xl p-4">
+                <div className="w-11 h-11 rounded-xl bg-slate-100 dark:bg-[#1a243b] flex items-center justify-center text-slate-400 dark:text-slate-400 mb-3 border border-slate-200/80 dark:border-[#2e3e5f]">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007zM8.625 10.5a.375.375 0 11-.75 0 .375.375 0 01.75 0zm7.5 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+                  </svg>
+                </div>
+                <h4 className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200 mb-1">No Product Sales Yet</h4>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 max-w-xs mb-3.5">
+                  Top performing items and sales volume leaderboards will appear here.
+                </p>
+                <Link
+                  to="/products"
+                  className="inline-flex items-center gap-1 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-200 hover:bg-slate-300 dark:bg-[#1f2b44] dark:hover:bg-[#283858] text-slate-800 dark:text-slate-100 transition-colors"
+                >
+                  View Product Catalog
+                </Link>
               </div>
             ) : (() => {
               const items = data.top_moving_products;
               const maxVol = Math.max(...items.map(item => item.sales_volume), 1);
               return (
-                <div className="space-y-3.5 mt-2">
+                <div className="space-y-3.5">
                   {items.map((item, idx) => {
-                    const widthPercent = Math.max((item.sales_volume / maxVol) * 100, 5);
+                    const widthPercent = Math.max((item.sales_volume / maxVol) * 100, 8);
                     return (
                       <div key={item.id} className="space-y-1">
                         <div className="flex justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
-                          <span className="truncate pr-4 text-wrap-pretty">{idx + 1}. {item.name} {item.model ? `(${item.model})` : ''}</span>
-                          <span className="font-bold flex-shrink-0">{item.sales_volume} sold</span>
+                          <span className="truncate pr-3">
+                            <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] mr-1.5 font-bold">
+                              {idx + 1}
+                            </span>
+                            {item.name} {item.model ? `(${item.model})` : ''}
+                          </span>
+                          <span className="font-bold text-emerald-600 dark:text-emerald-400 flex-shrink-0">{item.sales_volume} sold</span>
                         </div>
-                        <div className="h-2.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                        <div className="h-2 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                           <div 
-                            className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                            className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-500"
                             style={{ width: `${widthPercent}%` }}
                           />
                         </div>
@@ -354,92 +473,125 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Main Sections Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
+      {/* Main Tables Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         
         {/* Recent Reviews Table */}
-        <Card className="lg:col-span-3 flex flex-col h-full border-slate-200 dark:border-slate-800">
-          <CardHeader className="flex flex-row items-center justify-between border-b border-slate-100 dark:border-slate-900 pb-3">
-            <CardTitle className="text-lg text-wrap-balance">Orders Awaiting Review</CardTitle>
-            <Link to="/review" className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors border border-slate-200 bg-white hover:bg-slate-100 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-950 dark:hover:bg-slate-800 dark:hover:text-slate-50 h-8 px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 dark:focus-visible:ring-slate-300">
+        <Card className="lg:col-span-3 flex flex-col h-full">
+          <CardHeader className="flex flex-row items-center justify-between border-b border-slate-100 dark:border-[#26334d] pb-3">
+            <div>
+              <CardTitle className="text-sm sm:text-base font-bold text-slate-900 dark:text-slate-100">Orders Awaiting Review</CardTitle>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Orders flagged for split or manual resolution</p>
+            </div>
+            <Link 
+              to="/review" 
+              className="inline-flex items-center justify-center rounded-lg text-xs font-semibold border border-slate-200 dark:border-[#26334d] bg-white dark:bg-[#1a243b] hover:bg-slate-50 dark:hover:bg-[#22304e] text-slate-700 dark:text-slate-200 h-8 px-3 transition-colors shadow-2xs"
+            >
               View All
             </Link>
           </CardHeader>
-          <CardContent className="flex-1 p-0 overflow-auto">
-            <table className="w-full text-left text-sm border-collapse">
-              <thead>
-                <tr className="border-b border-slate-100 dark:border-slate-900 bg-slate-50/50 dark:bg-slate-900/20">
-                  <th className="h-8 px-3 font-semibold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider">Order ID</th>
-                  <th className="h-8 px-3 font-semibold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider">Product Raw</th>
-                  <th className="h-8 px-3 font-semibold text-xs text-slate-500 dark:text-slate-400 text-right uppercase tracking-wider">Qty</th>
-                  <th className="h-8 px-3 font-semibold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider">Expedition</th>
-                  <th className="h-8 px-3 font-semibold text-xs text-slate-500 dark:text-slate-400 text-center uppercase tracking-wider">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(!data.recent_reviews || data.recent_reviews.length === 0) ? (
-                  <tr>
-                    <td colSpan={5} className="text-center text-xs text-slate-500 py-12 text-wrap-pretty">
-                      No flagged orders needing review.
-                    </td>
+          <CardContent className="flex-1 p-0 overflow-x-auto">
+            {(!data.recent_reviews || data.recent_reviews.length === 0) ? (
+              <div className="py-10 flex flex-col items-center justify-center text-center px-4">
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-2.5 border border-emerald-100 dark:border-emerald-800/50">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                  </svg>
+                </div>
+                <p className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200">No Orders Needing Review</p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  All imported orders have matching SKUs and clean fulfillment statuses.
+                </p>
+              </div>
+            ) : (
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-100 dark:border-[#26334d] bg-slate-50/75 dark:bg-[#0e1526]">
+                    <th className="h-9 px-4 font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Order ID</th>
+                    <th className="h-9 px-4 font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Product Raw</th>
+                    <th className="h-9 px-4 font-bold text-slate-500 dark:text-slate-400 text-right uppercase tracking-wider">Qty</th>
+                    <th className="h-9 px-4 font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Expedition</th>
+                    <th className="h-9 px-4 font-bold text-slate-500 dark:text-slate-400 text-center uppercase tracking-wider">Action</th>
                   </tr>
-                ) : (
-                  data.recent_reviews.map((o) => (
-                    <tr key={o.order_id} className="border-b border-slate-100 dark:border-slate-900 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
-                      <td className="px-3 py-1.5 font-mono text-xs text-slate-600 dark:text-slate-400">
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-[#26334d]">
+                  {data.recent_reviews.map((o) => (
+                    <tr key={o.order_id} className="hover:bg-slate-50/80 dark:hover:bg-[#1a243b]/60 transition-colors">
+                      <td className="px-4 py-3 font-mono text-slate-600 dark:text-slate-300 font-medium">
                         {o.order_id}
                       </td>
-                      <td className="px-3 py-1.5 font-medium text-xs text-slate-900 dark:text-slate-100 max-w-[150px] truncate text-wrap-pretty" title={o.product_name_raw}>
+                      <td className="px-4 py-3 font-medium text-slate-900 dark:text-slate-100 max-w-[180px] truncate" title={o.product_name_raw}>
                         {o.product_name_raw}
                       </td>
-                      <td className="px-3 py-1.5 text-xs text-right">
+                      <td className="px-4 py-3 text-right font-bold text-slate-800 dark:text-slate-200">
                         {o.quantity}
                       </td>
-                      <td className="px-3 py-1.5 text-xs text-slate-500 dark:text-slate-400 text-wrap-pretty">
+                      <td className="px-4 py-3 text-slate-500 dark:text-slate-400">
                         {o.expedition || '-'}
                       </td>
-                      <td className="px-3 py-1.5 text-center">
-                        <Link to="/review" className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium transition-colors border border-slate-200 bg-white hover:bg-slate-100 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-950 dark:hover:bg-slate-800 dark:hover:text-slate-50 h-7 px-2.5 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 dark:focus-visible:ring-slate-300">
-                          Review
+                      <td className="px-4 py-3 text-center">
+                        <Link 
+                          to="/review" 
+                          className="inline-flex items-center justify-center rounded-lg font-semibold border border-sky-200 dark:border-sky-800/60 bg-sky-50 dark:bg-sky-950/50 hover:bg-sky-100 dark:hover:bg-sky-900/70 text-sky-700 dark:text-sky-300 h-7 px-2.5 text-xs transition-colors"
+                        >
+                          Resolve
                         </Link>
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </CardContent>
         </Card>
 
         {/* Recent Imports Table */}
-        <Card className="lg:col-span-2 flex flex-col h-full border-slate-200 dark:border-slate-800">
-          <CardHeader className="flex flex-row items-center justify-between border-b border-slate-100 dark:border-slate-900 pb-3">
-            <CardTitle className="text-lg text-wrap-balance">Imports History</CardTitle>
-            <Link to="/import" className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors border border-slate-200 bg-white hover:bg-slate-100 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-950 dark:hover:bg-slate-800 dark:hover:text-slate-50 h-8 px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 dark:focus-visible:ring-slate-300">
-              New Import
+        <Card className="lg:col-span-2 flex flex-col h-full">
+          <CardHeader className="flex flex-row items-center justify-between border-b border-slate-100 dark:border-[#26334d] pb-3">
+            <div>
+              <CardTitle className="text-sm sm:text-base font-bold text-slate-900 dark:text-slate-100">Imports History</CardTitle>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Recent batch synchronization logs</p>
+            </div>
+            <Link 
+              to="/import" 
+              className="inline-flex items-center justify-center rounded-lg text-xs font-semibold bg-sky-600 hover:bg-sky-500 text-white h-8 px-3 transition-colors shadow-xs"
+            >
+              + New Import
             </Link>
           </CardHeader>
-          <CardContent className="flex-1 p-0 overflow-auto">
-            <table className="w-full text-left text-sm border-collapse">
-              <thead>
-                <tr className="border-b border-slate-100 dark:border-slate-900 bg-slate-50/50 dark:bg-slate-900/20">
-                  <th className="h-8 px-3 font-semibold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider">Date</th>
-                  <th className="h-8 px-3 font-semibold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider">Source</th>
-                  <th className="h-8 px-3 font-semibold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(!data.recent_imports || data.recent_imports.length === 0) ? (
-                  <tr>
-                    <td colSpan={3} className="text-center text-xs text-slate-500 py-12 text-wrap-pretty">
-                      No import history found.
-                    </td>
+          <CardContent className="flex-1 p-0 overflow-x-auto">
+            {(!data.recent_imports || data.recent_imports.length === 0) ? (
+              <div className="py-10 flex flex-col items-center justify-center text-center px-4">
+                <div className="w-10 h-10 rounded-xl bg-sky-50 dark:bg-sky-950/50 text-sky-600 dark:text-sky-400 flex items-center justify-center mb-2.5 border border-sky-100 dark:border-sky-800/50">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                  </svg>
+                </div>
+                <p className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200">No Import Records Found</p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 mb-3">
+                  Upload marketplace Excel or CSV files to populate inventory.
+                </p>
+                <Link
+                  to="/import"
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-200 hover:bg-slate-300 dark:bg-[#1f2b44] dark:hover:bg-[#283858] text-slate-800 dark:text-slate-100 transition-colors"
+                >
+                  Start Import →
+                </Link>
+              </div>
+            ) : (
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-100 dark:border-[#26334d] bg-slate-50/75 dark:bg-[#0e1526]">
+                    <th className="h-9 px-4 font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Date</th>
+                    <th className="h-9 px-4 font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Source</th>
+                    <th className="h-9 px-4 font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Status</th>
                   </tr>
-                ) : (
-                  data.recent_imports.map((s) => {
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-[#26334d]">
+                  {data.recent_imports.map((s) => {
                     let statusClass = 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300';
-                    if (s.status === 'applied') statusClass = 'bg-green-50 text-green-700 border border-green-100 dark:bg-green-950/20 dark:text-green-400 dark:border-green-900/30';
-                    if (s.status === 'cancelled') statusClass = 'bg-red-50 text-red-700 border border-red-100 dark:bg-red-950/20 dark:text-red-400 dark:border-red-900/30';
+                    if (s.status === 'applied') statusClass = 'bg-emerald-50 text-emerald-700 border border-emerald-200/60 dark:bg-emerald-950/50 dark:text-emerald-400 dark:border-emerald-800/50';
+                    if (s.status === 'cancelled') statusClass = 'bg-rose-50 text-rose-700 border border-rose-200/60 dark:bg-rose-950/50 dark:text-rose-400 dark:border-rose-800/50';
 
                     const dateStr = s.created_at
                       ? new Date(typeof s.created_at === 'string' ? s.created_at.replace(/-/g, '/') : s.created_at).toLocaleDateString('en-US', {
@@ -451,24 +603,24 @@ export default function Dashboard() {
                       : '-';
 
                     return (
-                      <tr key={s.id || s.created_at} className="border-b border-slate-100 dark:border-slate-900 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
-                        <td className="px-3 py-1.5 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                      <tr key={s.id || s.created_at} className="hover:bg-slate-50/80 dark:hover:bg-[#1a243b]/60 transition-colors">
+                        <td className="px-4 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">
                           {dateStr}
                         </td>
-                        <td className="px-3 py-1.5 font-medium text-xs text-slate-900 dark:text-slate-100 truncate max-w-[120px]" title={s.filename}>
+                        <td className="px-4 py-3 font-medium text-slate-900 dark:text-slate-100 truncate max-w-[130px]" title={s.filename}>
                           {s.filename || s.template_name}
                         </td>
-                        <td className="px-3 py-1.5 text-xs whitespace-nowrap">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${statusClass}`}>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold ${statusClass}`}>
                             {s.total_rows} ({s.status})
                           </span>
                         </td>
                       </tr>
                     );
-                  })
-                )}
-              </tbody>
-            </table>
+                  })}
+                </tbody>
+              </table>
+            )}
           </CardContent>
         </Card>
       </div>
