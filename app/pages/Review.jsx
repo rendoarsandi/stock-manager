@@ -11,19 +11,6 @@ export default function Review() {
   const [resolveType, setResolveType] = useState('');
   const [resolveNotes, setResolveNotes] = useState('');
 
-  // Local state for select dropdowns & quantities of ambiguous items
-  const [ambiguousSelections, setAmbiguousSelections] = useState({});
-
-  // Fetch products (for catalog mapping dropdown)
-  const { data: products = [] } = useQuery({
-    queryKey: ['products'],
-    queryFn: async () => {
-      const res = await fetch('/api/products');
-      if (!res.ok) throw new Error('Failed to fetch products');
-      return res.json();
-    },
-  });
-
   // Fetch review orders
   const { data: reviewOrders = [], isLoading: isLoadingOrders, error: errorOrders } = useQuery({
     queryKey: ['reviewOrders'],
@@ -34,28 +21,17 @@ export default function Review() {
     }
   });
 
-  // Fetch ambiguous items
-  const { data: ambiguousItems = [], isLoading: isLoadingAmbiguous, error: errorAmbiguous } = useQuery({
-    queryKey: ['ambiguousItems'],
-    queryFn: async () => {
-      const res = await fetch('/api/review/ambiguous');
-      if (!res.ok) throw new Error('Failed to fetch ambiguous items');
-      return res.json();
-    }
-  });
-
   // Handle errors
   useEffect(() => {
-    if (errorOrders || errorAmbiguous) {
-      showToast('Error', 'Failed to load review data', 'error');
+    if (errorOrders) {
+      showToast('Error', 'Failed to load review orders', 'error');
     }
-  }, [errorOrders, errorAmbiguous]);
+  }, [errorOrders]);
 
   // REST resync invalidations
   useEffect(() => {
     const handleResync = () => {
       queryClient.invalidateQueries({ queryKey: ['reviewOrders'] });
-      queryClient.invalidateQueries({ queryKey: ['ambiguousItems'] });
     };
 
     window.addEventListener('resync-data', handleResync);
@@ -89,28 +65,6 @@ export default function Review() {
     },
   });
 
-  const confirmSplitMutation = useMutation({
-    mutationFn: async ({ item_id, product_id, quantity }) => {
-      const res = await fetch('/api/review/confirm-split', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ item_id, product_id, quantity }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.message || 'Mapping failed');
-      }
-      return res.json();
-    },
-    onSuccess: () => {
-      showToast('Mapped', 'Item mapped and stock movement registered', 'success');
-      queryClient.invalidateQueries({ queryKey: ['ambiguousItems'] });
-    },
-    onError: (err) => {
-      showToast('Error', err.message, 'error');
-    },
-  });
-
   // Modal controls
   const openResolveModal = (order) => {
     setResolveTargetOrder(order);
@@ -137,53 +91,8 @@ export default function Review() {
     });
   };
 
-  // Ambiguous item local state handlers
-  const handleAmbSelectChange = (itemId, productId) => {
-    setAmbiguousSelections((prev) => ({
-      ...prev,
-      [itemId]: {
-        ...prev[itemId],
-        productId: productId,
-      },
-    }));
-  };
-
-  const handleAmbQtyChange = (itemId, quantity) => {
-    setAmbiguousSelections((prev) => ({
-      ...prev,
-      [itemId]: {
-        ...prev[itemId],
-        quantity: quantity,
-      },
-    }));
-  };
-
-  const handleConfirmSplit = (item) => {
-    const selection = ambiguousSelections[item.id];
-    const productId = selection?.productId;
-    const quantity = selection?.quantity ?? item.quantity;
-
-    if (!productId) {
-      showToast('Warning', 'Please select a catalog product first', 'warning');
-      return;
-    }
-
-    const qtyVal = parseInt(quantity, 10);
-    if (isNaN(qtyVal) || qtyVal <= 0) {
-      showToast('Warning', 'Quantity must be a positive number', 'warning');
-      return;
-    }
-
-    confirmSplitMutation.mutate({
-      item_id: item.id,
-      product_id: parseInt(productId, 10),
-      quantity: qtyVal,
-    });
-  };
-
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: ['reviewOrders'] });
-    queryClient.invalidateQueries({ queryKey: ['ambiguousItems'] });
   };
 
   return (
@@ -204,68 +113,64 @@ export default function Review() {
             <thead>
               <tr>
                 <th>Order ID</th>
-                <th>Buyer & Expedition</th>
-                <th>Raw Product Name</th>
-                <th>Qty</th>
-                <th>Courier Status</th>
-                <th>Seeded Items Split</th>
+                <th>Resi Number</th>
+                <th>Product Description</th>
+                <th>Quantity</th>
+                <th>Order Status</th>
+                <th>Review Reason</th>
                 <th>Action</th>
               </tr>
             </thead>
-            <tbody id="cancelled-orders-table-body">
+            <tbody id="review-orders-table-body">
               {isLoadingOrders ? (
                 <tr>
                   <td colSpan={7} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
-                    Loading flagged orders...
+                    Loading review orders...
                   </td>
                 </tr>
               ) : reviewOrders.length === 0 ? (
                 <tr>
                   <td colSpan={7} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
-                    No flagged orders require review. Good job!
+                    No flagged orders found. All operational flows normal.
                   </td>
                 </tr>
               ) : (
                 reviewOrders.map((o) => {
-                  const splitsHtml = o.items ? (
-                    o.items.map((item, idx) => (
-                      <div key={item.id || idx} style={{ fontSize: '0.8rem', marginBottom: '0.25rem' }}>
-                        <strong>{item.quantity}x</strong> {item.product_name}{' '}
-                        {item.is_confirmed === 0 && (
-                          <span className="status-tag warning" style={{ fontSize: '0.6rem', padding: '0.1rem 0.25rem' }}>
-                            Unmapped
+                  return (
+                    <tr key={o.order_id || o.id}>
+                      <td style={{ fontFamily: 'monospace', fontWeight: 600 }}>{o.order_id}</td>
+                      <td style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>{o.resi_number || '-'}</td>
+                      <td style={{ maxWidth: '300px' }}>
+                        <div style={{ fontWeight: 500 }}>{o.product_name_raw || o.product_name || '-'}</div>
+                        {o.sku_ref && (
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                            SKU: {o.sku_ref}
                           </span>
                         )}
-                      </div>
-                    ))
-                  ) : (
-                    <span style={{ color: 'var(--danger)', fontSize: '0.8rem' }}>No items mapped!</span>
-                  );
-
-                  return (
-                    <tr key={o.id}>
-                      <td style={{ fontFamily: 'monospace', fontSize: '0.85rem', fontWeight: 600 }}>{o.order_id}</td>
-                      <td>
-                        <div style={{ fontSize: '0.85rem', fontWeight: 500 }}>{o.customer_name || 'Anonymous'}</div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{o.expedition || 'Unknown Courier'}</div>
-                      </td>
-                      <td
-                        style={{
-                          fontSize: '0.85rem',
-                          maxWidth: '200px',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}
-                        title={o.product_name_raw}
-                      >
-                        {o.product_name_raw}
                       </td>
                       <td style={{ fontWeight: 600 }}>{o.quantity}</td>
                       <td>
-                        <span className="status-tag warning">{o.order_status}</span>
+                        <span className={`badge ${
+                          o.order_status?.toLowerCase().includes('batal') || o.order_status?.toLowerCase().includes('cancel')
+                            ? 'badge-danger'
+                            : o.order_status?.toLowerCase().includes('return')
+                            ? 'badge-warning'
+                            : 'badge-neutral'
+                        }`}>
+                          {o.order_status}
+                        </span>
                       </td>
-                      <td>{splitsHtml}</td>
+                      <td>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                          {o.cancellation_reason || o.cancel_return_status || (
+                            o.order_status?.toLowerCase().includes('batal')
+                              ? 'Order cancelled by buyer/system'
+                              : o.order_status?.toLowerCase().includes('return')
+                              ? 'Customer return request'
+                              : 'System flagged review'
+                          )}
+                        </div>
+                      </td>
                       <td>
                         <button className="btn btn-primary btn-sm btn-resolve-order" onClick={() => openResolveModal(o)}>
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -274,99 +179,6 @@ export default function Review() {
                             <line x1="12" y1="17" x2="12.01" y2="17" />
                           </svg>
                           Resolve
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* 2. Ambiguous Items Section */}
-      <div className="section-card">
-        <div className="section-header">
-          <h2>Ambiguous Product Names (Awaiting Mapping)</h2>
-        </div>
-        <div className="table-wrapper">
-          <table>
-            <thead>
-              <tr>
-                <th>Order ID</th>
-                <th>Raw Name from Excel</th>
-                <th>Order Date</th>
-                <th>Suggest Quantity</th>
-                <th>Select Catalog Mapping</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody id="ambiguous-orders-table-body">
-              {isLoadingAmbiguous ? (
-                <tr>
-                  <td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
-                    Loading ambiguous items...
-                  </td>
-                </tr>
-              ) : ambiguousItems.length === 0 ? (
-                <tr>
-                  <td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
-                    No ambiguous items require mapping. Excellent!
-                  </td>
-                </tr>
-              ) : (
-                ambiguousItems.map((item) => {
-                  const currentSelection = ambiguousSelections[item.id] || {};
-                  const currentProductId = currentSelection.productId || '';
-                  const currentQty = currentSelection.quantity ?? item.quantity;
-
-                  return (
-                    <tr key={item.id}>
-                      <td style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>{item.order_id}</td>
-                      <td style={{ fontSize: '0.85rem', fontWeight: 500, maxWidth: '250px' }}>
-                        {item.original_text || item.product_name_raw}
-                      </td>
-                      <td style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{item.order_date}</td>
-                      <td>
-                        <input
-                          type="number"
-                          className="amb-qty-input"
-                          value={currentQty}
-                          min="1"
-                          style={{ width: '70px', padding: '0.25rem', fontSize: '0.85rem' }}
-                          onChange={(e) => handleAmbQtyChange(item.id, parseInt(e.target.value, 10) || 1)}
-                        />
-                      </td>
-                      <td>
-                        <select
-                          className="amb-product-select"
-                          style={{
-                            width: '100%',
-                            maxWidth: '250px',
-                            padding: '0.25rem',
-                            fontSize: '0.85rem',
-                            borderColor: currentProductId ? '' : 'var(--warning)',
-                            backgroundColor: currentProductId ? '' : 'var(--warning-light)',
-                          }}
-                          value={currentProductId}
-                          onChange={(e) => handleAmbSelectChange(item.id, e.target.value)}
-                        >
-                          <option value="">-- Choose matching product --</option>
-                          {products.map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.name} ({p.model})
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td>
-                        <button
-                          className="btn btn-primary btn-sm btn-confirm-split"
-                          onClick={() => handleConfirmSplit(item)}
-                          disabled={confirmSplitMutation.isPending}
-                        >
-                          {confirmSplitMutation.isPending && confirmSplitMutation.variables?.item_id === item.id ? '⌛...' : 'Confirm'}
                         </button>
                       </td>
                     </tr>

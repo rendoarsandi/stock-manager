@@ -2080,36 +2080,7 @@ async function handleResolveReviewOrder(req) {
 }
 
 export function handleReviewAmbiguousEffect(req) {
-  return Effect.gen(function* () {
-    const orderItemsList = yield* Effect.tryPromise({
-      try: () => db.orderItems.list(),
-      catch: (error) => new Error(`Database query failed: ${error.message}`)
-    });
-    const ordersList = yield* Effect.tryPromise({
-      try: () => db.orders.list(),
-      catch: (error) => new Error(`Database query failed: ${error.message}`)
-    });
-
-    const orderMap = new Map(ordersList.map(o => [o.id, o]));
-
-    const filtered = orderItemsList
-      .filter(oi => oi.is_confirmed === 0)
-      .map(oi => {
-        const order = orderMap.get(oi.order_id);
-        return {
-          ...oi,
-          order_id: order ? order.order_id : null,
-          product_name_raw: order ? order.product_name_raw : null,
-          order_qty: order ? order.quantity : null,
-          customer_name: order ? order.customer_name : null,
-          order_date: order ? order.order_date : null,
-          created_at: order ? order.created_at : oi.created_at
-        };
-      });
-
-    filtered.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    return filtered;
-  });
+  return Effect.succeed([]);
 }
 
 async function handleReviewAmbiguous(req) {
@@ -2234,11 +2205,7 @@ export function handleDashboardStatsEffect(req) {
     });
     const pendingReviewCount = pendingReviewRes[0]?.count || 0;
 
-    const ambiguousRes = yield* Effect.tryPromise({
-      try: () => storage.query("SELECT COUNT(*) AS count FROM order_items WHERE is_confirmed = 0"),
-      catch: (err) => new Error(`ambiguous query failed: ${err.message}`)
-    });
-    const ambiguousCount = ambiguousRes[0]?.count || 0;
+    const ambiguousCount = 0;
 
     const recentReviews = yield* Effect.tryPromise({
       try: () => storage.query(

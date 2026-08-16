@@ -30,9 +30,10 @@ async function runTests() {
       const sheetData = [
         {
           "No. Pesanan": "ORD-REV-100",
-          "Nama Produk": "Korek Api Super Misterius", // split unmapped
-          "Jumlah": 1,
-          "Status Pesanan": "Selesai" // normal status
+          "Nama Produk": "Korek Api Model A", // direct SKU match
+          "Jumlah": 2,
+          "Status Pesanan": "Selesai",
+          "Nomor Referensi SKU": "Model A"
         },
         {
           "No. Pesanan": "ORD-REV-200",
@@ -90,7 +91,7 @@ async function runTests() {
         throw new Error("Expected ORD-REV-200 to be found needing review");
       }
 
-      // 2. Get Ambiguous Items Awaiting Mapping
+      // 2. Verify Ambiguous Items endpoint returns empty list (SKU direct mode)
       console.log("\nTesting GET /api/review/ambiguous...");
       const resAmbiguous = await app.request('/api/review/ambiguous', {
         headers: { 'Cookie': adminCookie }
@@ -99,47 +100,9 @@ async function runTests() {
         throw new Error("Failed fetching ambiguous items");
       }
       const ambiguousItems = await resAmbiguous.json();
-      console.log("Ambiguous items awaiting mapping count:", ambiguousItems.length);
-      const targetItem = ambiguousItems.find(i => i.order_id === 'ORD-REV-100');
-      if (!targetItem) {
-        throw new Error("Expected ORD-REV-100 item to be found awaiting mapping");
-      }
-      
-      // Model A Initial Stock: check current value
-      const initialProdA = await db.products.get(1);
-      console.log("Model A initial stock before confirm split:", initialProdA.current_stock);
-
-      // We map it to Model A (product_id: 1) with quantity: 5
-      const resConfirmSplit = await app.request('/api/review/confirm-split', {
-        method: 'POST',
-        headers: { 
-          'Cookie': adminCookie,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          item_id: targetItem.id,
-          product_id: 1, // Model A
-          quantity: 5
-        })
-      });
-
-      if (resConfirmSplit.status !== 200) {
-        const err = await resConfirmSplit.json();
-        throw new Error(`Confirm split failed: ${JSON.stringify(err)}`);
-      }
-
-      // Verify DB update
-      const updatedItem = await db.orderItems.get(targetItem.id);
-      console.log("Mapped item status is_confirmed:", updatedItem.is_confirmed);
-      if (updatedItem.is_confirmed !== 1 || updatedItem.product_id !== 1 || updatedItem.quantity !== 5) {
-        throw new Error("Item mapping values in DB incorrect");
-      }
-
-      // Verify stock deduction (Model A stock should decrease by 5)
-      const prodA = await db.products.get(1);
-      console.log("Model A stock after confirm split:", prodA.current_stock);
-      if (prodA.current_stock !== initialProdA.current_stock - 5) {
-        throw new Error("Model A stock deduction check failed");
+      console.log("Ambiguous items count:", ambiguousItems.length);
+      if (!Array.isArray(ambiguousItems) || ambiguousItems.length !== 0) {
+        throw new Error("Expected 0 ambiguous items in SKU direct mode");
       }
 
       // 4. Resolve Flagged Cancelled Order as 'returned'
