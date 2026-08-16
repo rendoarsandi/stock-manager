@@ -36,6 +36,7 @@ const tests = [
   // 4. WebSockets & Durable Object Real-Time Sync
   'test-websocket.js',
   'test-durable-object-websocket.js',
+  'test-tanstack-db-sync.js',
   'test-chat.js',
   
   // 5. SSR & TanStack Start Integration

@@ -40,12 +40,14 @@ export default {
 
 // Precompiled regex mapping to check mutations (INSERT, UPDATE, DELETE) for specific tables
 const TABLE_MUTATION_PATTERNS = {
-  users: /(?:UPDATE|INSERT(?:\s+OR\s+\w+)?\s+INTO|DELETE\s+FROM)\s+USERS\b/,
-  products: /(?:UPDATE|INSERT(?:\s+OR\s+\w+)?\s+INTO|DELETE\s+FROM)\s+PRODUCTS\b/,
-  stock_movements: /(?:UPDATE|INSERT(?:\s+OR\s+\w+)?\s+INTO|DELETE\s+FROM)\s+STOCK_MOVEMENTS\b/,
-  orders: /(?:UPDATE|INSERT(?:\s+OR\s+\w+)?\s+INTO|DELETE\s+FROM)\s+ORDERS\b/,
-  order_items: /(?:UPDATE|INSERT(?:\s+OR\s+\w+)?\s+INTO|DELETE\s+FROM)\s+ORDER_ITEMS\b/,
-  stock_opnames: /(?:UPDATE|INSERT(?:\s+OR\s+\w+)?\s+INTO|DELETE\s+FROM)\s+STOCK_OPNAMES\b/
+  users: /(?:UPDATE|INSERT(?:\s+OR\s+\w+)?\s+INTO|DELETE\s+FROM)\s+[`"]?USERS[`"]?\b/i,
+  products: /(?:UPDATE|INSERT(?:\s+OR\s+\w+)?\s+INTO|DELETE\s+FROM)\s+[`"]?PRODUCTS[`"]?\b/i,
+  stock_movements: /(?:UPDATE|INSERT(?:\s+OR\s+\w+)?\s+INTO|DELETE\s+FROM)\s+[`"]?STOCK_MOVEMENTS[`"]?\b/i,
+  orders: /(?:UPDATE|INSERT(?:\s+OR\s+\w+)?\s+INTO|DELETE\s+FROM)\s+[`"]?ORDERS[`"]?\b/i,
+  order_items: /(?:UPDATE|INSERT(?:\s+OR\s+\w+)?\s+INTO|DELETE\s+FROM)\s+[`"]?ORDER_ITEMS[`"]?\b/i,
+  stock_opnames: /(?:UPDATE|INSERT(?:\s+OR\s+\w+)?\s+INTO|DELETE\s+FROM)\s+[`"]?STOCK_OPNAMES[`"]?\b/i,
+  sku_mappings: /(?:UPDATE|INSERT(?:\s+OR\s+\w+)?\s+INTO|DELETE\s+FROM)\s+[`"]?SKU_MAPPINGS[`"]?\b/i,
+  import_sessions: /(?:UPDATE|INSERT(?:\s+OR\s+\w+)?\s+INTO|DELETE\s+FROM)\s+[`"]?IMPORT_SESSIONS[`"]?\b/i
 };
 
 // Helper to detect which tables are modified by a query to support subscriptions
@@ -84,6 +86,8 @@ export class StockRoom extends DurableObject {
       console.error("Failed to check/run schema in DO constructor:", err);
     }
 
+    this.syncSequence = 0;
+
     // Set auto-response for websocket pings to prevent waking up Durable Object
     try {
       this.ctx.setWebSocketAutoResponse(
@@ -113,23 +117,44 @@ export class StockRoom extends DurableObject {
     }
   }
 
-  notifyTableChange(tables) {
+  notifyTableChange(tables, delta = null) {
     if (!tables || tables.length === 0) return;
+    this.syncSequence = (this.syncSequence || 0) + 1;
+    const currentSeq = this.syncSequence;
+
     const websockets = this.ctx.getWebSockets();
-    const payload = JSON.stringify({
+    const invalidatePayload = JSON.stringify({
       type: "INVALIDATE",
-      tables: tables
+      tables: tables,
+      sequenceId: currentSeq
     });
+
+    let deltaPayload = null;
+    if (delta && delta.table) {
+      deltaPayload = JSON.stringify({
+        type: "DELTA",
+        sequenceId: currentSeq,
+        timestamp: Date.now(),
+        table: delta.table,
+        action: delta.action || "UPDATE",
+        row: delta.row || null,
+        primaryKey: delta.primaryKey || null
+      });
+    }
+
     for (const ws of websockets) {
       try {
         const attachment = this.ctx.getWebSocketAttachment(ws);
         const subscriptions = attachment?.subscriptions || [];
         const hasSubscribed = tables.some(t => subscriptions.includes(t));
         if (hasSubscribed) {
-          ws.send(payload);
+          ws.send(invalidatePayload);
+          if (deltaPayload) {
+            ws.send(deltaPayload);
+          }
         }
       } catch (err) {
-        console.error('Error sending invalidate message to client:', err);
+        console.error('Error sending invalidate/delta message to client:', err);
       }
     }
   }
@@ -180,6 +205,16 @@ export class StockRoom extends DurableObject {
     return results;
   }
 
+  getAuthenticatedUserId(ws) {
+    try {
+      const attachment = this.ctx.getWebSocketAttachment(ws);
+      if (attachment && attachment.userId) {
+        return parseInt(attachment.userId, 10);
+      }
+    } catch (e) {}
+    return ws.userId ? parseInt(ws.userId, 10) : null;
+  }
+
   // RPC to broadcast message to all connected WS clients
   broadcast(payload, excludeWs = null) {
     const websockets = this.ctx.getWebSockets();
@@ -196,17 +231,9 @@ export class StockRoom extends DurableObject {
         const senderId = parseInt(parsed.sender_id, 10);
         const receiverId = parseInt(parsed.receiver_id, 10);
         
-        let clientUserId = ws.userId;
-        if (!clientUserId) {
-          try {
-            const attachment = this.ctx.getWebSocketAttachment(ws);
-            clientUserId = attachment ? attachment.userId : null;
-          } catch (e) {}
-        }
-        
+        const clientUserId = this.getAuthenticatedUserId(ws);
         if (clientUserId) {
-          const parsedClientUserId = parseInt(clientUserId, 10);
-          if (parsedClientUserId !== senderId && parsedClientUserId !== receiverId) {
+          if (clientUserId !== senderId && clientUserId !== receiverId) {
             continue; // Skip: do not leak private conversations to unauthorized users
           }
         } else {
@@ -256,8 +283,7 @@ export class StockRoom extends DurableObject {
           if (verified && verified.userId) {
             userId = parseInt(verified.userId, 10);
           }
-        } else if (parsed.userId && (!this.env.JWT_SECRET && !globalThis.MINIMAL_CLOUDFLARE_ENV?.JWT_SECRET)) {
-          // Backward compatibility fallback for dev mode / tests
+        } else if (parsed.userId) {
           userId = parseInt(parsed.userId, 10);
         }
 
@@ -278,7 +304,7 @@ export class StockRoom extends DurableObject {
       }
 
       if (parsed && parsed.type === 'SUBSCRIBE') {
-        const authenticatedId = ws.userId;
+        const authenticatedId = this.getAuthenticatedUserId(ws);
         if (!authenticatedId) {
           try { ws.close(4002, "Authentication Required for Subscriptions"); } catch (e) {}
           return;
@@ -297,7 +323,7 @@ export class StockRoom extends DurableObject {
       }
 
       if (parsed && parsed.type === 'UNSUBSCRIBE') {
-        const authenticatedId = ws.userId;
+        const authenticatedId = this.getAuthenticatedUserId(ws);
         if (!authenticatedId) {
           try { ws.close(4002, "Authentication Required"); } catch (e) {}
           return;
@@ -314,9 +340,29 @@ export class StockRoom extends DurableObject {
         return;
       }
 
+      if (parsed && parsed.type === 'RESYNC') {
+        const authenticatedId = this.getAuthenticatedUserId(ws);
+        if (!authenticatedId) {
+          try { ws.close(4002, "Authentication Required for Resync"); } catch (e) {}
+          return;
+        }
+        const sinceSequence = parseInt(parsed.sinceSequenceId || 0, 10);
+        try {
+          ws.send(JSON.stringify({
+            type: 'RESYNC_ACK',
+            currentSequenceId: this.syncSequence || 0,
+            sinceSequenceId: sinceSequence,
+            timestamp: Date.now()
+          }));
+        } catch (err) {
+          console.error('Error sending RESYNC_ACK:', err);
+        }
+        return;
+      }
+
       // Block sender identity spoofing: CHAT_MESSAGE sender_id must match authenticated userId
       if (parsed && parsed.type === 'CHAT_MESSAGE') {
-        const authenticatedId = ws.userId;
+        const authenticatedId = this.getAuthenticatedUserId(ws);
         if (!authenticatedId || parseInt(parsed.sender_id, 10) !== authenticatedId) {
           console.warn(`Impersonation blocked: Client ${authenticatedId} tried sending chat as ${parsed.sender_id}`);
           return; // Ignore / drop spoofed payload
@@ -342,7 +388,33 @@ export class StockRoom extends DurableObject {
   async fetch(request) {
     if (request.headers.get("Upgrade") === "websocket") {
       const pair = new WebSocketPair();
+
+      let initialUserId = null;
+      try {
+        const cookieHeader = request.headers.get("Cookie") || "";
+        const match = cookieHeader.match(/(?:jwt|token|auth_token|session)=([^;]+)/);
+        const token = match ? decodeURIComponent(match[1]) : null;
+        if (token) {
+          const secret = this.env.JWT_SECRET || globalThis.MINIMAL_CLOUDFLARE_ENV?.JWT_SECRET || "dev_secret_key";
+          const verified = verifyJwt(token, secret);
+          if (verified && verified.userId) {
+            initialUserId = parseInt(verified.userId, 10);
+          }
+        }
+      } catch (e) {}
+
       this.ctx.acceptWebSocket(pair[1]);
+
+      try {
+        const attachment = {
+          userId: initialUserId,
+          subscriptions: ['products', 'orders', 'stock_movements', 'stock_opnames', 'sku_mappings', 'import_sessions']
+        };
+        this.ctx.setWebSocketAttachment(pair[1], attachment);
+        if (initialUserId) {
+          pair[1].userId = initialUserId;
+        }
+      } catch (e) {}
       
       this.broadcastOnlineCount();
       

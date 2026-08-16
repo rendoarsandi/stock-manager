@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import { dispatchTanStackDbDelta } from '../lib/db.js';
 
 export const WebSocketContext = createContext(null);
 
@@ -37,6 +38,15 @@ export function WebSocketProvider({ children }) {
     ws.onopen = () => {
       console.log('WebSocket connection established.');
       setIsConnected(true);
+      
+      // Subscribe to real-time table updates
+      try {
+        ws.send(JSON.stringify({
+          type: 'SUBSCRIBE',
+          tables: ['products', 'orders', 'stock_movements', 'stock_opnames', 'sku_mappings', 'import_sessions']
+        }));
+      } catch (e) {}
+
       window.dispatchEvent(new CustomEvent('resync-data'));
     };
 
@@ -45,7 +55,11 @@ export function WebSocketProvider({ children }) {
         const data = JSON.parse(event.data);
         if (data.type === 'ONLINE_COUNT') {
           setOnlineCount(data.count);
-        } else if (data.type !== 'CHAT_MESSAGE') {
+        } else if (data.type === 'DELTA') {
+          dispatchTanStackDbDelta(data);
+        } else if (data.type === 'INVALIDATE') {
+          scheduleResync();
+        } else if (data.type !== 'CHAT_MESSAGE' && data.type !== 'RESYNC_ACK') {
           scheduleResync();
         }
 
